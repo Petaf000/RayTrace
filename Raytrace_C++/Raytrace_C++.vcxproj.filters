@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="System">
+      <UniqueIdentifier>{cb46a0ca-037a-4308-8f1b-1ee6fc6ea16b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Raytrace">
+      <UniqueIdentifier>{80711175-b3ad-4d5c-bacb-b0b0e29138a7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GameObject">
+      <UniqueIdentifier>{09ee6c9e-0e78-4416-bc59-604f152c4e41}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{8fc734f7-2c90-41be-9098-0a0b1787d620}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Image">
+      <UniqueIdentifier>{0f44b323-a25d-48eb-8128-fe96e84d09c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Material">
+      <UniqueIdentifier>{099771ba-7985-4ca9-abf8-61c6f98fd739}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Src\main.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Pch.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Scene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Sphere.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ShapeList.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\GammaFilter.h">
+      <Filter>Image</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Lambertian.cpp">
+      <Filter>Material</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Metal.cpp">
+      <Filter>Material</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Dielectric.cpp">
+      <Filter>Material</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Src\main.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Image.h">
+      <Filter>Image</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Pch.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Util.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Ray.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Camera.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Scene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\HitRec.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Shape.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Sphere.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ShapeList.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ImageFilter.h">
+      <Filter>Image</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ScatterRec.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Material.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Lambertian.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Metal.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Dielectric.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
