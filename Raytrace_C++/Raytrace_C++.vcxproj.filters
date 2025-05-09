@@ -19,6 +19,9 @@
     <Filter Include="Material">
       <UniqueIdentifier>{099771ba-7985-4ca9-abf8-61c6f98fd739}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Texture">
+      <UniqueIdentifier>{a1a13cb9-7154-478c-abb0-45ab49f3a6f2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Src\main.cpp">
@@ -47,6 +50,9 @@
     </ClCompile>
     <ClCompile Include="Src\Dielectric.cpp">
       <Filter>Material</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\CheckerTexture.cpp">
+      <Filter>Texture</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -100,6 +106,18 @@
     </ClInclude>
     <ClInclude Include="Src\Dielectric.h">
       <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\CheckerTexture.h">
+      <Filter>Texture</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ColorTexture.h">
+      <Filter>Texture</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ImageTexture.h">
+      <Filter>Texture</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Texture.h">
+      <Filter>Texture</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

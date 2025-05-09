@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\kengo\Desktop\RaytraceNyuumon\Raytrace_C++\external\stb;C:\Users\kengo\Desktop\RaytraceNyuumon\Raytrace_C++\external\sce_vectormath-master\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\External\stb;$(ProjectDir)\External\sce_vectormath-master\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -134,6 +134,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\CheckerTexture.cpp" />
     <ClCompile Include="Src\Dielectric.cpp" />
     <ClCompile Include="Src\GammaFilter.h" />
     <ClCompile Include="Src\main.cpp" />
@@ -148,7 +149,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Camera.h" />
+    <ClInclude Include="Src\CheckerTexture.h" />
+    <ClInclude Include="Src\ColorTexture.h" />
     <ClInclude Include="Src\Dielectric.h" />
+    <ClInclude Include="Src\ImageTexture.h" />
     <ClInclude Include="Src\Lambertian.h" />
     <ClInclude Include="Src\Metal.h" />
     <ClInclude Include="Src\ScatterRec.h" />
@@ -163,6 +167,7 @@
     <ClInclude Include="Src\Shape.h" />
     <ClInclude Include="Src\ShapeList.h" />
     <ClInclude Include="Src\Sphere.h" />
+    <ClInclude Include="Src\Texture.h" />
     <ClInclude Include="Src\Util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -17,6 +17,7 @@ bool Sphere::hit(const Ray& r, float t0, float t1, HitRec& hrec) const {
             hrec.p = r.at(hrec.t);
             hrec.n = ( hrec.p - m_center ) / m_radius;
             hrec.mat = m_material;
+            get_sphere_uv(hrec.n, hrec.u, hrec.v);
             return true;
         }
         temp = ( -b + root ) / ( 2.0f * a );
@@ -25,6 +26,7 @@ bool Sphere::hit(const Ray& r, float t0, float t1, HitRec& hrec) const {
             hrec.p = r.at(hrec.t);
             hrec.n = ( hrec.p - m_center ) / m_radius;
             hrec.mat = m_material;
+            get_sphere_uv(hrec.n, hrec.u, hrec.v);
             return true;
         }
     }

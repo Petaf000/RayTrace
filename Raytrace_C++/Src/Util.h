@@ -74,3 +74,10 @@ inline float schlick(float cosine, float ri) {
     float r0 = pow2(( 1.f - ri ) / ( 1.f + ri ));
     return r0 + ( 1.f - r0 ) * pow5(1.f - cosine);
 }
+
+inline void get_sphere_uv(const Vector3& p, float& u, float& v) {
+    float phi = atan2(p.getZ(), p.getX());
+    float theta = asin(p.getY());
+    u = 1.f - ( phi + PI ) / ( 2.f * PI );
+    v = ( theta + PI / 2.f ) / PI;
+}
