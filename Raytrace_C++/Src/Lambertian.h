@@ -4,12 +4,12 @@
 
 class Lambertian : public Material {
 public:
-    Lambertian(const TexturePtr& a)
-        : m_albedo(a) {
+    Lambertian(const Vector3& c)
+        : m_albedo(c) {
     }
 
     virtual bool scatter(const Ray& r, const HitRec& hrec, ScatterRec& srec) const override;
 
 private:
-    TexturePtr m_albedo;
+    Vector3 m_albedo;
 };
