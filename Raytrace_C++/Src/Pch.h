@@ -13,3 +13,6 @@ typedef std::shared_ptr<Material> MaterialPtr;
 
 class Shape;
 typedef std::shared_ptr<Shape> ShapePtr;
+
+class Texture;
+typedef std::shared_ptr<Texture> TexturePtr;

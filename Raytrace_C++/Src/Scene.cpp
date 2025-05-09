@@ -5,7 +5,7 @@
 #include <stb_image.h>
 #include <stb_image_write.h>
 
-#define NUM_THREAD 4
+#define NUM_THREAD 6
 #define MAX_DEPTH 50
 
 // Objects
@@ -16,48 +16,39 @@
 #include "HitRec.h"
 #include "ScatterRec.h"
 
+// Textures
+#include "ColorTexture.h"
+
 // Materials
 #include "Lambertian.h"
 #include "Metal.h"
 #include "Dielectric.h"
 
+
 void Scene::build() {
     // Camera
 
-    Vector3 lookfrom(13, 2, 3);
-    Vector3 lookat(0, 0, 0);
-    Vector3 vup(0, 1, 0);
-    float aspect = float(m_image->width()) / float(m_image->height());
-    m_camera = std::make_unique<Camera>(lookfrom, lookat, vup, 20, aspect);
+    Vector3 w(-2.0f, -1.0f, -1.0f);
+    Vector3 u(4.0f, 0.0f, 0.0f);
+    Vector3 v(0.0f, 2.0f, 0.0f);
+    m_camera = std::make_unique<Camera>(u, v, w);
 
     // AddObjects
 
     ShapeList* world = new ShapeList();
-
-    int N = 11;
-    for ( int i = -N; i < N; ++i ) {
-        for ( int j = -N; j < N; ++j ) {
-            float choose_mat = drand48();
-            Vector3 center(i + 0.9f * drand48(), 0.2f, j + 0.9f * drand48());
-            if ( length(center - Vector3(4, 0.2, 0)) > 0.9f ) {
-                if ( choose_mat < 0.8f ) {
-                    world->add(std::make_shared<Sphere>(
-                        center, 0.2f,
-                        std::make_shared<Lambertian>(mulPerElem(random_vector(), random_vector()))));
-                }
-                else if ( choose_mat < 0.95f ) {
-                    world->add(std::make_shared<Sphere>(
-                        center, 0.2f,
-                        std::make_shared<Metal>(0.5f * ( random_vector() + Vector3(1) ), 0.5f * drand48())));
-                }
-                else {
-                    world->add(std::make_shared<Sphere>(
-                        center, 0.2f,
-                        std::make_shared<Dielectric>(1.5f)));
-                }
-            }
-        }
-    }
+    world->add(std::make_shared<Sphere>(
+        Vector3(0.6, 0, -1), 0.5f,
+        std::make_shared<Lambertian>(
+            std::make_shared<ColorTexture>(Vector3(0.1f, 0.2f, 0.5f)))));
+    /*world->add(std::make_shared<Sphere>(
+        Vector3(-0.6, 0, -1), 0.5f,
+        std::make_shared<Metal>(
+            std::make_shared<ColorTexture>(Vector3(0.8f, 0.8f, 0.8f)), 0.4f)));
+    world->add(std::make_shared<Sphere>(
+        Vector3(0, -100.5, -1), 100,
+        std::make_shared<Lambertian>(
+            std::make_shared<ColorTexture>(Vector3(0.8f, 0.8f, 0.0f)))));
+    m_world.reset(world);*/
 
     world->add(std::make_shared<Sphere>(
         Vector3(0, -1000, -1), 1000,
@@ -98,7 +89,7 @@ void Scene::render() {
 
     int nx = m_image->width();
     int ny = m_image->height();
-#pragma omp parallel for schedule(dynamic, 1) num_threads(NUM_THREAD)
+#pragma omp parallel for collapse(3) schedule(dynamic, 1) num_threads(NUM_THREAD)
     for ( int j = 0; j < ny; ++j ) {
         std::cerr << "Rendering (y = " << j << ") " << ( 100.0 * j / ( ny - 1 ) ) << "%" << std::endl;
         for ( int i = 0; i < nx; ++i ) {

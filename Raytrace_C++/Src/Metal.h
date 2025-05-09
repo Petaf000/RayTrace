@@ -4,13 +4,13 @@
 
 class Metal : public Material {
 public:
-    Metal(const Vector3& c, float fuzz)
-        : m_albedo(c)
+    Metal(const TexturePtr& a, float fuzz)
+        : m_albedo(a)
         , m_fuzz(fuzz){}
 
     virtual bool scatter(const Ray& r, const HitRec& hrec, ScatterRec& srec) const override;
 
 private:
-    Vector3 m_albedo;
+    TexturePtr m_albedo;
 	float m_fuzz;
 };
