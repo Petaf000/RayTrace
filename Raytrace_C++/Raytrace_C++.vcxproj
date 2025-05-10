@@ -134,27 +134,37 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\Box.cpp" />
     <ClCompile Include="Src\CheckerTexture.cpp" />
     <ClCompile Include="Src\Dielectric.cpp" />
+    <ClCompile Include="Src\FlipNormals.cpp" />
     <ClCompile Include="Src\GammaFilter.h" />
     <ClCompile Include="Src\main.cpp" />
     <ClCompile Include="Src\Metal.cpp" />
     <ClCompile Include="Src\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Src\Rect.cpp" />
+    <ClCompile Include="Src\Rotate.cpp" />
     <ClCompile Include="Src\Scene.cpp" />
     <ClCompile Include="Src\ShapeList.cpp" />
     <ClCompile Include="Src\Sphere.cpp" />
     <ClCompile Include="Src\Lambertian.cpp" />
+    <ClCompile Include="Src\Translate.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Box.h" />
     <ClInclude Include="Src\Camera.h" />
     <ClInclude Include="Src\CheckerTexture.h" />
     <ClInclude Include="Src\ColorTexture.h" />
     <ClInclude Include="Src\Dielectric.h" />
+    <ClInclude Include="Src\DiffuseLight.h" />
+    <ClInclude Include="Src\FlipNormals.h" />
     <ClInclude Include="Src\ImageTexture.h" />
     <ClInclude Include="Src\Lambertian.h" />
     <ClInclude Include="Src\Metal.h" />
+    <ClInclude Include="Src\Rect.h" />
+    <ClInclude Include="Src\Rotate.h" />
     <ClInclude Include="Src\ScatterRec.h" />
     <ClInclude Include="Src\HitRec.h" />
     <ClInclude Include="Src\Image.h" />
@@ -165,9 +175,12 @@
     <ClInclude Include="Src\Ray.h" />
     <ClInclude Include="Src\Scene.h" />
     <ClInclude Include="Src\Shape.h" />
+    <ClInclude Include="Src\ShapeBuilder.h" />
     <ClInclude Include="Src\ShapeList.h" />
     <ClInclude Include="Src\Sphere.h" />
     <ClInclude Include="Src\Texture.h" />
+    <ClInclude Include="Src\TonemapFilter.h" />
+    <ClInclude Include="Src\Translate.h" />
     <ClInclude Include="Src\Util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

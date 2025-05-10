@@ -3,8 +3,8 @@
 int main(void) {
     int nx = 800;
     int ny = 400;
-    int ns = 100;
-    std::unique_ptr<Scene> scene(std::make_unique<Scene>("Output/22_ImageTexture.bmp", nx, ny, ns));
+    int ns = 2000;
+    std::unique_ptr<Scene> scene(std::make_unique<Scene>("Output/29_Transform.bmp", nx, ny, ns));
     scene->render();
 
     char command[256] = "start ";

@@ -10,7 +10,11 @@
 
 // Objects
 #include "ShapeList.h"
-#include "Sphere.h"
+//#include "Sphere.h"
+//#include "Rect.h"
+//#include "FlipNormals.h"
+//#include "Box.h"
+#include "ShapeBuilder.h"
 
 // Structs
 #include "HitRec.h"
@@ -20,6 +24,7 @@
 #include "Lambertian.h"
 #include "Metal.h"
 #include "Dielectric.h"
+#include "DiffuseLight.h"
 
 // Textures
 #include "ColorTexture.h"
@@ -27,30 +32,43 @@
 #include "ImageTexture.h"
 
 void Scene::build() {
+    m_backColor = Vector3(0);
+
     // Camera
 
-    Vector3 w(-2.0f, -1.0f, -1.0f);
-    Vector3 u(4.0f, 0.0f, 0.0f);
-    Vector3 v(0.0f, 2.0f, 0.0f);
-    m_camera = std::make_unique<Camera>(u, v, w);
+    Vector3 lookfrom(278, 278, -800);
+    Vector3 lookat(278, 278, 0);
+    Vector3 vup(0, 1, 0);
+    float aspect = float(m_image->width()) / float(m_image->height());
+    m_camera = std::make_unique<Camera>(lookfrom, lookat, vup, 40, aspect);
 
-    // AddObjects
+    // Shapes
+
+    MaterialPtr red = std::make_shared<Lambertian>(
+        std::make_shared<ColorTexture>(Vector3(0.65f, 0.05f, 0.05f)));
+    MaterialPtr white = std::make_shared<Lambertian>(
+        std::make_shared<ColorTexture>(Vector3(0.73f)));
+    MaterialPtr green = std::make_shared<Lambertian>(
+        std::make_shared<ColorTexture>(Vector3(0.12f, 0.45f, 0.15f)));
+    MaterialPtr light = std::make_shared<DiffuseLight>(
+        std::make_shared<ColorTexture>(Vector3(15.0f)));
 
     ShapeList* world = new ShapeList();
-    world->add(std::make_shared<Sphere>(
-        Vector3(0.6, 0, -1), 0.5f,
-        std::make_shared<Lambertian>(
-            std::make_shared<ImageTexture>("Asset/Texture/field001.jpg"))));
-    world->add(std::make_shared<Sphere>(
-        Vector3(-0.6, 0, -1), 0.5f,
-        std::make_shared<Metal>(
-            std::make_shared<ColorTexture>(Vector3(0.8f, 0.8f, 0.8f)), 0.4f)));
-    world->add(std::make_shared<Sphere>(
-        Vector3(0, -100.5, -1), 100,
-        std::make_shared<Lambertian>(
-            std::make_shared<CheckerTexture>(
-                std::make_shared<ColorTexture>(Vector3(0.8f, 0.8f, 0.0f)),
-                std::make_shared<ColorTexture>(Vector3(0.8f, 0.2f, 0.0f)), 10.f))));
+    ShapeBuilder builder;
+    world->add(builder.rectYZ(0, 555, 0, 555, 555, green).flip().get());
+    world->add(builder.rectYZ(0, 555, 0, 555, 0, red).get());
+    world->add(builder.rectXZ(213, 343, 227, 332, 554, light).get());
+    world->add(builder.rectXZ(0, 555, 0, 555, 555, white).flip().get());
+    world->add(builder.rectXZ(0, 555, 0, 555, 0, white).get());
+    world->add(builder.rectXY(0, 555, 0, 555, 555, white).flip().get());
+    world->add(builder.box(Vector3(0), Vector3(165), white)
+        .rotate(Vector3::yAxis(), -18)
+        .translate(Vector3(130, 0, 65))
+        .get());
+    world->add(builder.box(Vector3(0), Vector3(165, 330, 165), white)
+        .rotate(Vector3::yAxis(), 15)
+        .translate(Vector3(265, 0, 295))
+        .get());
     m_world.reset(world);
 }
 
@@ -71,15 +89,16 @@ float Scene::hit_sphere(const Vector3& center, float radius, const Ray& r) const
 Vector3 Scene::color(const Ray& r, const Shape* world, int depth) const {
     HitRec hrec;
     if ( world->hit(r, 0.001f, FLT_MAX, hrec) ) {
+        Vector3 emitted = hrec.mat->emitted(r, hrec);
         ScatterRec srec;
         if ( depth < MAX_DEPTH && hrec.mat->scatter(r, hrec, srec) ) {
-            return mulPerElem(srec.albedo, color(srec.ray, world, depth + 1));
+            return emitted + mulPerElem(srec.albedo, color(srec.ray, world, depth + 1));
         }
         else {
-            return Vector3(0);
+            return emitted;
         }
     }
-    return backgroundSky(r.direction());
+    return background(r.direction());
 }
 
 void Scene::render() {

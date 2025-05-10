@@ -54,6 +54,21 @@
     <ClCompile Include="Src\CheckerTexture.cpp">
       <Filter>Texture</Filter>
     </ClCompile>
+    <ClCompile Include="Src\Rect.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\FlipNormals.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Box.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Rotate.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Translate.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\main.h">
@@ -118,6 +133,30 @@
     </ClInclude>
     <ClInclude Include="Src\Texture.h">
       <Filter>Texture</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DiffuseLight.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Rect.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\TonemapFilter.h">
+      <Filter>Image</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\FlipNormals.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Box.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Translate.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Rotate.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ShapeBuilder.h">
+      <Filter>GameObject</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

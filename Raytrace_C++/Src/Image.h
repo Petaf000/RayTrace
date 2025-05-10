@@ -2,6 +2,7 @@
 
 #include "ImageFilter.h"
 #include "GammaFilter.h"
+#include "TonemapFilter.h"
 
 class Image {
 public:
@@ -17,6 +18,7 @@ public:
         m_height = h;
         m_pixels.reset(new rgb[m_width * m_height]);
         m_filters.push_back(std::make_unique<GammaFilter>(GAMMA_FACTOR));
+        m_filters.push_back(std::make_unique<TonemapFilter>());
     }
 
     int width() const { return m_width; }
