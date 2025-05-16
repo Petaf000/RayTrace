@@ -5,8 +5,8 @@
 #include <stb_image.h>
 #include <stb_image_write.h>
 
-#define NUM_THREAD 4
-#define MAX_DEPTH 50
+#define NUM_THREAD 6
+#define MAX_DEPTH 50 // max reflection count
 
 // Objects
 #include "ShapeList.h"
@@ -16,9 +16,12 @@
 //#include "Box.h"
 #include "ShapeBuilder.h"
 
-// Structs
+// RayTraces
 #include "HitRec.h"
 #include "ScatterRec.h"
+#include "CosinePdf.h"
+#include "ShapePdf.h"
+#include "MixturePdf.h"
 
 // Materials
 #include "Lambertian.h"
@@ -32,6 +35,7 @@
 #include "ImageTexture.h"
 
 void Scene::build() {
+
     m_backColor = Vector3(0);
 
     // Camera
@@ -42,7 +46,7 @@ void Scene::build() {
     float aspect = float(m_image->width()) / float(m_image->height());
     m_camera = std::make_unique<Camera>(lookfrom, lookat, vup, 40, aspect);
 
-    // Shapes
+    // Materials
 
     MaterialPtr red = std::make_shared<Lambertian>(
         std::make_shared<ColorTexture>(Vector3(0.65f, 0.05f, 0.05f)));
@@ -52,24 +56,34 @@ void Scene::build() {
         std::make_shared<ColorTexture>(Vector3(0.12f, 0.45f, 0.15f)));
     MaterialPtr light = std::make_shared<DiffuseLight>(
         std::make_shared<ColorTexture>(Vector3(15.0f)));
+    MaterialPtr aluminum = std::make_shared<Metal>(
+        std::make_shared<ColorTexture>(Vector3(0.8f, 0.85f, 0.88f)), 0.0f);
+    MaterialPtr metal = std::make_shared<Dielectric>(1.5f);
+
+	// Shapes
 
     ShapeList* world = new ShapeList();
     ShapeBuilder builder;
     world->add(builder.rectYZ(0, 555, 0, 555, 555, green).flip().get());
     world->add(builder.rectYZ(0, 555, 0, 555, 0, red).get());
-    world->add(builder.rectXZ(213, 343, 227, 332, 554, light).get());
+    world->add(builder.rectXZ(213, 343, 227, 332, 554, light).flip().get());
     world->add(builder.rectXZ(0, 555, 0, 555, 555, white).flip().get());
     world->add(builder.rectXZ(0, 555, 0, 555, 0, white).get());
     world->add(builder.rectXY(0, 555, 0, 555, 555, white).flip().get());
-    world->add(builder.box(Vector3(0), Vector3(165), white)
-        .rotate(Vector3::yAxis(), -18)
-        .translate(Vector3(130, 0, 65))
-        .get());
+    world->add(builder.sphere(Vector3(190, 90, 190), 90, aluminum).get());
+    world->add(builder.sphere(Vector3(380, 45, 100), 45, metal).get());
     world->add(builder.box(Vector3(0), Vector3(165, 330, 165), white)
         .rotate(Vector3::yAxis(), 15)
         .translate(Vector3(265, 0, 295))
         .get());
     m_world.reset(world);
+
+
+    // Lights
+    ShapeList* l = new ShapeList();
+    l->add(builder.rectXZ(213, 343, 227, 332, 554, MaterialPtr()).get());
+    l->add(builder.sphere(Vector3(190, 90, 190), 90, MaterialPtr()).get());
+    m_light.reset(l);
 }
 
 float Scene::hit_sphere(const Vector3& center, float radius, const Ray& r) const {
@@ -86,13 +100,29 @@ float Scene::hit_sphere(const Vector3& center, float radius, const Ray& r) const
     }
 }
 
-Vector3 Scene::color(const Ray& r, const Shape* world, int depth) const {
+Vector3 Scene::color(const Ray& r, const Shape* world, const Shape* light, int depth) const {
     HitRec hrec;
     if ( world->hit(r, 0.001f, FLT_MAX, hrec) ) {
         Vector3 emitted = hrec.mat->emitted(r, hrec);
         ScatterRec srec;
         if ( depth < MAX_DEPTH && hrec.mat->scatter(r, hrec, srec) ) {
-            return emitted + mulPerElem(srec.albedo, color(srec.ray, world, depth + 1));
+            if ( srec.is_specular ) {
+                return emitted + mulPerElem(srec.albedo, color(srec.ray, world, light, depth + 1));
+            }
+            else {
+                ShapePdf shapePdf(light, hrec.p);
+                MixturePdf mixPdf(&shapePdf, srec.pdf);
+                srec.ray = Ray(hrec.p, mixPdf.generate(hrec));
+                float pdf_value = mixPdf.value(hrec, srec.ray.direction());
+                if ( pdf_value > 0 ) {
+                    float spdf_value = hrec.mat->scattering_pdf(srec.ray, hrec);
+                    Vector3 albedo = srec.albedo * spdf_value;
+                    return emitted + mulPerElem(albedo, color(srec.ray, world, light, depth + 1)) / pdf_value;
+                }
+                else {
+                    return emitted;
+                }
+            }
         }
         else {
             return emitted;
@@ -115,7 +145,7 @@ void Scene::render() {
                 float u = ( float(i) + drand48() ) / float(nx);
                 float v = ( float(j) + drand48() ) / float(ny);
                 Ray r = m_camera->getRay(u, v);
-                c += color(r, m_world.get(), 0);
+                c += color(r, m_world.get(), m_light.get(), 0);
             }
             c /= m_samples;
             m_image->write(i, ( ny - j - 1 ), c.getX(), c.getY(), c.getZ());

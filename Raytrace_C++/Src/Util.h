@@ -81,3 +81,27 @@ inline void get_sphere_uv(const Vector3& p, float& u, float& v) {
     u = 1.f - ( phi + PI ) / ( 2.f * PI );
     v = ( theta + PI / 2.f ) / PI;
 }
+
+// ”¼‹…ã‚Ìƒ‰ƒ“ƒ_ƒ€‚È•ûŒüì¬
+inline Vector3 random_cosine_direction() {
+    float r1 = drand48();
+    float r2 = drand48();
+    float z = sqrt(1.f - r2);
+    float phi = PI2 * r1;
+    float x = cos(phi) * sqrt(r2);
+    float y = sin(phi) * sqrt(r2);
+    return Vector3(x, y, z);
+}
+
+inline Vector3 random_to_sphere(float radius, float distance_squared) {
+    float r1 = drand48();
+    float r2 = drand48();
+    float rr = std::min(pow2(radius), distance_squared);
+    float cos_theta_max = sqrtf(1.f - rr * recip(distance_squared));
+    float z = 1.0f - r2 * ( 1.0f - cos_theta_max );
+    float sqrtz = sqrtf(1.f - pow2(z));
+    float phi = PI2 * r1;
+    float x = cosf(phi) * sqrtz;
+    float y = sinf(phi) * sqrtz;
+    return Vector3(x, y, z);
+}

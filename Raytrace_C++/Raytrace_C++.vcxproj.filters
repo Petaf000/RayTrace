@@ -69,6 +69,9 @@
     <ClCompile Include="Src\Translate.cpp">
       <Filter>GameObject</Filter>
     </ClCompile>
+    <ClCompile Include="Src\CosinePdf.cpp">
+      <Filter>Raytrace</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\main.h">
@@ -157,6 +160,24 @@
     </ClInclude>
     <ClInclude Include="Src\ShapeBuilder.h">
       <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ONB.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\PDF.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\CosinePdf.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ShapePdf.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MixturePdf.h">
+      <Filter>Raytrace</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DenanFilter.h">
+      <Filter>Image</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

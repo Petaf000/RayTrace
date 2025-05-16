@@ -38,5 +38,8 @@ bool Dielectric::scatter(const Ray& r, const HitRec& hrec, ScatterRec& srec) con
         srec.ray = Ray(hrec.p, refracted);
     }
 
+    srec.pdf = nullptr;
+    srec.is_specular = true;
+
     return true;
 }

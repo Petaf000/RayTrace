@@ -10,6 +10,14 @@ public:
 
     virtual bool scatter(const Ray& r, const HitRec& hrec, ScatterRec& srec) const override;
 
+	virtual void set_texture(const TexturePtr& a) override {
+		m_albedo = a;
+	}
+
+	void set_fuzz(float fuzz) {
+		m_fuzz = fuzz;
+	}
+
 private:
     TexturePtr m_albedo;
 	float m_fuzz;

@@ -22,6 +22,10 @@ public:
 
     virtual bool hit(const Ray& r, float t0, float t1, HitRec& hrec) const override;
 
+    virtual float pdf_value(const Vector3& o, const Vector3& v) const override;
+
+    virtual Vector3 random(const Vector3& o) const override;
+
 private:
     float m_x0, m_x1, m_y0, m_y1, m_k;
     AxisType m_axis;

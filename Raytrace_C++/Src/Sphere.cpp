@@ -2,6 +2,7 @@
 
 #include "Ray.h"
 #include "HitRec.h"
+#include "ONB.h"
 
 bool Sphere::hit(const Ray& r, float t0, float t1, HitRec& hrec) const {
     Vector3 oc = r.origin() - m_center;
@@ -32,4 +33,26 @@ bool Sphere::hit(const Ray& r, float t0, float t1, HitRec& hrec) const {
     }
 
     return false;
+}
+
+float Sphere::pdf_value(const Vector3& o, const Vector3& v) const {
+    HitRec hrec;
+    if ( this->hit(Ray(o, v), 0.001f, FLT_MAX, hrec) ) {
+        float dd = lengthSqr(m_center - o);
+        float rr = std::min(pow2(m_radius), dd);
+        float cos_theta_max = sqrtf(1.0f - rr * recip(dd));
+        float solid_angle = PI2 * ( 1.0f - cos_theta_max );
+        return recip(solid_angle);
+    }
+    else {
+        return 0;
+    }
+}
+
+Vector3 Sphere::random(const Vector3& o) const {
+    Vector3 direction = m_center - o;
+    float distance_squared = lengthSqr(direction);
+    ONB uvw; uvw.build_from_w(direction);
+    Vector3 v = uvw.local(random_to_sphere(m_radius, distance_squared));
+    return v;
 }

@@ -3,6 +3,7 @@
 #include "ImageFilter.h"
 #include "GammaFilter.h"
 #include "TonemapFilter.h"
+#include "DenanFilter.h"
 
 class Image {
 public:
@@ -17,6 +18,7 @@ public:
         m_width = w;
         m_height = h;
         m_pixels.reset(new rgb[m_width * m_height]);
+        m_filters.push_back(std::make_unique<DenanFilter>());
         m_filters.push_back(std::make_unique<GammaFilter>(GAMMA_FACTOR));
         m_filters.push_back(std::make_unique<TonemapFilter>());
     }

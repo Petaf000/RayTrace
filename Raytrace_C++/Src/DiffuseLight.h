@@ -19,7 +19,12 @@ public:
     }
 
     virtual Vector3 emitted(const Ray& r, const HitRec& hrec) const override {
-        return m_emit->value(hrec.u, hrec.v, hrec.p);
+        if ( dot(hrec.n, r.direction()) < 0 ) {
+            return m_emit->value(hrec.u, hrec.v, hrec.p);
+        }
+        else {
+            return Vector3(0);
+        }
     }
 
 private:

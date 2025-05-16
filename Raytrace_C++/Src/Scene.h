@@ -15,7 +15,7 @@ public:
     void build();
 
     float hit_sphere(const Vector3& center, float radius, const Ray& r) const;
-    Vector3 color(const Ray& r, const Shape* world, int depth) const;
+    Vector3 color(const Ray& r, const Shape* world, const Shape* light, int depth) const;
 
     Vector3 background(const Vector3& d) const {
         return m_backColor;
@@ -40,4 +40,5 @@ private:
 	std::string m_filename;
     std::unique_ptr<Shape> m_world;
     int m_samples;
+    std::unique_ptr<Shape> m_light;
 };

@@ -32,3 +32,37 @@ bool Rect::hit(const Ray& r, float t0, float t1, HitRec& hrec) const {
     hrec.n = axis;
     return true;
 }
+
+float Rect::pdf_value(const Vector3& o, const Vector3& v) const {
+    if ( m_axis != kXZ ) return 0;
+    HitRec hrec;
+    if ( this->hit(Ray(o, v), 0.001f, FLT_MAX, hrec) ) {
+        float area = ( m_x1 - m_x0 ) * ( m_y1 - m_y0 );
+        float distance_squared = pow2(hrec.t) * lengthSqr(v);
+        float cosine = fabs(dot(v, hrec.n)) / length(v);
+        return distance_squared / ( cosine * area );
+    }
+    else {
+        return 0;
+    }
+}
+
+Vector3 Rect::random(const Vector3& o) const {
+    if ( m_axis != kXZ ) return Vector3(1, 0, 0);
+    float x = m_x0 + drand48() * ( m_x1 - m_x0 );
+    float y = m_y0 + drand48() * ( m_y1 - m_y0 );
+    Vector3 random_point;
+    switch ( m_axis ) {
+        case kXY:
+            random_point = Vector3(x, y, m_k);
+            break;
+        case kXZ:
+            random_point = Vector3(x, m_k, y);
+            break;
+        case kYZ:
+            random_point = Vector3(m_k, x, y);
+            break;
+    }
+    Vector3 v = random_point - o;
+    return v;
+}

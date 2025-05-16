@@ -136,6 +136,7 @@
   <ItemGroup>
     <ClCompile Include="Src\Box.cpp" />
     <ClCompile Include="Src\CheckerTexture.cpp" />
+    <ClCompile Include="Src\CosinePdf.cpp" />
     <ClCompile Include="Src\Dielectric.cpp" />
     <ClCompile Include="Src\FlipNormals.cpp" />
     <ClCompile Include="Src\GammaFilter.h" />
@@ -157,12 +158,17 @@
     <ClInclude Include="Src\Camera.h" />
     <ClInclude Include="Src\CheckerTexture.h" />
     <ClInclude Include="Src\ColorTexture.h" />
+    <ClInclude Include="Src\CosinePdf.h" />
+    <ClInclude Include="Src\DenanFilter.h" />
     <ClInclude Include="Src\Dielectric.h" />
     <ClInclude Include="Src\DiffuseLight.h" />
     <ClInclude Include="Src\FlipNormals.h" />
     <ClInclude Include="Src\ImageTexture.h" />
     <ClInclude Include="Src\Lambertian.h" />
     <ClInclude Include="Src\Metal.h" />
+    <ClInclude Include="Src\MixturePdf.h" />
+    <ClInclude Include="Src\ONB.h" />
+    <ClInclude Include="Src\PDF.h" />
     <ClInclude Include="Src\Rect.h" />
     <ClInclude Include="Src\Rotate.h" />
     <ClInclude Include="Src\ScatterRec.h" />
@@ -177,6 +183,7 @@
     <ClInclude Include="Src\Shape.h" />
     <ClInclude Include="Src\ShapeBuilder.h" />
     <ClInclude Include="Src\ShapeList.h" />
+    <ClInclude Include="Src\ShapePdf.h" />
     <ClInclude Include="Src\Sphere.h" />
     <ClInclude Include="Src\Texture.h" />
     <ClInclude Include="Src\TonemapFilter.h" />

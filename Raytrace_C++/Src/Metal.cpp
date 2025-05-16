@@ -11,5 +11,7 @@ bool Metal::scatter(const Ray& r, const HitRec& hrec, ScatterRec& srec) const {
     reflected += m_fuzz * random_in_unit_sphere();
     srec.ray = Ray(hrec.p, reflected);
     srec.albedo = m_albedo->value(hrec.u, hrec.v, hrec.p);
+    srec.pdf = nullptr;
+	srec.is_specular = true;
     return dot(srec.ray.direction(), hrec.n) > 0;
 }
