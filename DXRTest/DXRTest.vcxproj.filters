@@ -1,0 +1,194 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="System">
+      <UniqueIdentifier>{476a55c9-b4fc-4fcd-a2c8-2759f144fe20}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Renderer">
+      <UniqueIdentifier>{d3efbc17-63ed-4da1-8f08-b11e0110b8c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Imgui">
+      <UniqueIdentifier>{8ed25815-9306-4fb6-a7b9-5fececd257ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GameObject">
+      <UniqueIdentifier>{589b93f1-85cd-4e9e-89f1-58c51b2230a2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utils">
+      <UniqueIdentifier>{ebf36b75-869e-4823-83a3-9fdef9085ed4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource">
+      <UniqueIdentifier>{8949ab8c-7719-4295-982b-2006b34fcdaf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{6200c638-21b8-471e-8c61-b0d6b3c82feb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader">
+      <UniqueIdentifier>{8db9077c-29dc-45ed-93d4-5cddfe0311c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Material">
+      <UniqueIdentifier>{71f8af45-96fc-4a58-84d0-aefb368f6b9b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Renderer.cpp">
+      <Filter>System\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GameManager.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Main.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Pch.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="src\App.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="src\singleton_template.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="external\Imgui\imgui.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\Imgui\imgui_demo.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\Imgui\imgui_draw.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\Imgui\imgui_impl_dx12.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\Imgui\imgui_impl_win32.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="external\Imgui\imgui_widgets.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Box.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Plane.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Sphere.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RayTracingObject.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CornellBoxScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\Renderer.h">
+      <Filter>System\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameManager.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Pch.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="src\App.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="src\singleton_template.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\UtilTypes.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Scene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject2D.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imconfig.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imgui.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imgui_impl_dx12.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imgui_impl_win32.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imgui_internal.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imstb_rectpack.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imstb_textedit.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="external\Imgui\imstb_truetype.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Shape.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\MaterialType.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Material.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="src\LambertMaterial.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="src\MetalMaterial.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DielectricMaterial.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="src\EmissiveMaterial.h">
+      <Filter>Material</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Triangle.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Box.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Plane.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Sphere.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\RayTracingObject.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CornellBoxScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <None Include="src\shader\raytrace.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="src\shader\raygen.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="src\shader\miss.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="src\shader\closesthit.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+  </ItemGroup>
+</Project>
