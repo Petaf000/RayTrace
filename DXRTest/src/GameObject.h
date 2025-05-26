@@ -1,69 +1,5 @@
 #pragma once
-struct OPosition {
-	union {
-		XMFLOAT3 value;
-		struct {
-			float x, y, z;
-		};
-	};
-
-	OPosition() noexcept = default;
-	constexpr OPosition(XMFLOAT3 pos) noexcept :value(pos) {}
-
-	// NOTE: à¯êîÇ™ÉÅÉìÉoïœêîÇ∆îÌÇÈÇÃÇ≈_ïtÇØÇƒÇ‹Ç∑
-	constexpr OPosition(float _x, float _y, float _z) noexcept : x(_x), y(_y), z(_z) {}
-	explicit OPosition(_In_reads_(3) const float* pArray) noexcept : x(pArray[0]), y(pArray[1]), z(pArray[2]) {}
-
-	operator XMFLOAT3() const { return value; }
-	operator XMFLOAT3*() { return &value; }
-    
-};
-
-struct OScale {
-	union {
-		XMFLOAT3 value;
-		struct {
-			float x, y, z;
-		};
-	};
-
-	OScale() noexcept = default;
-	constexpr OScale(XMFLOAT3 pos) noexcept :value(pos) {}
-
-	constexpr OScale(float _x, float _y, float _z) noexcept : x(_x), y(_y), z(_z) {}
-	explicit OScale(_In_reads_(3) const float* pArray) noexcept : x(pArray[0]), y(pArray[1]), z(pArray[2]) {}
-
-	operator XMFLOAT3() const { return value; }
-	operator XMFLOAT3* () { return &value; }
-};
-
-struct ORotation {
-	union {
-		XMFLOAT3 value;
-		struct {
-			float x, y, z;
-		};
-	};
-
-	ORotation() noexcept = default;
-	constexpr ORotation(XMFLOAT3 rot) noexcept :value(rot) {}
-
-	constexpr ORotation(float _x, float _y, float _z) noexcept : x(_x), y(_y), z(_z) {}
-	explicit ORotation(_In_reads_(3) const float* pArray) noexcept : x(pArray[0]), y(pArray[1]), z(pArray[2]) {}
-
-	operator XMFLOAT3() const { return value; }
-	operator XMFLOAT3* () { return &value; }
-};
-struct Transform
-{
-	OPosition Position{};
-	OScale Scale{};
-	ORotation Rotation{};
-
-	Transform() = default;
-	explicit Transform(OPosition pos, OScale scale, ORotation rot ) noexcept : Position(pos), Scale(scale), Rotation(rot) {}
-	explicit Transform(_In_reads_(3) const XMFLOAT3* pArray) noexcept : Position(pArray[0]), Scale(pArray[1]), Rotation(pArray[2]) {}
-};
+#include "Transform.h"
 
 class GameObject
 {
@@ -95,7 +31,7 @@ public:
 
 	XMFLOAT3 GetForward() {
 		XMMATRIX rotationMatrix;
-		rotationMatrix = XMMatrixRotationRollPitchYaw(m_Transform.Rotation.x, m_Transform.Rotation.x, m_Transform.Rotation.x);
+		rotationMatrix = XMMatrixRotationRollPitchYaw(m_Transform.Rotation.EulerAngles.x, m_Transform.Rotation.EulerAngles.x, m_Transform.Rotation.EulerAngles.x);
 
 		XMFLOAT3 forward;
 		XMStoreFloat3(&forward, rotationMatrix.r[2]);

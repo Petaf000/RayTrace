@@ -81,6 +81,9 @@
     <ClCompile Include="src\CornellBoxScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="src\test.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Renderer.h">
@@ -172,6 +175,21 @@
     </ClInclude>
     <ClInclude Include="src\CornellBoxScene.h">
       <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Position.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Rotation.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Scale.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Transform.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObjectUtils.h">
+      <Filter>GameObject</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

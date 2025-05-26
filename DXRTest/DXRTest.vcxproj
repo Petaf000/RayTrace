@@ -148,7 +148,9 @@
     <ClCompile Include="src\Box.cpp" />
     <ClCompile Include="src\CornellBoxScene.cpp" />
     <ClCompile Include="src\GameManager.cpp" />
-    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\Main.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="src\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
     </ClCompile>
@@ -157,6 +159,9 @@
     <ClCompile Include="src\Renderer.cpp" />
     <ClCompile Include="src\singleton_template.cpp" />
     <ClCompile Include="src\Sphere.cpp" />
+    <ClCompile Include="src\test.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="external\Imgui\imconfig.h" />
@@ -175,20 +180,25 @@
     <ClInclude Include="src\GameManager.h" />
     <ClInclude Include="src\GameObject.h" />
     <ClInclude Include="src\GameObject2D.h" />
+    <ClInclude Include="src\GameObjectUtils.h" />
     <ClInclude Include="src\LambertMaterial.h" />
     <ClInclude Include="src\Material.h" />
     <ClInclude Include="src\MaterialType.h" />
     <ClInclude Include="src\MetalMaterial.h" />
     <ClInclude Include="src\Pch.h" />
     <ClInclude Include="src\Plane.h" />
+    <ClInclude Include="src\Position.h" />
     <ClInclude Include="src\RayTracingObject.h" />
     <ClInclude Include="src\Renderer.h" />
+    <ClInclude Include="src\Rotation.h" />
+    <ClInclude Include="src\Scale.h" />
     <ClInclude Include="src\Scene.h" />
     <ClInclude Include="src\Shape.h" />
     <ClInclude Include="src\singleton_template.h" />
     <ClInclude Include="src\Sphere.h" />
     <ClInclude Include="src\Triangle.h" />
     <ClInclude Include="src\UtilTypes.h" />
+    <ClInclude Include="src\Transform.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
