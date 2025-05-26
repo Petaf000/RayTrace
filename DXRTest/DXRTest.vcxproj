@@ -145,6 +145,8 @@
     <ClCompile Include="external\Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="external\Imgui\imgui_widgets.cpp" />
     <ClCompile Include="src\App.cpp" />
+    <ClCompile Include="src\DXRGameObjects.cpp" />
+    <ClCompile Include="src\DXRRenderer.cpp" />
     <ClCompile Include="src\GameManager.cpp" />
     <ClCompile Include="src\Main.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -168,6 +170,8 @@
     <ClInclude Include="external\Imgui\imstb_textedit.h" />
     <ClInclude Include="external\Imgui\imstb_truetype.h" />
     <ClInclude Include="src\App.h" />
+    <ClInclude Include="src\DXRGameObjects.h" />
+    <ClInclude Include="src\DXRRenderer.h" />
     <ClInclude Include="src\GameManager.h" />
     <ClInclude Include="src\GameObject.h" />
     <ClInclude Include="src\GameObject2D.h" />

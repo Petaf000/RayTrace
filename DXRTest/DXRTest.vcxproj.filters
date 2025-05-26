@@ -69,6 +69,12 @@
     <ClCompile Include="src\test.cpp">
       <Filter>System</Filter>
     </ClCompile>
+    <ClCompile Include="src\DXRRenderer.cpp">
+      <Filter>System\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DXRGameObjects.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Renderer.h">
@@ -138,6 +144,12 @@
       <Filter>GameObject</Filter>
     </ClInclude>
     <ClInclude Include="src\GameObject3D.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DXRRenderer.h">
+      <Filter>System\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DXRGameObjects.h">
       <Filter>GameObject</Filter>
     </ClInclude>
   </ItemGroup>
