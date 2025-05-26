@@ -121,12 +121,14 @@ public:
     }
 
     // プロパティ定義
+#ifdef _MSC_VER
     __declspec( property( get = GetPitchInternal, put = SetPitchInternal ) ) float Pitch;
     __declspec( property( get = GetYawInternal, put = SetYawInternal ) ) float Yaw;
     __declspec( property( get = GetRollInternal, put = SetRollInternal ) ) float Roll;
     __declspec( property( get = GetEulerAnglesInternal, put = SetEulerAnglesInternal ) ) XMFLOAT3 EulerAngles;
     __declspec( property( get = GetEulerDegreesInternal, put = SetEulerDegreesInternal ) ) XMFLOAT3 EulerDegrees;
     __declspec( property( get = GetQuaternionInternal, put = SetQuaternionInternal ) ) XMFLOAT4 Quaternion;
+#endif // _MSC_VER
 
     // コンストラクタ
     ORotation() noexcept {

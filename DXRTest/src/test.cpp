@@ -12,4 +12,5 @@ int main(void) {
 	// 回転操作
 	ORotation rot = ORotation::FromEuler(45, 90, 0);  // 度数法から作成
 	rot *= rot.AxisAngle(OPosition::Up(), XM_PI / 6.0f);  // 30度 Y軸周り回転
+
 }

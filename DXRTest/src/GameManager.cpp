@@ -4,8 +4,6 @@
 
 #include "renderer.h"
 
-#include "CornellBoxScene.h"
-
 void GameManager::Init() {
 	m_lastTime = timeGetTime();
 

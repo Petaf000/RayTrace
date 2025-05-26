@@ -9,6 +9,7 @@ struct Vertex {
 class Scene;
 class Material;
 
+
 class Renderer {
 public:
     void Init();
@@ -27,7 +28,6 @@ public:
 
 
 	ComPtr<ID3D12Device> GetDevice() const { return m_device; }
-	ComPtr<ID3D12Device5> GetDevice5() const { return m_device5; }
 
 	
 
@@ -72,85 +72,4 @@ private:
     uint32_t m_bufferWidth;
     uint32_t m_bufferHeight;
 	HWND m_hWnd;
-
-
-
-    // DXR用変数
-    ComPtr<ID3D12Device5> m_device5;
-    ComPtr<ID3D12GraphicsCommandList4> m_commandList4;
-    ComPtr<ID3D12RootSignature> m_dxrGlobalRootSignature;
-    //ComPtr<ID3D12Resource> m_bottomLevelAS;
-    ComPtr<ID3D12Resource> m_topLevelAS;
-    ComPtr<ID3D12Resource> m_dxrOutput;
-    ComPtr<ID3D12DescriptorHeap> m_dxrDescriptorHeap;
-    UINT m_dxrDescriptorSize;
-
-    // BLAS用
-    std::vector<ComPtr<ID3D12Resource>> m_bottomLevelASs;
-    std::vector<D3D12_RAYTRACING_INSTANCE_DESC> m_instanceDescs;
-
-    // シェーダーテーブル
-    ComPtr<ID3D12Resource> m_shaderTable;
-    UINT m_shaderTableEntrySize;
-    UINT m_shaderRecordSize;
-    UINT m_rayGenSectionSize;
-    UINT m_missSectionSize;
-    UINT m_hitGroupSectionSize;
-    UINT64 m_rayGenShaderTableGpuAddr;
-    UINT64 m_missShaderTableGpuAddr;
-    UINT64 m_hitGroupShaderTableGpuAddr;
-
-    // レイトレーシングPSO
-    ComPtr<ID3D12StateObject> m_rtStateObject;
-    ComPtr<ID3D12StateObjectProperties> m_rtStateObjectProps;
-
-    // マテリアル定数バッファ
-    struct MaterialConstantBuffer {
-        XMFLOAT4 baseColor;
-        XMFLOAT4 emissiveColor;
-        float metallic;
-        float roughness;
-        float ior;
-        float padding;
-    };
-    ComPtr<ID3D12Resource> m_materialConstantBuffer;
-    MaterialConstantBuffer* m_materialConstantBufferData = nullptr;
-
-
-    // バッファ
-    ComPtr<ID3D12Resource> m_vertexBuffer2;   // レイトレーシング用の別頂点バッファ
-    ComPtr<ID3D12Resource> m_colorBuffer;     // 色情報用バッファ
-
-    // DXR用関数
-    void CreateRaytracingInterfaces();
-    void CreateRaytracingRootSignature();
-    void CreateRaytracingPipelineState();
-    void CreateRaytracingDescriptorHeap();
-    void CreateRaytracingOutputResource();
-    void CreateMaterialConstantBuffers();
-    void UpdateMaterialData(UINT materialIndex, const Material* material);
-    // Must be called after OpenScene
-    void CreateSceneAccelerationStructures();
-
-    // Must be called after CreateSceneAccelerationStructures
-    void CreateRaytracingShaderBindingTable();
-
-    ComPtr<ID3D12Resource> CreateBuffer(
-        UINT64 size,
-        D3D12_RESOURCE_FLAGS flags,
-        D3D12_RESOURCE_STATES initialState,
-        const D3D12_HEAP_PROPERTIES& heapProps);
-
-    // コンパイル済みシェーダーを読み込むメソッド
-    void LoadCompiledShader(const wchar_t* filename, ComPtr<ID3DBlob>& shaderBlob);
-
-    // コンパイル済みシェーダーブロブ
-    ComPtr<ID3DBlob> m_rayGenShaderBlob;
-    ComPtr<ID3DBlob> m_missShaderBlob;
-    ComPtr<ID3DBlob> m_hitShaderBlob;
-
-	// レイトレ変更用変数
-    bool m_raytracing = false;
-
-
 };

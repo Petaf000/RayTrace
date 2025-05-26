@@ -66,21 +66,6 @@
     <ClCompile Include="external\Imgui\imgui_widgets.cpp">
       <Filter>Imgui</Filter>
     </ClCompile>
-    <ClCompile Include="src\Box.cpp">
-      <Filter>GameObject</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Plane.cpp">
-      <Filter>GameObject</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Sphere.cpp">
-      <Filter>GameObject</Filter>
-    </ClCompile>
-    <ClCompile Include="src\RayTracingObject.cpp">
-      <Filter>GameObject</Filter>
-    </ClCompile>
-    <ClCompile Include="src\CornellBoxScene.cpp">
-      <Filter>Scene</Filter>
-    </ClCompile>
     <ClCompile Include="src\test.cpp">
       <Filter>System</Filter>
     </ClCompile>
@@ -137,45 +122,6 @@
     <ClInclude Include="external\Imgui\imstb_truetype.h">
       <Filter>Imgui</Filter>
     </ClInclude>
-    <ClInclude Include="src\Shape.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\MaterialType.h">
-      <Filter>Material</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Material.h">
-      <Filter>Material</Filter>
-    </ClInclude>
-    <ClInclude Include="src\LambertMaterial.h">
-      <Filter>Material</Filter>
-    </ClInclude>
-    <ClInclude Include="src\MetalMaterial.h">
-      <Filter>Material</Filter>
-    </ClInclude>
-    <ClInclude Include="src\DielectricMaterial.h">
-      <Filter>Material</Filter>
-    </ClInclude>
-    <ClInclude Include="src\EmissiveMaterial.h">
-      <Filter>Material</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Triangle.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Box.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Plane.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Sphere.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\RayTracingObject.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\CornellBoxScene.h">
-      <Filter>Scene</Filter>
-    </ClInclude>
     <ClInclude Include="src\Position.h">
       <Filter>GameObject</Filter>
     </ClInclude>
@@ -191,22 +137,11 @@
     <ClInclude Include="src\GameObjectUtils.h">
       <Filter>GameObject</Filter>
     </ClInclude>
+    <ClInclude Include="src\GameObject3D.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="src\shader\raytrace.hlsli">
-      <Filter>Shader</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="src\shader\raygen.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="src\shader\miss.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="src\shader\closesthit.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
   </ItemGroup>
 </Project>
