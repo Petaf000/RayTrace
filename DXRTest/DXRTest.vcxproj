@@ -147,6 +147,7 @@
     <ClCompile Include="src\App.cpp" />
     <ClCompile Include="src\DXRGameObjects.cpp" />
     <ClCompile Include="src\DXRRenderer.cpp" />
+    <ClCompile Include="src\DXRScene.cpp" />
     <ClCompile Include="src\GameManager.cpp" />
     <ClCompile Include="src\Main.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -172,6 +173,7 @@
     <ClInclude Include="src\App.h" />
     <ClInclude Include="src\DXRGameObjects.h" />
     <ClInclude Include="src\DXRRenderer.h" />
+    <ClInclude Include="src\DXRScene.h" />
     <ClInclude Include="src\GameManager.h" />
     <ClInclude Include="src\GameObject.h" />
     <ClInclude Include="src\GameObject2D.h" />
@@ -194,6 +196,7 @@
   <ImportGroup Label="ExtensionTargets">
     <Import Project="packages\Microsoft.Direct3D.D3D12.1.615.1\build\native\Microsoft.Direct3D.D3D12.targets" Condition="Exists('packages\Microsoft.Direct3D.D3D12.1.615.1\build\native\Microsoft.Direct3D.D3D12.targets')" />
     <Import Project="packages\Microsoft.Direct3D.DXC.1.8.2502.8\build\native\Microsoft.Direct3D.DXC.targets" Condition="Exists('packages\Microsoft.Direct3D.DXC.1.8.2502.8\build\native\Microsoft.Direct3D.DXC.targets')" />
+    <Import Project="packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets" Condition="Exists('packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets')" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -203,5 +206,6 @@
     <Error Condition="!Exists('packages\Microsoft.Direct3D.D3D12.1.615.1\build\native\Microsoft.Direct3D.D3D12.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Direct3D.D3D12.1.615.1\build\native\Microsoft.Direct3D.D3D12.targets'))" />
     <Error Condition="!Exists('packages\Microsoft.Direct3D.DXC.1.8.2502.8\build\native\Microsoft.Direct3D.DXC.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Direct3D.DXC.1.8.2502.8\build\native\Microsoft.Direct3D.DXC.props'))" />
     <Error Condition="!Exists('packages\Microsoft.Direct3D.DXC.1.8.2502.8\build\native\Microsoft.Direct3D.DXC.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Direct3D.DXC.1.8.2502.8\build\native\Microsoft.Direct3D.DXC.targets'))" />
+    <Error Condition="!Exists('packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets'))" />
   </Target>
 </Project>
