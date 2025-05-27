@@ -27,15 +27,12 @@ public:
 	}
 
 
-    // 最小限の追加メソッド
+
     ID3D12Device* GetDevice() const { return m_device.Get(); }
     ID3D12CommandQueue* GetCommandQueue() const { return m_commandQueue.Get(); }
     HWND GetHwnd() const { return m_hWnd; }
     UINT GetBufferWidth() const { return m_bufferWidth; }
     UINT GetBufferHeight() const { return m_bufferHeight; }
-
-    bool CheckDXRSupport() const;
-    ID3D12Device5* GetDXRDevice() const;
 
 private:
 	friend class Singleton<Renderer>;
@@ -78,8 +75,4 @@ private:
     uint32_t m_bufferWidth;
     uint32_t m_bufferHeight;
 	HWND m_hWnd;
-
-
-    // 既存のメンバー変数に加えて、これらが必要
-    mutable ComPtr<ID3D12Device5> m_dxrDevice; // キャッシュ用
 };

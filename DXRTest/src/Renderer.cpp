@@ -4,26 +4,6 @@
 #include "GameManager.h"
 
 #include "Scene.h"
-
-bool Renderer::CheckDXRSupport() const {
-    if ( !m_device ) return false;
-
-    ComPtr<ID3D12Device5> device5;
-    if ( FAILED(m_device.As(&device5)) ) return false;
-
-    D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
-    HRESULT hr = device5->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
-
-    return SUCCEEDED(hr) && options5.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
-}
-
-ID3D12Device5* Renderer::GetDXRDevice() const {
-    if ( !m_dxrDevice && m_device ) {
-        m_device.As(&m_dxrDevice); // Ž¸”s‚µ‚Ä‚ànullptr‚ª•Ô‚é
-    }
-    return m_dxrDevice.Get();
-}
-
 Renderer::Renderer()
     : m_frameIndex(0), m_rtvDescriptorSize(0), m_fenceValue(0), m_fenceEvent(nullptr),
     m_bufferWidth(0), m_bufferHeight(0) {
