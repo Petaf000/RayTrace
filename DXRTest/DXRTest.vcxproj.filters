@@ -69,6 +69,21 @@
     <ClCompile Include="src\test.cpp">
       <Filter>System</Filter>
     </ClCompile>
+    <ClCompile Include="src\DXRBox.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DXRSphere.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DXRScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CornelBoxScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DXRRenderer.cpp">
+      <Filter>System\Renderer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Renderer.h">
@@ -140,8 +155,52 @@
     <ClInclude Include="src\GameObject3D.h">
       <Filter>GameObject</Filter>
     </ClInclude>
+    <ClInclude Include="src\DXRData.h">
+      <Filter>System\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DXRShape.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DXRBox.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DXRSphere.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DXRScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CornelBoxScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="src\DXRRenderer.h">
+      <Filter>System\Renderer</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="src\Shader\Common.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="src\Shader\RayGen.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="src\Shader\Miss.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="src\Shader\ClosestHit_Lambertian.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="src\Shader\ClosestHit_Metal.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="src\Shader\ClosestHit_Dielectric.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="src\Shader\ClosestHit_DiffuseLight.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

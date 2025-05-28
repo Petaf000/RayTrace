@@ -4,6 +4,8 @@
 #include "GameManager.h"
 
 #include "Scene.h"
+
+#include "DXRRenderer.h"
 Renderer::Renderer()
     : m_frameIndex(0), m_rtvDescriptorSize(0), m_fenceValue(0), m_fenceEvent(nullptr),
     m_bufferWidth(0), m_bufferHeight(0) {
@@ -30,27 +32,30 @@ void Renderer::Init() {
         infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
         infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
     }
+    ComPtr<ID3D12Debug> debug;
+    D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
+    debug->EnableDebugLayer();
 #endif // _DEBUG
 
-    // imguiの初期化
-    {
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO(); (void)io;
-        //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-        //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-        io.FontGlobalScale = 1.5f;
+    //// imguiの初期化
+    //{
+    //    IMGUI_CHECKVERSION();
+    //    ImGui::CreateContext();
+    //    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    //    io.FontGlobalScale = 1.5f;
 
-        
-        ImGui::StyleColorsDark();
+    //    
+    //    ImGui::StyleColorsDark();
 
 
-        ImGui_ImplWin32_Init(m_hWnd);
-        ImGui_ImplDX12_Init(m_device.Get(), m_frameBufferCount,
-            DXGI_FORMAT_R8G8B8A8_UNORM, m_srvHeap.Get(),
-            m_srvHeap->GetCPUDescriptorHandleForHeapStart(),
-            m_srvHeap->GetGPUDescriptorHandleForHeapStart());
-    }
+    //    ImGui_ImplWin32_Init(m_hWnd);
+    //    ImGui_ImplDX12_Init(m_device.Get(), m_frameBufferCount,
+    //        DXGI_FORMAT_R8G8B8A8_UNORM, m_srvHeap.Get(),
+    //        m_srvHeap->GetCPUDescriptorHandleForHeapStart(),
+    //        m_srvHeap->GetGPUDescriptorHandleForHeapStart());
+    //}
     return;
 }
 
@@ -255,8 +260,7 @@ void Renderer::LoadAssets() {
         vertexData.RowPitch = vertexBufferSize;
         vertexData.SlicePitch = vertexData.RowPitch;
 
-        ThrowIfFailed(m_commandAllocator->Reset());
-        ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+		ResetCommandList();
 
         UpdateSubresources<1>(m_commandList.Get(), m_vertexBuffer.Get(), vertexBufferUpload.Get(), 0, 0, 1, &vertexData);
 
@@ -284,15 +288,28 @@ void Renderer::Update() {
 }
 
 void Renderer::Render() {
-	WaitGPU();  // GPUの処理が完了するまで待機
+    m_commandList->SetPipelineState(m_pipelineState.Get());
+    // デスクリプタヒープの設定
+    {
+        ID3D12DescriptorHeap* heaps[] = { m_srvHeap.Get() };
+        m_commandList->SetDescriptorHeaps(_countof(heaps), heaps);
+    }
+
+    // ルートシグネチャの設定
+    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+
+    // 三角形描画
+    m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+    m_commandList->DrawInstanced(3, 1, 0, 0);
+}
+
+void Renderer::InitFrame() {
+    WaitGPU();  // GPUの処理が完了するまで待機
     // コマンドリストのリセット
-    ThrowIfFailed(m_commandAllocator->Reset());
-
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));  // パイプラインをnullptrに設定
-
+	ResetCommandList();
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
-
 
     // ImGuiのフレーム開始
     {
@@ -316,39 +333,19 @@ void Renderer::Render() {
     const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
-    
-    m_commandList->SetPipelineState(m_pipelineState.Get());
-    // デスクリプタヒープの設定
-    {
-        ID3D12DescriptorHeap* heaps[] = { m_srvHeap.Get() };
-        m_commandList->SetDescriptorHeaps(_countof(heaps), heaps);
-    }
-
-    // ルートシグネチャの設定
-    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-
     // ビューポート・シザー矩形の設定
-    CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( m_bufferWidth ), static_cast<float>( m_bufferHeight ));
+    CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<float>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
     m_commandList->RSSetViewports(1, &viewport);
-    CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( m_bufferWidth ), static_cast<LONG>( m_bufferHeight ));
+    CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
     m_commandList->RSSetScissorRects(1, &scissorRect);
+}
 
-    // 任意のImGui関数の呼び出し
-    // 下記では"Hello, world!"というタイトルのウィンドウを表示する
-    ImGui::Begin("Hello, world!");
-    ImGui::Text("This is some useful text.");
-    ImGui::End();
-
-    // 三角形描画
-    m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-    m_commandList->DrawInstanced(3, 1, 0, 0);
-
+void Renderer::EndFrame() {
     ImGui::Render();
-    
+
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_commandList.Get());
 
-    subBuf = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
+    auto subBuf = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
         D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
     m_commandList->ResourceBarrier(1, &subBuf);
@@ -359,7 +356,6 @@ void Renderer::Render() {
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
     m_swapChain->Present(1, 0);
-
 }
 
 void Renderer::Cleanup() {

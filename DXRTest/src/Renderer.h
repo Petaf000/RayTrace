@@ -16,6 +16,8 @@ public:
     void Cleanup();
     void Update();
     void Render();
+    void InitFrame();
+	void EndFrame();
 
 	void WaitGPU() {
         ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValue));
@@ -26,10 +28,25 @@ public:
         m_fenceValue++;
 	}
 
+    void ResetCommandList() {
+        WaitGPU();  // GPUの処理が完了するまで待機
+        // コマンドリストのリセット
+        ThrowIfFailed(m_commandAllocator->Reset());
 
+        ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));  // パイプラインをnullptrに設定
+    }
+
+	void ExecuteCommandListAndWait() {
+		ThrowIfFailed(m_commandList->Close());
+        ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+        m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+        WaitGPU();
+	}
 
     ID3D12Device* GetDevice() const { return m_device.Get(); }
     ID3D12CommandQueue* GetCommandQueue() const { return m_commandQueue.Get(); }
+    ID3D12GraphicsCommandList* GetCommandList() { return m_commandList.Get(); }
     HWND GetHwnd() const { return m_hWnd; }
     UINT GetBufferWidth() const { return m_bufferWidth; }
     UINT GetBufferHeight() const { return m_bufferHeight; }

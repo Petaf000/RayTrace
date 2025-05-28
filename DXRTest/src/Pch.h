@@ -24,6 +24,7 @@
 #include <d3dx12.h>
 #include <d3dcompiler.h>
 #include <dxgi1_4.h>
+#include <dxcapi.h>
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
 

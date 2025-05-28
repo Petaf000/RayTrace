@@ -3,6 +3,7 @@
 #include "Scene.h"
 
 class Renderer;
+class DXRRenderer;
 
 class GameManager {
 public:
@@ -28,14 +29,19 @@ public:
 
 	unsigned long GetFrame() { return m_frame; }
 
-
+	// DXR関連
+	void SetUseDXR(bool useDXR) { m_useDXR = useDXR; }
+	bool GetUseDXR() const { return m_useDXR; }
 private:
 	friend class Singleton<GameManager>;
 
 	GameManager() {};
 	~GameManager() {};
 
+	void DrawIMGUI();
+
 	Renderer* m_renderer = nullptr;
+	DXRRenderer* m_dxrRenderer = nullptr; // DXRRenderer追加
 
 
 	std::unique_ptr<Scene> m_scene{};
@@ -50,6 +56,7 @@ private:
 	DWORD m_lastTime{};
 
 	bool m_isRunningDraw{};
+	bool m_useDXR = false; // DXR使用フラグ
 
 	tf::Executor m_executor;
 	tf::Taskflow m_renderTask;

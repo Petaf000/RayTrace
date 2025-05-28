@@ -3,28 +3,6 @@
 
 #include "Transform.h"
 
-class GameObject3D : public GameObject {
-public:
-	virtual void Init() override = 0;
-	virtual void Update() override = 0;
-	virtual void Draw() override = 0;
-	virtual void UnInit() override = 0;
-
-	XMFLOAT3 GetPosition() const { return m_Transform.Position; }
-	void SetPosition(const XMFLOAT3& pos) { m_Transform.Position = pos; }
-
-	XMFLOAT3 GetScale() const { return m_Transform.Scale; }
-	void SetScale(const XMFLOAT3& scale) { m_Transform.Scale = scale; }
-
-	XMFLOAT3 GetRotation() const { return m_Transform.Rotation; }
-	void SetRotation(const XMFLOAT3& rot) { m_Transform.Rotation = rot; }
-
-	XMMATRIX GetWorldMatrix() const;
-
-protected:
-	Transform m_Transform;
-};
-
 class GameObject3D :public GameObject {
 public:
 	GameObject3D() {};
