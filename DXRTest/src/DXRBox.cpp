@@ -15,9 +15,9 @@ void DXRBox::CreateBoxGeometry() {
     m_vertices.clear();
     m_indices.clear();
 
-    float w = m_size.x * 0.5f;
-    float h = m_size.y * 0.5f;
-    float d = m_size.z * 0.5f;
+    float w = 0.5f;
+    float h = 0.5f;
+    float d = 0.5f;
 
     // 24頂点（各面4頂点）
     m_vertices = {

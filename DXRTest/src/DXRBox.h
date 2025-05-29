@@ -5,8 +5,8 @@
 class DXRBox : public DXRShape {
 public:
     DXRBox() = default;
-    DXRBox(const XMFLOAT3& size, const DXRMaterialData& material)
-        : m_size(size) {
+    DXRBox(const XMFLOAT3& size, const DXRMaterialData& material) {
+		m_Transform.Scale = size;
         m_materialData = material;
     };
     virtual ~DXRBox() = default;
@@ -19,13 +19,17 @@ public:
     virtual DXRMaterialData GetMaterialData() const override { return m_materialData; };
     virtual void SetMaterialData(const DXRMaterialData& material) override { m_materialData = material; };
 
-    void SetSize(const XMFLOAT3& size) { m_size = size; }
-    XMFLOAT3 GetSize() const { return m_size; }
+    // ★修正：SetSize()でジオメトリを再生成するように変更
+    void SetScale(const XMFLOAT3& scale) override{
+		GameObject3D::SetScale(scale);
+        // サイズが変更されたらジオメトリを再生成
+        if ( !m_vertices.empty() ) {
+            CreateBoxGeometry();
+        }
+    }
 
 private:
     void CreateBoxGeometry();
-
-    XMFLOAT3 m_size = { 1.0f, 1.0f, 1.0f };
     std::vector<DXRVertex> m_vertices;
     std::vector<uint32_t> m_indices;
 };

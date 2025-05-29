@@ -36,26 +36,27 @@ void Renderer::Init() {
     D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
     debug->EnableDebugLayer();
 #endif // _DEBUG
+    // ★ ImGuiの初期化（Rendererで一元管理） ★
+    {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+        //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+        io.FontGlobalScale = 1.5f;
 
-    //// imguiの初期化
-    //{
-    //    IMGUI_CHECKVERSION();
-    //    ImGui::CreateContext();
-    //    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    //    io.FontGlobalScale = 1.5f;
+        ImGui::StyleColorsLight();
 
-    //    
-    //    ImGui::StyleColorsDark();
+        ImGui_ImplWin32_Init(m_hWnd);
 
+        // ★ RendererのSRVヒープを使用 ★
+        ImGui_ImplDX12_Init(m_device.Get(), 2,
+            DXGI_FORMAT_R8G8B8A8_UNORM, m_srvHeap.Get(),
+            m_srvHeap->GetCPUDescriptorHandleForHeapStart(),
+            m_srvHeap->GetGPUDescriptorHandleForHeapStart());
 
-    //    ImGui_ImplWin32_Init(m_hWnd);
-    //    ImGui_ImplDX12_Init(m_device.Get(), m_frameBufferCount,
-    //        DXGI_FORMAT_R8G8B8A8_UNORM, m_srvHeap.Get(),
-    //        m_srvHeap->GetCPUDescriptorHandleForHeapStart(),
-    //        m_srvHeap->GetGPUDescriptorHandleForHeapStart());
-    //}
+        OutputDebugStringA("ImGui initialized with Renderer's SRV heap\n");
+    }
     return;
 }
 
@@ -306,56 +307,118 @@ void Renderer::Render() {
 
 void Renderer::InitFrame() {
     WaitGPU();  // GPUの処理が完了するまで待機
+
     // コマンドリストのリセット
-	ResetCommandList();
+    ThrowIfFailed(m_commandAllocator->Reset());
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-    // ImGuiのフレーム開始
-    {
-        // Start the Dear ImGui frame
+    OutputDebugStringA("InitFrameForDXR: Setting up for DXR rendering\n");
 
+    // ImGuiのフレーム開始（DXR用）
+    {
         ImGui_ImplDX12_NewFrame();
-        ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth, (float)App::GetWindowSize().Height / m_bufferHeight
-            , (float)m_bufferWidth, (float)m_bufferHeight);
+        ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth,
+            (float)App::GetWindowSize().Height / m_bufferHeight,
+            (float)m_bufferWidth, (float)m_bufferHeight);
         ImGui::NewFrame();
     }
 
-    // バックバッファをレンダーターゲットに設定
-    auto subBuf = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
-        D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    m_commandList->ResourceBarrier(1, &subBuf);
+    // ★ DXR用：バックバッファの状態遷移はDXRRenderer側で行う ★
+    // ここではバックバッファの状態遷移を行わない（PRESENT状態のまま）
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+    OutputDebugStringA("InitFrameForDXR completed\n");
 
-    // 画面クリア
-    const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    //// バックバッファをレンダーターゲットに設定
+    //auto subBuf = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
+    //    D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    //m_commandList->ResourceBarrier(1, &subBuf);
 
-    // ビューポート・シザー矩形の設定
-    CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<float>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
-    m_commandList->RSSetViewports(1, &viewport);
-    CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
-    m_commandList->RSSetScissorRects(1, &scissorRect);
+    //CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    //m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+    //// 画面クリア
+    //const float clearColor[] = { 1.0f, 0.2f, 0.4f, 1.0f };
+    //m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
+    //// ビューポート・シザー矩形の設定
+    //CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<float>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
+    //m_commandList->RSSetViewports(1, &viewport);
+    //CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
+    //m_commandList->RSSetScissorRects(1, &scissorRect);
+}
+
+void Renderer::InitFrameForDXR() {
+    WaitGPU();  // GPUの処理が完了するまで待機
+
+    // コマンドリストのリセット
+    ThrowIfFailed(m_commandAllocator->Reset());
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
+
+    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+    // ImGuiのフレーム開始（DXR用）
+    {
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth,
+            (float)App::GetWindowSize().Height / m_bufferHeight,
+            (float)m_bufferWidth, (float)m_bufferHeight);
+        ImGui::NewFrame();
+    }
 }
 
 void Renderer::EndFrame() {
-    ImGui::Render();
+    OutputDebugStringA("EndFrame: Starting...\n");
 
+    // ★ DXRでコピー先として使用された状態から遷移 ★
+    auto transitionToRT = CD3DX12_RESOURCE_BARRIER::Transition(
+        m_renderTargets[m_frameIndex].Get(),
+        D3D12_RESOURCE_STATE_PRESENT,  // DXRでPRESENT状態に戻されている
+        D3D12_RESOURCE_STATE_RENDER_TARGET
+    );
+    m_commandList->ResourceBarrier(1, &transitionToRT);
+
+    // ★ ビューポート・シザー矩形の設定（全画面） ★
+    CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( m_bufferWidth ), static_cast<float>( m_bufferHeight ));
+    m_commandList->RSSetViewports(1, &viewport);
+    CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( m_bufferWidth ), static_cast<LONG>( m_bufferHeight ));
+    m_commandList->RSSetScissorRects(1, &scissorRect);
+
+    // レンダーターゲットを設定（ImGui描画用）
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+    m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+    OutputDebugStringA("EndFrame: Render target and viewport set\n");
+
+    // ★ ImGui用のディスクリプタヒープを設定 ★
+    ID3D12DescriptorHeap* imguiHeaps[] = { m_srvHeap.Get() };
+    m_commandList->SetDescriptorHeaps(_countof(imguiHeaps), imguiHeaps);
+    OutputDebugStringA("EndFrame: ImGui descriptor heap set\n");
+
+    // ImGui描画
+    ImGui::Render();
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_commandList.Get());
 
-    auto subBuf = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
-        D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    OutputDebugStringA("EndFrame: ImGui rendered\n");
 
-    m_commandList->ResourceBarrier(1, &subBuf);
+    // バックバッファをPresent状態に遷移
+    auto transitionToPresent = CD3DX12_RESOURCE_BARRIER::Transition(
+        m_renderTargets[m_frameIndex].Get(),
+        D3D12_RESOURCE_STATE_RENDER_TARGET,
+        D3D12_RESOURCE_STATE_PRESENT
+    );
+    m_commandList->ResourceBarrier(1, &transitionToPresent);
 
+    // コマンドリスト実行
     OutputDebugStringW(L"CommandList closed Draw\n");
     ThrowIfFailed(m_commandList->Close());
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
     m_swapChain->Present(1, 0);
+
+    OutputDebugStringA("EndFrame: Completed\n");
 }
 
 void Renderer::Cleanup() {

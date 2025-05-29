@@ -6,7 +6,7 @@
 #include "App.h"
 
 void DXRRenderer::Init(Renderer* renderer) {
-    // RendererからDevice取得
+    // Rendererからdevice取得
     ID3D12Device* baseDevice = renderer->GetDevice();
     HRESULT hr = baseDevice->QueryInterface(IID_PPV_ARGS(&m_device));
     if ( FAILED(hr) ) {
@@ -22,6 +22,16 @@ void DXRRenderer::Init(Renderer* renderer) {
         throw std::runtime_error("Failed to create DXR CommandList");
     }
 
+    // サイズをRendererと完全に一致させる
+    m_width = renderer->GetBufferWidth();
+    m_height = renderer->GetBufferHeight();
+
+    char debugMsg[256];
+    sprintf_s(debugMsg, "=== DXR Init ===\n");
+    OutputDebugStringA(debugMsg);
+    sprintf_s(debugMsg, "Setting DXR size to match renderer: %ux%u\n", m_width, m_height);
+    OutputDebugStringA(debugMsg);
+
     InitializeDXR(m_device.Get());
     CreateRootSignature();
     CreateLocalRootSignature();
@@ -31,28 +41,10 @@ void DXRRenderer::Init(Renderer* renderer) {
     CreateAccelerationStructures();
     CreateShaderTables();
 
-    // imguiの初期化
-    {
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO(); (void)io;
-        //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-        //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-        io.FontGlobalScale = 1.5f;
+    // ★ ImGui初期化は削除（Rendererが管理） ★
+    // ImGui初期化コードを削除
 
-
-        ImGui::StyleColorsLight();
-
-
-        ImGui_ImplWin32_Init(App::GetWindowHandle());
-        ImGui_ImplDX12_Init(m_device.Get(), 2,
-            DXGI_FORMAT_R8G8B8A8_UNORM, m_descriptorHeap.Get(),
-            m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-            m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
-    }
-
-	m_width = 800;
-	m_height = 600;
+    OutputDebugStringA("DXR initialization completed\n");
 }
 
 void DXRRenderer::UnInit() {
@@ -72,15 +64,44 @@ void DXRRenderer::UnInit() {
 }
 
 void DXRRenderer::Render() {
+    static int frameCount = 0;
+    frameCount++;
+
+    char debugMsg[512];
+    sprintf_s(debugMsg, "=== Frame %d - Detailed Debug ===\n", frameCount);
+    OutputDebugStringA(debugMsg);
+
     // 現在のシーンを取得
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
 
     if ( !dxrScene ) {
-        return; // DXRSceneでない場合は何もしない
+        OutputDebugStringA("ERROR: No DXRScene found!\n");
+        return;
     }
 
     UpdateCamera();
+
+    // ★ サイズの確認と修正 ★
+    auto& renderer = Singleton<Renderer>::getInstance();
+    ID3D12Resource* currentBackBuffer = renderer.GetBackBuffer(renderer.GetCurrentFrameIndex());
+
+    if ( !currentBackBuffer ) {
+        OutputDebugStringA("ERROR: currentBackBuffer is NULL!\n");
+        return;
+    }
+
+    // バックバッファのリソース記述を取得
+    D3D12_RESOURCE_DESC backBufferDesc = currentBackBuffer->GetDesc();
+
+    sprintf_s(debugMsg, "BackBuffer: %ux%u (format: %d)\n",
+        (UINT)backBufferDesc.Width, backBufferDesc.Height, (int)backBufferDesc.Format);
+    OutputDebugStringA(debugMsg);
+    sprintf_s(debugMsg, "DXR current size: %ux%u\n", m_width, m_height);
+    OutputDebugStringA(debugMsg);
+
+    // ★ 4フレーム目以降：レイトレーシング実行 ★
+    OutputDebugStringA("=== Raytracing Execution ===\n");
 
     // レイトレーシング実行
     D3D12_DISPATCH_RAYS_DESC raytraceDesc = {};
@@ -94,22 +115,26 @@ void DXRRenderer::Render() {
     raytraceDesc.MissShaderTable.SizeInBytes = s_shaderTableEntrySize;
     raytraceDesc.MissShaderTable.StrideInBytes = s_shaderTableEntrySize;
 
-    // Hit group（修正版）
+    // Hit group
     raytraceDesc.HitGroupTable.StartAddress = m_hitGroupShaderTable->GetGPUVirtualAddress();
-    raytraceDesc.HitGroupTable.SizeInBytes = s_hitGroupEntrySize * 4;      // 修正
-    raytraceDesc.HitGroupTable.StrideInBytes = s_hitGroupEntrySize;        // 修正
+    raytraceDesc.HitGroupTable.SizeInBytes = s_hitGroupEntrySize;
+    raytraceDesc.HitGroupTable.StrideInBytes = s_hitGroupEntrySize;
 
-    // ディスパッチ次元
+    // ★ ディスパッチ設定（サイズ確認済み） ★
     raytraceDesc.Width = m_width;
     raytraceDesc.Height = m_height;
     raytraceDesc.Depth = 1;
 
+    sprintf_s(debugMsg, "About to dispatch rays: %ux%ux%u\n",
+        raytraceDesc.Width, raytraceDesc.Height, raytraceDesc.Depth);
+    OutputDebugStringA(debugMsg);
+
     // グローバルルートシグネチャ設定
     m_commandList->SetComputeRootSignature(m_globalRootSignature.Get());
 
-    // ディスクリプタヒープ設定
-    ID3D12DescriptorHeap* heaps[] = { m_descriptorHeap.Get() };
-    m_commandList->SetDescriptorHeaps(1, heaps);
+    // DXR用ディスクリプタヒープ設定
+    ID3D12DescriptorHeap* dxrHeaps[] = { m_descriptorHeap.Get() };
+    m_commandList->SetDescriptorHeaps(1, dxrHeaps);
 
     // リソース設定
     m_commandList->SetComputeRootDescriptorTable(0, m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
@@ -118,7 +143,41 @@ void DXRRenderer::Render() {
 
     // レイトレーシング実行
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
+
+    OutputDebugStringA("Executing DispatchRays...\n");
     m_commandList->DispatchRays(&raytraceDesc);
+    OutputDebugStringA("DispatchRays completed successfully!\n");
+
+    // UAVバリア
+    CD3DX12_RESOURCE_BARRIER uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(m_raytracingOutput.Get());
+    m_commandList->ResourceBarrier(1, &uavBarrier);
+
+    // ★ レイトレーシング結果をバックバッファにコピー ★
+    OutputDebugStringA("Starting raytracing result copy...\n");
+
+    // リソース状態を遷移
+    CD3DX12_RESOURCE_BARRIER barriers[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
+        CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+            D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
+    };
+    m_commandList->ResourceBarrier(2, barriers);
+
+    // リソースコピー
+    m_commandList->CopyResource(currentBackBuffer, m_raytracingOutput.Get());
+    OutputDebugStringA("CopyResource completed\n");
+
+    // リソース状態を復元
+    CD3DX12_RESOURCE_BARRIER restoreBarriers[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(),
+            D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+        CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+            D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT)
+    };
+    m_commandList->ResourceBarrier(2, restoreBarriers);
+
+    OutputDebugStringA("Raytracing render completed successfully!\n");
 }
 
 void DXRRenderer::InitializeDXR(ID3D12Device* device) {
@@ -361,17 +420,24 @@ void DXRRenderer::UpdateCamera() {
 
     auto cameraData = dxrScene->GetCamera();
 
+    cameraData.target.x++;
+
     // ビュー・プロジェクション行列計算
     XMVECTOR eyePos = XMLoadFloat3(&cameraData.position);
     XMVECTOR targetPos = XMLoadFloat3(&cameraData.target);
     XMVECTOR upVec = XMLoadFloat3(&cameraData.up);
 
-    XMMATRIX viewMatrix = XMMatrixLookAtLH(eyePos, targetPos, upVec);
+    XMMATRIX viewMatrix = XMMatrixInverse(nullptr, XMMatrixLookAtLH(eyePos, targetPos, upVec));
     XMMATRIX projMatrix = XMMatrixPerspectiveFovLH(cameraData.fov, cameraData.aspect, 0.1f, 1000.0f);
 
+    // カメラからオブジェクトまでの距離計算
+    float distToSphere1 = sqrtf(powf(190.0f - cameraData.position.x, 2) +
+        powf(90.0f - cameraData.position.y, 2) +
+        powf(190.0f - cameraData.position.z, 2));
+
     SceneConstantBuffer sceneConstants;
-    sceneConstants.viewProjectionMatrix = XMMatrixTranspose(viewMatrix * projMatrix);
-    sceneConstants.cameraPosition = XMFLOAT4(cameraData.position.x, cameraData.position.y, cameraData.position.z, 1.0f);
+    sceneConstants.projectionMatrix = projMatrix;
+    sceneConstants.viewMatrix = viewMatrix;
     sceneConstants.lightPosition = XMFLOAT4(0.0f, 554.0f, 279.5f, 1.0f);
     sceneConstants.lightColor = XMFLOAT4(15.0f, 15.0f, 15.0f, 1.0f);
 
@@ -380,6 +446,8 @@ void DXRRenderer::UpdateCamera() {
     m_sceneConstantBuffer->Map(0, nullptr, &mappedData);
     memcpy(mappedData, &sceneConstants, sizeof(SceneConstantBuffer));
     m_sceneConstantBuffer->Unmap(0, nullptr);
+
+    OutputDebugStringA("Camera update completed\n");
 }
 
 // DXRRenderer_AccelerationStructure.cpp
@@ -390,23 +458,103 @@ void DXRRenderer::CreateAccelerationStructures() {
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
 
-    if ( !dxrScene ) return;
+    if ( !dxrScene ) {
+        OutputDebugStringA("ERROR: No DXRScene found!\n");
+        return;
+    }
 
     TLASData tlasData = dxrScene->GetTLASData();
 
-    // 各BLASを作成
+    // ★ 詳細なデバッグ情報 ★
+    char debugMsg[512];
+    sprintf_s(debugMsg, "=== Acceleration Structure Detailed Debug ===\n");
+    OutputDebugStringA(debugMsg);
+    sprintf_s(debugMsg, "Total BLAS count: %zu\n", tlasData.blasDataList.size());
+    OutputDebugStringA(debugMsg);
+
+    if ( tlasData.blasDataList.empty() ) {
+        OutputDebugStringA("ERROR: No BLAS data found! No objects to render.\n");
+        return;
+    }
+
+    for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
+        const auto& blasData = tlasData.blasDataList[i];
+        sprintf_s(debugMsg, "=== BLAS[%zu] Detailed Analysis ===\n", i);
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "  Vertices: %zu, Indices: %zu\n",
+            blasData.vertices.size(), blasData.indices.size());
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "  Material type: %d\n", blasData.material.materialType);
+        OutputDebugStringA(debugMsg);
+
+        if ( !blasData.vertices.empty() ) {
+            // バウンディングボックス計算
+            float minX = blasData.vertices[0].position.x;
+            float maxX = blasData.vertices[0].position.x;
+            float minY = blasData.vertices[0].position.y;
+            float maxY = blasData.vertices[0].position.y;
+            float minZ = blasData.vertices[0].position.z;
+            float maxZ = blasData.vertices[0].position.z;
+
+            for ( const auto& vertex : blasData.vertices ) {
+                minX = min(minX, vertex.position.x);
+                maxX = max(maxX, vertex.position.x);
+                minY = min(minY, vertex.position.y);
+                maxY = max(maxY, vertex.position.y);
+                minZ = min(minZ, vertex.position.z);
+                maxZ = max(maxZ, vertex.position.z);
+            }
+
+            sprintf_s(debugMsg, "  Bounding box: X[%.1f, %.1f], Y[%.1f, %.1f], Z[%.1f, %.1f]\n",
+                minX, maxX, minY, maxY, minZ, maxZ);
+            OutputDebugStringA(debugMsg);
+            sprintf_s(debugMsg, "  Size: %.1f x %.1f x %.1f\n",
+                maxX - minX, maxY - minY, maxZ - minZ);
+            OutputDebugStringA(debugMsg);
+
+            // ★ カメラから見える範囲かチェック ★
+            float cameraX = 278.0f, cameraY = 278.0f, cameraZ = -600.0f;
+            float targetX = 278.0f, targetY = 278.0f, targetZ = 278.0f;
+
+            // オブジェクトがカメラの前方にあるか
+            bool inFrontOfCamera = ( minZ > cameraZ );
+            sprintf_s(debugMsg, "  In front of camera: %s\n", inFrontOfCamera ? "YES" : "NO");
+            OutputDebugStringA(debugMsg);
+
+            // オブジェクトがカメラの視線方向にあるか
+            bool inViewDirection = ( minX <= targetX && maxX >= targetX ) &&
+                ( minY <= targetY && maxY >= targetY );
+            sprintf_s(debugMsg, "  In view direction: %s\n", inViewDirection ? "YES" : "NO");
+            OutputDebugStringA(debugMsg);
+
+            // オブジェクトの中心とカメラの距離
+            float centerX = ( minX + maxX ) * 0.5f;
+            float centerY = ( minY + maxY ) * 0.5f;
+            float centerZ = ( minZ + maxZ ) * 0.5f;
+            float distance = sqrtf(powf(centerX - cameraX, 2) +
+                powf(centerY - cameraY, 2) +
+                powf(centerZ - cameraZ, 2));
+            sprintf_s(debugMsg, "  Distance from camera: %.1f\n", distance);
+            OutputDebugStringA(debugMsg);
+        }
+    }
+
+    // 既存のBLAS/TLAS作成処理...
     m_bottomLevelAS.clear();
     m_bottomLevelASScratch.clear();
 
     Singleton<Renderer>::getInstance().ResetCommandList();
 
     for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
+        sprintf_s(debugMsg, "Creating BLAS[%zu]...\n", i);
+        OutputDebugStringA(debugMsg);
+
         ComPtr<ID3D12Resource> blasBuffer;
         CreateBLAS(tlasData.blasDataList[i], blasBuffer);
         m_bottomLevelAS.push_back(blasBuffer);
     }
 
-    // 全てのBLAS構築が完了するまで待機するバリア
+    // BLAS構築完了後のバリア
     std::vector<CD3DX12_RESOURCE_BARRIER> blasBarriers;
     for ( auto& blas : m_bottomLevelAS ) {
         blasBarriers.push_back(CD3DX12_RESOURCE_BARRIER::UAV(blas.Get()));
@@ -416,17 +564,34 @@ void DXRRenderer::CreateAccelerationStructures() {
     }
 
     // TLAS作成
+    OutputDebugStringA("Creating TLAS...\n");
     CreateTLAS(tlasData);
 
-	Singleton<Renderer>::getInstance().ExecuteCommandListAndWait();
+    Singleton<Renderer>::getInstance().ExecuteCommandListAndWait();
+    OutputDebugStringA("Acceleration structures created successfully\n");
 }
 
 void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuffer) {
     HRESULT hr;
+
+    // ★ 頂点データの検証 ★
+    if ( blasData.vertices.empty() || blasData.indices.empty() ) {
+        OutputDebugStringA("ERROR: Empty vertices or indices in BLAS!\n");
+        return;
+    }
+
+    char debugMsg[256];
+    sprintf_s(debugMsg, "BLAS vertices: %zu, indices: %zu\n",
+        blasData.vertices.size(), blasData.indices.size());
+    OutputDebugStringA(debugMsg);
+
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+
+    // 頂点バッファ作成
     {
-        // 頂点バッファ作成
         UINT vertexBufferSize = static_cast<UINT>( blasData.vertices.size() * sizeof(DXRVertex) );
+        sprintf_s(debugMsg, "Vertex buffer size: %u bytes\n", vertexBufferSize);
+        OutputDebugStringA(debugMsg);
 
         CD3DX12_RESOURCE_DESC vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
 
@@ -440,6 +605,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         );
 
         if ( FAILED(hr) ) {
+            OutputDebugStringA("ERROR: Failed to create vertex buffer for BLAS\n");
             throw std::runtime_error("Failed to create vertex buffer for BLAS");
         }
 
@@ -448,11 +614,15 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         blasData.vertexBuffer->Map(0, nullptr, &mappedVertexData);
         memcpy(mappedVertexData, blasData.vertices.data(), vertexBufferSize);
         blasData.vertexBuffer->Unmap(0, nullptr);
+
+        OutputDebugStringA("Vertex buffer created and data uploaded\n");
     }
-    
+
+    // インデックスバッファ作成
     {
-        // インデックスバッファ作成
         UINT indexBufferSize = static_cast<UINT>( blasData.indices.size() * sizeof(uint32_t) );
+        sprintf_s(debugMsg, "Index buffer size: %u bytes\n", indexBufferSize);
+        OutputDebugStringA(debugMsg);
 
         CD3DX12_RESOURCE_DESC indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
 
@@ -466,6 +636,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         );
 
         if ( FAILED(hr) ) {
+            OutputDebugStringA("ERROR: Failed to create index buffer for BLAS\n");
             throw std::runtime_error("Failed to create index buffer for BLAS");
         }
 
@@ -474,6 +645,8 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         blasData.indexBuffer->Map(0, nullptr, &mappedIndexData);
         memcpy(mappedIndexData, blasData.indices.data(), indexBufferSize);
         blasData.indexBuffer->Unmap(0, nullptr);
+
+        OutputDebugStringA("Index buffer created and data uploaded\n");
     }
 
     // ジオメトリディスクリプタ設定
@@ -491,6 +664,10 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
     geometryDesc.Triangles.IndexBuffer = blasData.indexBuffer->GetGPUVirtualAddress();
     geometryDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
     geometryDesc.Triangles.IndexCount = static_cast<UINT>( blasData.indices.size() );
+
+    sprintf_s(debugMsg, "Geometry setup: VertexCount=%u, IndexCount=%u\n",
+        geometryDesc.Triangles.VertexCount, geometryDesc.Triangles.IndexCount);
+    OutputDebugStringA(debugMsg);
 
     // BLAS入力設定
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS blasInputs = {};
@@ -556,10 +733,13 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
     for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
         D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
 
-        // 変換行列設定（DirectXは行主体、行列は転置が必要）
-        XMMATRIX transform = tlasData.instanceTransforms[i];
-        transform = XMMatrixTranspose(transform);
-        memcpy(instanceDesc.Transform, &transform, sizeof(instanceDesc.Transform));
+        // ★修正：BLASDataから実際のワールド変換行列を使用
+        XMMATRIX transform = tlasData.blasDataList[i].transform;
+
+        // 3x4行列としてコピー（DXRのインスタンス変換は3x4行列）
+        XMFLOAT3X4 transform3x4;
+        XMStoreFloat3x4(&transform3x4, transform);
+        memcpy(instanceDesc.Transform, &transform3x4, sizeof(instanceDesc.Transform));
 
         instanceDesc.InstanceID = static_cast<UINT>( i );
         instanceDesc.InstanceMask = 0xFF;
@@ -570,7 +750,7 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
         instanceDescs.push_back(instanceDesc);
     }
 
-    // インスタンスバッファ作成
+    // 以下のインスタンスバッファ作成以降のコードは既存のまま
     UINT instanceBufferSize = static_cast<UINT>( instanceDescs.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC) );
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
@@ -885,7 +1065,8 @@ void DXRRenderer::CreateMaterialConstantBuffers() {
     m_materialConstantBuffers.resize(4);
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC constantBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(DXRMaterialData));
+    UINT alignedSize = AlignTo(sizeof(DXRMaterialData), 256);
+    CD3DX12_RESOURCE_DESC constantBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(alignedSize);
 
     for ( int i = 0; i < 4; ++i ) {
         HRESULT hr = m_device->CreateCommittedResource(

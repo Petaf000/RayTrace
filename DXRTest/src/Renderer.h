@@ -17,6 +17,7 @@ public:
     void Update();
     void Render();
     void InitFrame();
+    void InitFrameForDXR();
 	void EndFrame();
 
 	void WaitGPU() {
@@ -50,6 +51,13 @@ public:
     HWND GetHwnd() const { return m_hWnd; }
     UINT GetBufferWidth() const { return m_bufferWidth; }
     UINT GetBufferHeight() const { return m_bufferHeight; }
+    UINT GetCurrentFrameIndex() const { return m_frameIndex; }
+    ID3D12Resource* GetBackBuffer(UINT index) const {
+        return ( index < m_frameBufferCount ) ? m_renderTargets[index].Get() : nullptr;
+    }
+    ID3D12DescriptorHeap* GetRTVHeap() const { return m_rtvHeap.Get(); }
+    UINT GetRTVDescriptorSize() const { return m_rtvDescriptorSize; }
+    ID3D12DescriptorHeap* GetSRVHeap() const { return m_srvHeap.Get(); }
 
 private:
 	friend class Singleton<Renderer>;

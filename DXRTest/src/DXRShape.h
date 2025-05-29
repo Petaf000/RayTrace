@@ -22,9 +22,17 @@ public:
     // BLAS構築用データ取得
     BLASData GetBLASData() const {
         BLASData blasData;
-        blasData.vertices = GetVertices();
-        blasData.indices = GetIndices();
+
+        // ★修正：ローカル座標をそのまま使用（ワールド変換しない）
+        auto localVertices = GetVertices();
+        auto localIndices = GetIndices();
+
+        // ★修正：頂点はローカル座標のまま使用
+        blasData.vertices = localVertices;
+        blasData.indices = localIndices;
         blasData.material = GetMaterialData();
+
+        // ★修正：ワールド変換行列をtransformに設定
         blasData.transform = GetWorldMatrix();
         return blasData;
     }

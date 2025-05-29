@@ -6,8 +6,8 @@
 // 定数バッファ
 cbuffer SceneConstantBuffer : register(b0)
 {
-    float4x4 viewProjectionMatrix;
-    float4 cameraPosition;
+    float4x4 projectionMatrix;
+    float4x4 viewMatrix;
     float4 lightPosition;
     float4 lightColor;
 };

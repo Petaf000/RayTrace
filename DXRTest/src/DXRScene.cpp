@@ -19,9 +19,15 @@ TLASData DXRScene::GetTLASData() const {
     // 全レイヤーからDXRShapeを収集
     auto dxrShapes = GetDXRShapes();
 
-    for ( auto* shape : dxrShapes ) {
+    char debugMsg[256];
+    sprintf_s(debugMsg, "GetTLASData: Found %zu DXR shapes\n", dxrShapes.size());
+    OutputDebugStringA(debugMsg);
+
+    for ( size_t i = 0; i < dxrShapes.size(); ++i ) {
+        auto* shape = dxrShapes[i];
         if ( shape ) {
             BLASData blasData = shape->GetBLASData();
+
             tlasData.blasDataList.push_back(blasData);
             tlasData.instanceTransforms.push_back(blasData.transform);
         }

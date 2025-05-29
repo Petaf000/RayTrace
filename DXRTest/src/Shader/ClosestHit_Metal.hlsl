@@ -7,7 +7,9 @@ ConstantBuffer<MaterialData> MaterialCB : register(b1, space1);
 [shader("closesthit")]
 void ClosestHit_Metal(inout RayPayload payload, in VertexAttributes attr)
 {
-    if (payload.depth >= 3)
+    payload.color = float3(0.0f, 1.0f, 0.0f); // Ô
+    return;
+    if (payload.depth >= 4)
     {
         payload.color = float3(0, 0, 0);
         return;

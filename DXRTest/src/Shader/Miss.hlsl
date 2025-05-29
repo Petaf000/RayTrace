@@ -5,6 +5,6 @@
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
-    // ”wŒiFi•j
-    payload.color = float3(0.0f, 0.0f, 0.0f);
+    // ƒVƒ“ƒvƒ‹‚ÈÂ‚¢”wŒi
+    payload.color = float3(0.2f, 0.4f, 0.8f);
 }

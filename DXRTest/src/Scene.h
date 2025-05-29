@@ -24,10 +24,11 @@ public:
 	};
 
 	template<typename T = GameObject, typename... Args >
-	void AddGameObject(Layer layer, Args&&... args) {
+	T* AddGameObject(Layer layer, Args&&... args) {
 		T* tmp = new T(std::forward<Args>(args)...);
 		tmp->Init();
 		m_GameObject[layer].push_back(tmp);
+		return tmp;
 	};
 
 	template<typename T>

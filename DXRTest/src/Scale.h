@@ -15,10 +15,10 @@ struct OScale : Float3Base<OScale> {
     }
 
     DEFINE_FLOAT3_ARITHMETIC_OPERATORS(OScale)
-        DEFINE_SCALE_OPERATORS(OScale)
+    DEFINE_SCALE_OPERATORS(OScale)
 
-        // Scale固有の機能
-        float Volume() const {
+    // Scale固有の機能
+    float Volume() const {
         return x * y * z;
     }
 

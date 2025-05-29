@@ -29,7 +29,8 @@ void DXRSphere::CreateSphereGeometry() {
             float z = ringRadius * sinf(theta);
 
             DXRVertex vertex;
-            vertex.position = { x * m_radius, y * m_radius, z * m_radius };
+            // š C³FÀÛ‚Ì”¼Œa‚ğ“K—p š
+            vertex.position = { x, y , z };
             vertex.normal = { x, y, z };
             vertex.texCoord = {
                 static_cast<float>( segment ) / m_segments,

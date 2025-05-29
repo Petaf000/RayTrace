@@ -86,8 +86,8 @@ private:
 
     // 定数バッファ
     struct SceneConstantBuffer {
-        XMMATRIX viewProjectionMatrix;
-        XMFLOAT4 cameraPosition;
+        XMMATRIX projectionMatrix;
+        XMMATRIX viewMatrix;
         XMFLOAT4 lightPosition;
         XMFLOAT4 lightColor;
     };
@@ -102,6 +102,6 @@ private:
     UINT s_hitGroupEntrySize = 32; // 動的に設定
 
     // ディメンション
-    UINT m_width = 800;
-    UINT m_height = 600;
+    UINT m_width = 1920;
+    UINT m_height = 1080;
 };

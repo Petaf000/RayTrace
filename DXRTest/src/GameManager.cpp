@@ -75,9 +75,10 @@ void GameManager::Draw() {
 		{
 			std::unique_lock<std::mutex> lock(m_drawMutex);
 
-			m_renderer->InitFrame();
-
 			if ( !m_useDXR ) {
+				// 通常のラスタライゼーション
+				m_renderer->InitFrame();
+
 				{
 					std::unique_lock<std::mutex> lock(m_updateMutex);
 					// TODO: SceneのPreDraw処理
@@ -88,13 +89,17 @@ void GameManager::Draw() {
 					if ( m_scene )
 						m_scene->Draw();
 				}
+
+				DrawIMGUI();
+				m_renderer->EndFrame();
 			}
 			else {
+				// DXRレンダリング
+				m_renderer->InitFrameForDXR();  // 新しいメソッド
 				m_dxrRenderer->Render();
+				DrawIMGUI();
+				m_renderer->EndFrame();
 			}
-
-			DrawIMGUI();
-			m_renderer->EndFrame();
 		}
 	}
 }

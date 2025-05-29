@@ -14,9 +14,11 @@ float Schlick(float cosine, float refractiveIndex)
 [shader("closesthit")]
 void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
 {
-    if (payload.depth >= 3)
+    payload.color = float3(0, 0, 1);
+    return;
+    if (payload.depth >= 4)
     {
-        payload.color = float3(0, 0, 0);
+        payload.color = float3(0, 0, 1);
         return;
     }
     

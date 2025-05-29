@@ -7,6 +7,7 @@ public:
     DXRSphere() = default;
     DXRSphere(float radius, const DXRMaterialData& material, int segments = 32, int rings = 16)
         : m_radius(radius), m_segments(segments), m_rings(rings) {
+        m_Transform.Scale = radius;
         m_materialData = material;
     };
     virtual ~DXRSphere() = default;
@@ -19,7 +20,18 @@ public:
     virtual DXRMaterialData GetMaterialData() const override { return m_materialData; };
     virtual void SetMaterialData(const DXRMaterialData& material) override { m_materialData = material; };
 
-    void SetRadius(float radius) { m_radius = radius; }
+	void SetScale(const XMFLOAT3& scale) override {
+		// SetScale‚ÅScale‚ğ‹…‚É‡‚í‚¹‚é‚½‚ß‚Éx‚Ì‚İg—p
+		SetRadius(scale.x);
+	}
+
+    void SetRadius(float radius) {
+		GameObject3D::SetScale(XMFLOAT3(radius, radius, radius));
+        m_radius = radius;
+        if ( !m_vertices.empty() ) {
+            CreateSphereGeometry();
+        }
+    }
     float GetRadius() const { return m_radius; }
 
 private:
