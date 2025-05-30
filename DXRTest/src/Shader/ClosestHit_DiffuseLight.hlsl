@@ -1,14 +1,12 @@
 //=========================================
-// shader/ClosestHit_DiffuseLight.hlsl - Emissive Material
+// shader/ClosestHit_DiffuseLight.hlsl - 発光マテリアル
 #include "Common.hlsli"
-
+// マテリアルデータ（ローカルルートシグネチャから）
 ConstantBuffer<MaterialData> MaterialCB : register(b1, space1);
 
 [shader("closesthit")]
 void ClosestHit_DiffuseLight(inout RayPayload payload, in VertexAttributes attr)
 {
-    payload.color = float3(1, 1, 1);
-    return;
-    // 発光マテリアルは光を放出するのみ
+    // 発光マテリアルは光源なので、emission色を直接返す
     payload.color = MaterialCB.emission;
 }

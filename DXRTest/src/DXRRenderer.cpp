@@ -569,6 +569,8 @@ void DXRRenderer::CreateAccelerationStructures() {
 
     Singleton<Renderer>::getInstance().ExecuteCommandListAndWait();
     OutputDebugStringA("Acceleration structures created successfully\n");
+
+    UpdateMaterialData();
 }
 
 void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuffer) {
@@ -1096,43 +1098,49 @@ void DXRRenderer::UpdateMaterialData() {
 
     auto dxrShapes = dxrScene->GetDXRShapes();
 
-    // 各マテリアルタイプのデフォルトデータを設定
-    std::vector<DXRMaterialData> defaultMaterials(4);
+    // 修正：マテリアルタイプ別にマテリアルを収集
+    std::vector<DXRMaterialData> materialsByType(4);
 
-    // Lambertian (白)
-    defaultMaterials[0].albedo = { 0.73f, 0.73f, 0.73f };
-    defaultMaterials[0].roughness = 1.0f;
-    defaultMaterials[0].refractiveIndex = 1.0f;
-    defaultMaterials[0].emission = { 0.0f, 0.0f, 0.0f };
-    defaultMaterials[0].materialType = 0;
+    // デフォルト値を設定（使われないマテリアルタイプ用）
+    for ( int i = 0; i < 4; ++i ) {
+        materialsByType[i].albedo = { 0.5f, 0.5f, 0.5f };
+        materialsByType[i].roughness = 1.0f;
+        materialsByType[i].refractiveIndex = 1.0f;
+        materialsByType[i].emission = { 0.0f, 0.0f, 0.0f };
+        materialsByType[i].materialType = i;
+    }
 
-    // Metal (アルミニウム)
-    defaultMaterials[1].albedo = { 0.8f, 0.85f, 0.88f };
-    defaultMaterials[1].roughness = 0.0f;
-    defaultMaterials[1].refractiveIndex = 1.0f;
-    defaultMaterials[1].emission = { 0.0f, 0.0f, 0.0f };
-    defaultMaterials[1].materialType = 1;
+    // 実際のオブジェクトからマテリアルデータを収集
+    for ( auto* shape : dxrShapes ) {
+        if ( shape ) {
+            DXRMaterialData material = shape->GetMaterialData();
+            int materialType = material.materialType;
 
-    // Dielectric (ガラス)
-    defaultMaterials[2].albedo = { 1.0f, 1.0f, 1.0f };
-    defaultMaterials[2].roughness = 0.0f;
-    defaultMaterials[2].refractiveIndex = 1.5f;
-    defaultMaterials[2].emission = { 0.0f, 0.0f, 0.0f };
-    defaultMaterials[2].materialType = 2;
+            // マテリアルタイプが有効範囲内の場合のみ設定
+            if ( materialType >= 0 && materialType < 4 ) {
+                materialsByType[materialType] = material;
 
-    // DiffuseLight (発光)
-    defaultMaterials[3].albedo = { 1.0f, 1.0f, 1.0f };
-    defaultMaterials[3].roughness = 0.0f;
-    defaultMaterials[3].refractiveIndex = 1.0f;
-    defaultMaterials[3].emission = { 15.0f, 15.0f, 15.0f };
-    defaultMaterials[3].materialType = 3;
+                // デバッグ出力
+                char debugMsg[256];
+                sprintf_s(debugMsg, "Setting material[%d]: albedo=(%.3f, %.3f, %.3f), type=%d\n",
+                    materialType, material.albedo.x, material.albedo.y, material.albedo.z, material.materialType);
+                OutputDebugStringA(debugMsg);
+            }
+        }
+    }
 
-    // 各定数バッファにデータを設定
+    // 各定数バッファに対応するマテリアルデータを設定
     for ( int i = 0; i < 4; ++i ) {
         void* mappedData;
         m_materialConstantBuffers[i]->Map(0, nullptr, &mappedData);
-        memcpy(mappedData, &defaultMaterials[i], sizeof(DXRMaterialData));
+        memcpy(mappedData, &materialsByType[i], sizeof(DXRMaterialData));
         m_materialConstantBuffers[i]->Unmap(0, nullptr);
+
+        // 確認用デバッグ出力
+        char debugMsg[256];
+        sprintf_s(debugMsg, "Final material buffer[%d]: albedo=(%.3f, %.3f, %.3f), type=%d\n",
+            i, materialsByType[i].albedo.x, materialsByType[i].albedo.y, materialsByType[i].albedo.z, materialsByType[i].materialType);
+        OutputDebugStringA(debugMsg);
     }
 }
 

@@ -106,7 +106,6 @@ void GameManager::Draw() {
 
 
 void GameManager::StartDrawThread() {
-	
 	m_renderTask.emplace([this]() { this->Draw(); }).name("DrawThread");
 	try {
 		m_executor.run(m_renderTask);

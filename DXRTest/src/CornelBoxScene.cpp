@@ -12,26 +12,26 @@ void CornelBoxScene::Init() {
 }
 
 void CornelBoxScene::CreateMaterials() {
-    // 赤い壁（左壁）
+    // 赤い壁（左壁）- materialType = 0
     m_redMaterial.albedo = { 0.65f, 0.05f, 0.05f };
     m_redMaterial.roughness = 1.0f;
     m_redMaterial.refractiveIndex = 1.0f;
     m_redMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_redMaterial.materialType = 0; // Lambertian
+    m_redMaterial.materialType = 0; // Lambertian - 赤用
 
-    // 緑の壁（右壁）
+    // 緑の壁（右壁）- materialType = 1（一時的にMetalとして扱う）
     m_greenMaterial.albedo = { 0.12f, 0.45f, 0.15f };
     m_greenMaterial.roughness = 1.0f;
-    m_greenMaterial.refractiveIndex = 1.0f;  // ★ 修正済み ★
+    m_greenMaterial.refractiveIndex = 1.0f;
     m_greenMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_greenMaterial.materialType = 0; // Lambertian
+    m_greenMaterial.materialType = 1; // 一時的に1番を使用
 
-    // 白い壁
+    // 白い壁 - materialType = 2（一時的にDielectricとして扱う）
     m_whiteMaterial.albedo = { 0.73f, 0.73f, 0.73f };
     m_whiteMaterial.roughness = 1.0f;
-    m_whiteMaterial.refractiveIndex = 1.0f;  // ★ 修正済み ★
+    m_whiteMaterial.refractiveIndex = 1.0f;
     m_whiteMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_whiteMaterial.materialType = 0; // Lambertian
+    m_whiteMaterial.materialType = 2; // 一時的に2番を使用
 
     // 発光マテリアル（天井ライト）
     m_lightMaterial.albedo = { 1.0f, 1.0f, 1.0f };
@@ -45,29 +45,45 @@ void CornelBoxScene::CreateMaterials() {
     m_metalMaterial.roughness = 0.0f;
     m_metalMaterial.refractiveIndex = 1.0f;
     m_metalMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_metalMaterial.materialType = 1; // Metal
+    m_metalMaterial.materialType = 1; // Metal（実際のMetal）
 
     // ガラスマテリアル（誘電体球）
     m_glassMaterial.albedo = { 1.0f, 1.0f, 1.0f };
     m_glassMaterial.roughness = 0.0f;
     m_glassMaterial.refractiveIndex = 1.5f;
     m_glassMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_glassMaterial.materialType = 2; // Dielectric
+    m_glassMaterial.materialType = 2; // Dielectric（実際のDielectric）
 }
 
 void CornelBoxScene::CreateWalls() {
     // 右壁（緑）
-    auto* leftWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3( 10.0f, 555.0f, 555.0f ), m_redMaterial);
+    auto* leftWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), m_greenMaterial);
     leftWall->SetPosition({ 277.5f, 0.0f, 0.0f });
 
+    // デバッグ出力を追加
+    char debugMsg[256];
+    sprintf_s(debugMsg, "=== Wall Material Debug ===\n");
+    OutputDebugStringA(debugMsg);
+    sprintf_s(debugMsg, "Green wall material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
+        m_greenMaterial.albedo.x, m_greenMaterial.albedo.y, m_greenMaterial.albedo.z, m_greenMaterial.materialType);
+    OutputDebugStringA(debugMsg);
+
     // 左壁（赤）
-    auto* rightWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), m_greenMaterial);
+    auto* rightWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), m_redMaterial);
     rightWall->SetPosition({ -277.5f, 0.0f, 0.0f });
+
+    sprintf_s(debugMsg, "Red wall material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
+        m_redMaterial.albedo.x, m_redMaterial.albedo.y, m_redMaterial.albedo.z, m_redMaterial.materialType);
+    OutputDebugStringA(debugMsg);
 
     // 奥壁（白）
     auto* backWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 555.0f, 10.0f), m_whiteMaterial);
     backWall->SetPosition({ 0.0f, 0.0f, 0.0f });
-    
+
+    sprintf_s(debugMsg, "White wall material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
+        m_whiteMaterial.albedo.x, m_whiteMaterial.albedo.y, m_whiteMaterial.albedo.z, m_whiteMaterial.materialType);
+    OutputDebugStringA(debugMsg);
+
     // 床（白）
     auto* floor = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), m_whiteMaterial);
     floor->SetPosition({ 0.0f, -277.5f, 0.0f });
@@ -79,6 +95,10 @@ void CornelBoxScene::CreateWalls() {
     // 天井ライト
     auto* light = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(130.0f, 5.0f, 105.0f), m_lightMaterial);
     light->SetPosition({ 0.0f, 267.5f, -100.0f });
+
+    sprintf_s(debugMsg, "Light material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
+        m_lightMaterial.albedo.x, m_lightMaterial.albedo.y, m_lightMaterial.albedo.z, m_lightMaterial.materialType);
+    OutputDebugStringA(debugMsg);
 }
 
 void CornelBoxScene::CreateObjects() {
