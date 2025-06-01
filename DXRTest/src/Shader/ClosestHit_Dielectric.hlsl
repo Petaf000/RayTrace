@@ -1,9 +1,6 @@
-//=========================================
-// shader/ClosestHit_Dielectric.hlsl - Dielectric Material
 #include "Common.hlsli"
 
-ConstantBuffer<MaterialData> MaterialCB : register(b1, space1);
-
+// Schlick近似（Dielectric用）
 float Schlick(float cosine, float refractiveIndex)
 {
     float r0 = (1.0f - refractiveIndex) / (1.0f + refractiveIndex);
@@ -11,21 +8,11 @@ float Schlick(float cosine, float refractiveIndex)
     return r0 + (1.0f - r0) * pow(1.0f - cosine, 5.0f);
 }
 
-[shader("closesthit")]
-void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
+// ★★★ Dielectric専用サンプリング ★★★
+BRDFSample SampleDielectricBRDF(float3 normal, float3 rayDir, MaterialData material, inout uint seed)
 {
-    payload.color = float3(0, 0, 1);
-    return;
-    if (payload.depth >= 4)
-    {
-        payload.color = float3(0, 0, 1);
-        return;
-    }
+    BRDFSample sample;
     
-    float3 hitPoint = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-    float3 normal = -normalize(WorldRayDirection()); // 簡易法線
-    
-    float3 rayDir = normalize(WorldRayDirection());
     float3 outwardNormal;
     float niOverNt;
     float cosine;
@@ -33,14 +20,16 @@ void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
     // 内側から外側への判定
     if (dot(rayDir, normal) > 0)
     {
+        // レイが内側から来ている
         outwardNormal = -normal;
-        niOverNt = MaterialCB.refractiveIndex;
-        cosine = MaterialCB.refractiveIndex * dot(rayDir, normal);
+        niOverNt = material.refractiveIndex;
+        cosine = material.refractiveIndex * dot(rayDir, normal);
     }
     else
     {
+        // レイが外側から来ている
         outwardNormal = normal;
-        niOverNt = 1.0f / MaterialCB.refractiveIndex;
+        niOverNt = 1.0f / material.refractiveIndex;
         cosine = -dot(rayDir, normal);
     }
     
@@ -52,34 +41,81 @@ void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
     if (discriminant > 0)
     {
         refracted = niOverNt * (rayDir - outwardNormal * cosine) - outwardNormal * sqrt(discriminant);
-        reflectProb = Schlick(cosine, MaterialCB.refractiveIndex);
+        reflectProb = Schlick(cosine, material.refractiveIndex);
     }
     else
     {
+        // 全反射
         reflectProb = 1.0f;
     }
     
-    RayDesc scatteredRay;
-    scatteredRay.Origin = OffsetRay(hitPoint, outwardNormal);
-    scatteredRay.TMin = 0.001f;
-    scatteredRay.TMax = 10000.0f;
-    
     // 反射か屈折かを確率的に決定
-    if (RandomFloat(payload.seed) < reflectProb)
+    if (RandomFloat(seed) < reflectProb)
     {
-        scatteredRay.Direction = reflect(rayDir, outwardNormal);
+        // 反射
+        sample.direction = reflect(rayDir, outwardNormal);
     }
     else
     {
-        scatteredRay.Direction = normalize(refracted);
+        // 屈折
+        sample.direction = normalize(refracted);
     }
     
-    RayPayload scatteredPayload;
-    scatteredPayload.color = float3(0, 0, 0);
-    scatteredPayload.depth = payload.depth + 1;
-    scatteredPayload.seed = payload.seed;
+    sample.brdf = material.albedo; // 通常は白（透明）
+    sample.pdf = 1.0f; // スペキュラー
+    sample.valid = true;
     
-    TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, scatteredRay, scatteredPayload);
+    return sample;
+}
+
+[shader("closesthit")]
+void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
+{
+    // 最大反射回数チェック
+    if (payload.depth >= 6)
+    {
+        payload.color = float3(0, 0, 0);
+        return;
+    }
     
-    payload.color = MaterialCB.albedo * scatteredPayload.color;
+    uint instanceID = InstanceID();
+    MaterialData material = GetMaterial(instanceID);
+    
+    // 交点を計算
+    float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+    
+    // 正確な法線を頂点データから取得
+    uint primitiveID = PrimitiveIndex();
+    float3 normal = GetInterpolatedNormal(instanceID, primitiveID, attr.barycentrics);
+    
+    float3 rayDir = normalize(WorldRayDirection());
+    
+    // ★★★ ガラス：屈折と反射の確率的選択 ★★★
+    // ガラスは基本的にスペキュラーなので、直接照明の計算は不要
+    
+    BRDFSample brdfSample = SampleDielectricBRDF(normal, rayDir, material, payload.seed);
+    
+    if (brdfSample.valid)
+    {
+        // 屈折または反射レイをトレース
+        RayDesc ray;
+        ray.Origin = OffsetRay(worldPos, normal);
+        ray.Direction = brdfSample.direction;
+        ray.TMin = 0.001f;
+        ray.TMax = 1000.0f;
+        
+        RayPayload newPayload;
+        newPayload.color = float3(0, 0, 0);
+        newPayload.depth = payload.depth + 1;
+        newPayload.seed = payload.seed;
+        
+        TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
+        
+        // ガラス色で調光（通常は透明なので殆ど影響しない）
+        payload.color = brdfSample.brdf * newPayload.color;
+    }
+    else
+    {
+        payload.color = float3(0, 0, 0);
+    }
 }

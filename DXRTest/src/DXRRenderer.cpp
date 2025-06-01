@@ -34,8 +34,6 @@ void DXRRenderer::Init(Renderer* renderer) {
 
     InitializeDXR(m_device.Get());
     CreateRootSignature();
-    CreateLocalRootSignature();
-    CreateMaterialConstantBuffers();
     CreateRaytracingPipelineStateObject();
     CreateOutputResource();
     CreateAccelerationStructures();
@@ -129,6 +127,7 @@ void DXRRenderer::Render() {
         raytraceDesc.Width, raytraceDesc.Height, raytraceDesc.Depth);
     OutputDebugStringA(debugMsg);
 
+
     // グローバルルートシグネチャ設定
     m_commandList->SetComputeRootSignature(m_globalRootSignature.Get());
 
@@ -137,9 +136,15 @@ void DXRRenderer::Render() {
     m_commandList->SetDescriptorHeaps(1, dxrHeaps);
 
     // リソース設定
-    m_commandList->SetComputeRootDescriptorTable(0, m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
-    m_commandList->SetComputeRootShaderResourceView(1, m_topLevelAS->GetGPUVirtualAddress());
-    m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());
+    CD3DX12_GPU_DESCRIPTOR_HANDLE srvHandle(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+    m_commandList->SetComputeRootDescriptorTable(0, srvHandle);  // UAV (出力)
+    m_commandList->SetComputeRootShaderResourceView(1, m_topLevelAS->GetGPUVirtualAddress());  // TLAS
+    m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());  // 定数バッファ
+
+    // ★★★ 新規追加：インスタンス/頂点/インデックスバッファ ★★★
+    srvHandle.Offset(1, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    m_commandList->SetComputeRootDescriptorTable(3, srvHandle);  // SRVテーブル (t1-t3)
 
     // レイトレーシング実行
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
@@ -192,13 +197,19 @@ void DXRRenderer::InitializeDXR(ID3D12Device* device) {
 
 void DXRRenderer::CreateRootSignature() {
     // グローバルルートシグネチャ作成
-    CD3DX12_DESCRIPTOR_RANGE uavDescriptor;
-    uavDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+    CD3DX12_DESCRIPTOR_RANGE descriptorRanges[2];
 
-    CD3DX12_ROOT_PARAMETER rootParameters[3];
-    rootParameters[0].InitAsDescriptorTable(1, &uavDescriptor); // 出力UAV
-    rootParameters[1].InitAsShaderResourceView(0);              // TLAS
-    rootParameters[2].InitAsConstantBufferView(0);              // 定数バッファ
+    // UAV レンジ（出力テクスチャ）
+    descriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);  // u0
+
+    // SRV レンジ（マテリアル、頂点、インデックス、オフセットバッファ）
+    descriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 1);  // t1, t2, t3, t4
+
+    CD3DX12_ROOT_PARAMETER rootParameters[4];
+    rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0]);  // 出力UAV
+    rootParameters[1].InitAsShaderResourceView(0);                     // TLAS (t0)
+    rootParameters[2].InitAsConstantBufferView(0);                     // シーン定数バッファ (b0)
+    rootParameters[3].InitAsDescriptorTable(1, &descriptorRanges[1]);  // SRVテーブル (t1-t4)
 
     CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
 
@@ -314,22 +325,6 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
     shaderConfigAssociationSubobject.pDesc = &shaderConfigAssociationDesc;
     subobjects.push_back(shaderConfigAssociationSubobject);
 
-    // ★★★ ローカルルートシグネチャサブオブジェクト ★★★
-    D3D12_STATE_SUBOBJECT localRootSigSubobject = {};
-    localRootSigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
-    localRootSigSubobject.pDesc = m_localRootSignature.GetAddressOf();
-    subobjects.push_back(localRootSigSubobject);
-
-    // ★★★ ローカルルートシグネチャをヒットグループに関連付け ★★★
-    localRootSigAssociationDesc.pSubobjectToAssociate = &subobjects.back();
-    localRootSigAssociationDesc.NumExports = _countof(hitGroupNames);
-    localRootSigAssociationDesc.pExports = hitGroupNames;
-
-    D3D12_STATE_SUBOBJECT localRootSigAssociationSubobject = {};
-    localRootSigAssociationSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
-    localRootSigAssociationSubobject.pDesc = &localRootSigAssociationDesc;
-    subobjects.push_back(localRootSigAssociationSubobject);
-
     // グローバルルートシグネチャ
     D3D12_STATE_SUBOBJECT globalRootSigSubobject = {};
     globalRootSigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
@@ -420,8 +415,6 @@ void DXRRenderer::UpdateCamera() {
 
     auto cameraData = dxrScene->GetCamera();
 
-    cameraData.target.x++;
-
     // ビュー・プロジェクション行列計算
     XMVECTOR eyePos = XMLoadFloat3(&cameraData.position);
     XMVECTOR targetPos = XMLoadFloat3(&cameraData.target);
@@ -465,7 +458,7 @@ void DXRRenderer::CreateAccelerationStructures() {
 
     TLASData tlasData = dxrScene->GetTLASData();
 
-    // ★ 詳細なデバッグ情報 ★
+    // 詳細なデバッグ情報
     char debugMsg[512];
     sprintf_s(debugMsg, "=== Acceleration Structure Detailed Debug ===\n");
     OutputDebugStringA(debugMsg);
@@ -475,68 +468,6 @@ void DXRRenderer::CreateAccelerationStructures() {
     if ( tlasData.blasDataList.empty() ) {
         OutputDebugStringA("ERROR: No BLAS data found! No objects to render.\n");
         return;
-    }
-
-    for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
-        const auto& blasData = tlasData.blasDataList[i];
-        sprintf_s(debugMsg, "=== BLAS[%zu] Detailed Analysis ===\n", i);
-        OutputDebugStringA(debugMsg);
-        sprintf_s(debugMsg, "  Vertices: %zu, Indices: %zu\n",
-            blasData.vertices.size(), blasData.indices.size());
-        OutputDebugStringA(debugMsg);
-        sprintf_s(debugMsg, "  Material type: %d\n", blasData.material.materialType);
-        OutputDebugStringA(debugMsg);
-
-        if ( !blasData.vertices.empty() ) {
-            // バウンディングボックス計算
-            float minX = blasData.vertices[0].position.x;
-            float maxX = blasData.vertices[0].position.x;
-            float minY = blasData.vertices[0].position.y;
-            float maxY = blasData.vertices[0].position.y;
-            float minZ = blasData.vertices[0].position.z;
-            float maxZ = blasData.vertices[0].position.z;
-
-            for ( const auto& vertex : blasData.vertices ) {
-                minX = min(minX, vertex.position.x);
-                maxX = max(maxX, vertex.position.x);
-                minY = min(minY, vertex.position.y);
-                maxY = max(maxY, vertex.position.y);
-                minZ = min(minZ, vertex.position.z);
-                maxZ = max(maxZ, vertex.position.z);
-            }
-
-            sprintf_s(debugMsg, "  Bounding box: X[%.1f, %.1f], Y[%.1f, %.1f], Z[%.1f, %.1f]\n",
-                minX, maxX, minY, maxY, minZ, maxZ);
-            OutputDebugStringA(debugMsg);
-            sprintf_s(debugMsg, "  Size: %.1f x %.1f x %.1f\n",
-                maxX - minX, maxY - minY, maxZ - minZ);
-            OutputDebugStringA(debugMsg);
-
-            // ★ カメラから見える範囲かチェック ★
-            float cameraX = 278.0f, cameraY = 278.0f, cameraZ = -600.0f;
-            float targetX = 278.0f, targetY = 278.0f, targetZ = 278.0f;
-
-            // オブジェクトがカメラの前方にあるか
-            bool inFrontOfCamera = ( minZ > cameraZ );
-            sprintf_s(debugMsg, "  In front of camera: %s\n", inFrontOfCamera ? "YES" : "NO");
-            OutputDebugStringA(debugMsg);
-
-            // オブジェクトがカメラの視線方向にあるか
-            bool inViewDirection = ( minX <= targetX && maxX >= targetX ) &&
-                ( minY <= targetY && maxY >= targetY );
-            sprintf_s(debugMsg, "  In view direction: %s\n", inViewDirection ? "YES" : "NO");
-            OutputDebugStringA(debugMsg);
-
-            // オブジェクトの中心とカメラの距離
-            float centerX = ( minX + maxX ) * 0.5f;
-            float centerY = ( minY + maxY ) * 0.5f;
-            float centerZ = ( minZ + maxZ ) * 0.5f;
-            float distance = sqrtf(powf(centerX - cameraX, 2) +
-                powf(centerY - cameraY, 2) +
-                powf(centerZ - cameraZ, 2));
-            sprintf_s(debugMsg, "  Distance from camera: %.1f\n", distance);
-            OutputDebugStringA(debugMsg);
-        }
     }
 
     // 既存のBLAS/TLAS作成処理...
@@ -554,7 +485,7 @@ void DXRRenderer::CreateAccelerationStructures() {
         m_bottomLevelAS.push_back(blasBuffer);
     }
 
-    // BLAS構築完了後のバリア
+    // BLASバリア
     std::vector<CD3DX12_RESOURCE_BARRIER> blasBarriers;
     for ( auto& blas : m_bottomLevelAS ) {
         blasBarriers.push_back(CD3DX12_RESOURCE_BARRIER::UAV(blas.Get()));
@@ -563,95 +494,145 @@ void DXRRenderer::CreateAccelerationStructures() {
         m_commandList->ResourceBarrier(static_cast<UINT>( blasBarriers.size() ), blasBarriers.data());
     }
 
-    // TLAS作成
-    OutputDebugStringA("Creating TLAS...\n");
+    // TLAS作成（インスタンス埋め込み版）
+    OutputDebugStringA("Creating TLAS with embedded materials...\n");
     CreateTLAS(tlasData);
+
+    // ★★★ 新規追加：ディスクリプタ作成 ★★★
+    CreateDescriptorsForBuffers(tlasData);
 
     Singleton<Renderer>::getInstance().ExecuteCommandListAndWait();
     OutputDebugStringA("Acceleration structures created successfully\n");
-
-    UpdateMaterialData();
 }
 
 void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuffer) {
     HRESULT hr;
 
-    // ★ 頂点データの検証 ★
+    char debugMsg[512];
+    sprintf_s(debugMsg, "=== Creating BLAS (FIXED) ===\n");
+    OutputDebugStringA(debugMsg);
+
+    // ★★★ 入力データの詳細検証 ★★★
     if ( blasData.vertices.empty() || blasData.indices.empty() ) {
         OutputDebugStringA("ERROR: Empty vertices or indices in BLAS!\n");
         return;
     }
 
-    char debugMsg[256];
-    sprintf_s(debugMsg, "BLAS vertices: %zu, indices: %zu\n",
+    sprintf_s(debugMsg, "Input data: %zu vertices, %zu indices\n",
         blasData.vertices.size(), blasData.indices.size());
+    OutputDebugStringA(debugMsg);
+
+    // ★★★ インデックスの妥当性を完全検証 ★★★
+    uint32_t maxValidIndex = static_cast<uint32_t>( blasData.vertices.size() - 1 );
+    bool hasInvalidIndices = false;
+
+    for ( size_t i = 0; i < blasData.indices.size(); ++i ) {
+        uint32_t idx = blasData.indices[i];
+        if ( idx > maxValidIndex ) {
+            sprintf_s(debugMsg, "ERROR: Invalid index %u at position %zu (max: %u)\n",
+                idx, i, maxValidIndex);
+            OutputDebugStringA(debugMsg);
+            hasInvalidIndices = true;
+        }
+    }
+
+    if ( hasInvalidIndices ) {
+        OutputDebugStringA("ABORTING BLAS creation due to invalid indices!\n");
+        return;
+    }
+
+    // ★★★ データサンプルの詳細出力 ★★★
+    sprintf_s(debugMsg, "First 5 vertices:\n");
+    OutputDebugStringA(debugMsg);
+    for ( int i = 0; i < min(5, (int)blasData.vertices.size()); ++i ) {
+        sprintf_s(debugMsg, "  [%d]: pos=(%.3f,%.3f,%.3f), normal=(%.3f,%.3f,%.3f)\n", i,
+            blasData.vertices[i].position.x, blasData.vertices[i].position.y, blasData.vertices[i].position.z,
+            blasData.vertices[i].normal.x, blasData.vertices[i].normal.y, blasData.vertices[i].normal.z);
+        OutputDebugStringA(debugMsg);
+    }
+
+    sprintf_s(debugMsg, "First 9 indices: ");
+    OutputDebugStringA(debugMsg);
+    for ( int i = 0; i < min(9, (int)blasData.indices.size()); ++i ) {
+        sprintf_s(debugMsg, "%u ", blasData.indices[i]);
+        OutputDebugStringA(debugMsg);
+    }
+    sprintf_s(debugMsg, "\n");
     OutputDebugStringA(debugMsg);
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
 
-    // 頂点バッファ作成
-    {
-        UINT vertexBufferSize = static_cast<UINT>( blasData.vertices.size() * sizeof(DXRVertex) );
-        sprintf_s(debugMsg, "Vertex buffer size: %u bytes\n", vertexBufferSize);
+    // ★★★ 専用の頂点バッファを個別作成 ★★★
+    UINT vertexBufferSize = static_cast<UINT>( blasData.vertices.size() * sizeof(DXRVertex) );
+    sprintf_s(debugMsg, "Creating dedicated vertex buffer: %u bytes\n", vertexBufferSize);
+    OutputDebugStringA(debugMsg);
+
+    CD3DX12_RESOURCE_DESC vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+
+    hr = m_device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &vertexBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&blasData.vertexBuffer)
+    );
+
+    if ( FAILED(hr) ) {
+        sprintf_s(debugMsg, "ERROR: Failed to create vertex buffer (HRESULT: 0x%08X)\n", hr);
         OutputDebugStringA(debugMsg);
-
-        CD3DX12_RESOURCE_DESC vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-
-        hr = m_device->CreateCommittedResource(
-            &uploadHeapProps,
-            D3D12_HEAP_FLAG_NONE,
-            &vertexBufferDesc,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&blasData.vertexBuffer)
-        );
-
-        if ( FAILED(hr) ) {
-            OutputDebugStringA("ERROR: Failed to create vertex buffer for BLAS\n");
-            throw std::runtime_error("Failed to create vertex buffer for BLAS");
-        }
-
-        // 頂点データをアップロード
-        void* mappedVertexData;
-        blasData.vertexBuffer->Map(0, nullptr, &mappedVertexData);
-        memcpy(mappedVertexData, blasData.vertices.data(), vertexBufferSize);
-        blasData.vertexBuffer->Unmap(0, nullptr);
-
-        OutputDebugStringA("Vertex buffer created and data uploaded\n");
+        throw std::runtime_error("Failed to create vertex buffer for BLAS");
     }
 
-    // インデックスバッファ作成
-    {
-        UINT indexBufferSize = static_cast<UINT>( blasData.indices.size() * sizeof(uint32_t) );
-        sprintf_s(debugMsg, "Index buffer size: %u bytes\n", indexBufferSize);
-        OutputDebugStringA(debugMsg);
-
-        CD3DX12_RESOURCE_DESC indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
-
-        hr = m_device->CreateCommittedResource(
-            &uploadHeapProps,
-            D3D12_HEAP_FLAG_NONE,
-            &indexBufferDesc,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&blasData.indexBuffer)
-        );
-
-        if ( FAILED(hr) ) {
-            OutputDebugStringA("ERROR: Failed to create index buffer for BLAS\n");
-            throw std::runtime_error("Failed to create index buffer for BLAS");
-        }
-
-        // インデックスデータをアップロード
-        void* mappedIndexData;
-        blasData.indexBuffer->Map(0, nullptr, &mappedIndexData);
-        memcpy(mappedIndexData, blasData.indices.data(), indexBufferSize);
-        blasData.indexBuffer->Unmap(0, nullptr);
-
-        OutputDebugStringA("Index buffer created and data uploaded\n");
+    // ★★★ 頂点データをアップロード（検証付き）★★★
+    void* mappedVertexData;
+    hr = blasData.vertexBuffer->Map(0, nullptr, &mappedVertexData);
+    if ( FAILED(hr) ) {
+        OutputDebugStringA("ERROR: Failed to map vertex buffer\n");
+        throw std::runtime_error("Failed to map vertex buffer");
     }
 
-    // ジオメトリディスクリプタ設定
+    memcpy(mappedVertexData, blasData.vertices.data(), vertexBufferSize);
+    blasData.vertexBuffer->Unmap(0, nullptr);
+
+    OutputDebugStringA("Vertex buffer uploaded successfully\n");
+
+    // ★★★ 専用のインデックスバッファを個別作成 ★★★
+    UINT indexBufferSize = static_cast<UINT>( blasData.indices.size() * sizeof(uint32_t) );
+    sprintf_s(debugMsg, "Creating dedicated index buffer: %u bytes\n", indexBufferSize);
+    OutputDebugStringA(debugMsg);
+
+    CD3DX12_RESOURCE_DESC indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
+
+    hr = m_device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &indexBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&blasData.indexBuffer)
+    );
+
+    if ( FAILED(hr) ) {
+        sprintf_s(debugMsg, "ERROR: Failed to create index buffer (HRESULT: 0x%08X)\n", hr);
+        OutputDebugStringA(debugMsg);
+        throw std::runtime_error("Failed to create index buffer for BLAS");
+    }
+
+    // ★★★ インデックスデータをアップロード（検証付き）★★★
+    void* mappedIndexData;
+    hr = blasData.indexBuffer->Map(0, nullptr, &mappedIndexData);
+    if ( FAILED(hr) ) {
+        OutputDebugStringA("ERROR: Failed to map index buffer\n");
+        throw std::runtime_error("Failed to map index buffer");
+    }
+
+    memcpy(mappedIndexData, blasData.indices.data(), indexBufferSize);
+    blasData.indexBuffer->Unmap(0, nullptr);
+
+    OutputDebugStringA("Index buffer uploaded successfully\n");
+
+    // ★★★ ジオメトリディスクリプタ設定（詳細ログ付き）★★★
     D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
     geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
     geometryDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
@@ -669,20 +650,20 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
 
     sprintf_s(debugMsg, "Geometry setup: VertexCount=%u, IndexCount=%u\n",
         geometryDesc.Triangles.VertexCount, geometryDesc.Triangles.IndexCount);
+    sprintf_s(debugMsg, "Expected triangles: %u\n", geometryDesc.Triangles.IndexCount / 3);
     OutputDebugStringA(debugMsg);
 
-    // BLAS入力設定
+    // BLAS"入力設定
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS blasInputs = {};
     blasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
     blasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
     blasInputs.NumDescs = 1;
     blasInputs.pGeometryDescs = &geometryDesc;
 
-    // BLAS前処理情報取得
+    // 以下、既存のBLAS構築処理...
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO blasPrebuildInfo = {};
     m_device->GetRaytracingAccelerationStructurePrebuildInfo(&blasInputs, &blasPrebuildInfo);
 
-    // BLASバッファ作成
     CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
     CD3DX12_RESOURCE_DESC blasBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(
         blasPrebuildInfo.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -700,7 +681,6 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         throw std::runtime_error("Failed to create BLAS buffer");
     }
 
-    // スクラッチバッファ作成
     CD3DX12_RESOURCE_DESC scratchBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(
         blasPrebuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
@@ -719,40 +699,89 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
 
     m_bottomLevelASScratch.push_back(blasData.scratchBuffer);
 
-    // BLAS構築実行（コマンドリストに記録するだけ）
+    // BLAS構築実行
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blasDesc = {};
     blasDesc.Inputs = blasInputs;
     blasDesc.DestAccelerationStructureData = blasBuffer->GetGPUVirtualAddress();
     blasDesc.ScratchAccelerationStructureData = blasData.scratchBuffer->GetGPUVirtualAddress();
 
     m_commandList->BuildRaytracingAccelerationStructure(&blasDesc, 0, nullptr);
+
+    sprintf_s(debugMsg, "BLAS construction completed successfully\n");
+    OutputDebugStringA(debugMsg);
 }
 
 void DXRRenderer::CreateTLAS(TLASData& tlasData) {
+    char debugMsg[512];
+
+    sprintf_s(debugMsg, "=== CreateTLAS with Transform Verification ===\n");
+    OutputDebugStringA(debugMsg);
+
     // インスタンスディスクリプタ作成
     std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instanceDescs;
 
     for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
+        const auto& blasData = tlasData.blasDataList[i];
+
         D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
 
-        // ★修正：BLASDataから実際のワールド変換行列を使用
-        XMMATRIX transform = tlasData.blasDataList[i].transform;
+        // ∴∴∴ 重要：変換行列の適切な適用 ∴∴∴
+        XMMATRIX transform = blasData.transform;
 
-        // 3x4行列としてコピー（DXRのインスタンス変換は3x4行列）
+        // デバッグ：変換行列の内容を確認
+        XMFLOAT4X4 transformFloat;
+        XMStoreFloat4x4(&transformFloat, transform);
+        sprintf_s(debugMsg, "Instance[%zu] Transform Matrix:\n", i);
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "  [%.3f, %.3f, %.3f, %.3f]\n",
+            transformFloat._11, transformFloat._12, transformFloat._13, transformFloat._14);
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "  [%.3f, %.3f, %.3f, %.3f]\n",
+            transformFloat._21, transformFloat._22, transformFloat._23, transformFloat._24);
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "  [%.3f, %.3f, %.3f, %.3f]\n",
+            transformFloat._31, transformFloat._32, transformFloat._33, transformFloat._34);
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "  [%.3f, %.3f, %.3f, %.3f]\n",
+            transformFloat._41, transformFloat._42, transformFloat._43, transformFloat._44);
+        OutputDebugStringA(debugMsg);
+
+        // XMFLOAT3X4に変換（4行目は不要）
         XMFLOAT3X4 transform3x4;
         XMStoreFloat3x4(&transform3x4, transform);
-        memcpy(instanceDesc.Transform, &transform3x4, sizeof(instanceDesc.Transform));
 
+        // インスタンス変換行列を設定
+        for ( int row = 0; row < 3; ++row ) {
+            for ( int col = 0; col < 4; ++col ) {
+                instanceDesc.Transform[row][col] = transform3x4.m[row][col];
+            }
+        }
+
+        // ∴∴∴ インスタンスIDとマテリアルタイプの設定 ∴∴∴
         instanceDesc.InstanceID = static_cast<UINT>( i );
         instanceDesc.InstanceMask = 0xFF;
-        instanceDesc.InstanceContributionToHitGroupIndex = static_cast<UINT>( tlasData.blasDataList[i].material.materialType );
+
+        // マテリアルタイプでヒットグループを選択
+        instanceDesc.InstanceContributionToHitGroupIndex = static_cast<UINT>( blasData.material.materialType );
+
         instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
         instanceDesc.AccelerationStructure = m_bottomLevelAS[i]->GetGPUVirtualAddress();
+
+        sprintf_s(debugMsg, "Instance[%zu]: ID=%u, MaterialType=%d, Albedo=(%.2f,%.2f,%.2f)\n",
+            i, instanceDesc.InstanceID, blasData.material.materialType,
+            blasData.material.albedo.x, blasData.material.albedo.y, blasData.material.albedo.z);
+        OutputDebugStringA(debugMsg);
 
         instanceDescs.push_back(instanceDesc);
     }
 
-    // 以下のインスタンスバッファ作成以降のコードは既存のまま
+    // ∴∴∴ マテリアルバッファ作成 ∴∴∴
+    CreateMaterialBuffer(tlasData);
+
+    // ∴∴∴ 頂点・インデックスバッファ作成 ∴∴∴
+    CreateVertexIndexBuffers(tlasData);
+
+    // 既存のTLAS作成処理...
     UINT instanceBufferSize = static_cast<UINT>( instanceDescs.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC) );
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
@@ -771,24 +800,21 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
         throw std::runtime_error("Failed to create instance buffer");
     }
 
-    // インスタンスデータをアップロード
     void* mappedInstanceData;
     tlasData.instanceBuffer->Map(0, nullptr, &mappedInstanceData);
     memcpy(mappedInstanceData, instanceDescs.data(), instanceBufferSize);
     tlasData.instanceBuffer->Unmap(0, nullptr);
 
-    // TLAS入力設定
+    // TLASビルド処理
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS tlasInputs = {};
     tlasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
     tlasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
     tlasInputs.NumDescs = static_cast<UINT>( instanceDescs.size() );
     tlasInputs.InstanceDescs = tlasData.instanceBuffer->GetGPUVirtualAddress();
 
-    // TLAS前処理情報取得
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO tlasPrebuildInfo = {};
     m_device->GetRaytracingAccelerationStructurePrebuildInfo(&tlasInputs, &tlasPrebuildInfo);
 
-    // TLASバッファ作成
     CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
     CD3DX12_RESOURCE_DESC tlasBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(
         tlasPrebuildInfo.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -806,7 +832,6 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
         throw std::runtime_error("Failed to create TLAS buffer");
     }
 
-    // TLASスクラッチバッファ作成
     CD3DX12_RESOURCE_DESC tlasScratchBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(
         tlasPrebuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
@@ -823,7 +848,6 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
         throw std::runtime_error("Failed to create TLAS scratch buffer");
     }
 
-    // TLAS構築実行（コマンドリストに記録するだけ）
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC tlasDesc = {};
     tlasDesc.Inputs = tlasInputs;
     tlasDesc.DestAccelerationStructureData = m_topLevelAS->GetGPUVirtualAddress();
@@ -831,9 +855,226 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
 
     m_commandList->BuildRaytracingAccelerationStructure(&tlasDesc, 0, nullptr);
 
-    // TLASバリア
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::UAV(m_topLevelAS.Get());
     m_commandList->ResourceBarrier(1, &barrier);
+
+    OutputDebugStringA("TLAS created with verified transforms\n");
+}
+
+void DXRRenderer::CreateDescriptorsForBuffers(const TLASData& tlasData) {
+    UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+    // UAV（出力テクスチャ）をスキップ
+    cpuHandle.Offset(1, descriptorSize);
+
+    // ★★★ マテリアルバッファのSRV作成 (t1) ★★★
+    if ( m_materialBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC materialSrvDesc = {};
+        materialSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        materialSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        materialSrvDesc.Buffer.FirstElement = 0;
+        materialSrvDesc.Buffer.NumElements = static_cast<UINT>( tlasData.blasDataList.size() );
+        materialSrvDesc.Buffer.StructureByteStride = sizeof(DXRMaterialData);
+        materialSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+        m_device->CreateShaderResourceView(m_materialBuffer.Get(), &materialSrvDesc, cpuHandle);
+
+        char debugMsg[256];
+        sprintf_s(debugMsg, "Material buffer SRV created at t1: %zu materials\n", tlasData.blasDataList.size());
+        OutputDebugStringA(debugMsg);
+    }
+    cpuHandle.Offset(1, descriptorSize);
+
+    // ★★★ 頂点バッファのSRV作成 (t2) ★★★
+    if ( m_globalVertexBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC vertexSrvDesc = {};
+        vertexSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        vertexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        vertexSrvDesc.Buffer.FirstElement = 0;
+        vertexSrvDesc.Buffer.NumElements = m_totalVertexCount;
+        vertexSrvDesc.Buffer.StructureByteStride = sizeof(DXRVertex);
+        vertexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+        m_device->CreateShaderResourceView(m_globalVertexBuffer.Get(), &vertexSrvDesc, cpuHandle);
+        OutputDebugStringA("Vertex buffer SRV created at t2\n");
+    }
+    cpuHandle.Offset(1, descriptorSize);
+
+    // ★★★ インデックスバッファのSRV作成 (t3) ★★★
+    if ( m_globalIndexBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC indexSrvDesc = {};
+        indexSrvDesc.Format = DXGI_FORMAT_R32_UINT;
+        indexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        indexSrvDesc.Buffer.FirstElement = 0;
+        indexSrvDesc.Buffer.NumElements = m_totalIndexCount;
+        indexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+        m_device->CreateShaderResourceView(m_globalIndexBuffer.Get(), &indexSrvDesc, cpuHandle);
+        OutputDebugStringA("Index buffer SRV created at t3\n");
+    }
+    cpuHandle.Offset(1, descriptorSize);
+
+    // ★★★ インスタンスオフセットバッファのSRV作成 (t4) ★★★
+    if ( m_instanceOffsetBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC offsetSrvDesc = {};
+        offsetSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        offsetSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        offsetSrvDesc.Buffer.FirstElement = 0;
+        offsetSrvDesc.Buffer.NumElements = static_cast<UINT>( tlasData.blasDataList.size() );
+        offsetSrvDesc.Buffer.StructureByteStride = 16; // InstanceOffsetData のサイズ
+        offsetSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+        m_device->CreateShaderResourceView(m_instanceOffsetBuffer.Get(), &offsetSrvDesc, cpuHandle);
+        OutputDebugStringA("Instance offset buffer SRV created at t4\n");
+    }
+}
+
+void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
+    char debugMsg[256];
+    sprintf_s(debugMsg, "=== SKIPPING Unified Buffer Creation ===\n");
+    OutputDebugStringA(debugMsg);
+    sprintf_s(debugMsg, "Using individual BLAS buffers instead\n");
+    OutputDebugStringA(debugMsg);
+
+    // ★★★ 統合バッファは作成せず、個別BLASバッファのみを使用 ★★★
+    // BLASでは既に各オブジェクトが専用バッファを持っているため、
+    // 追加の統合バッファは不要
+
+    // ダミーの空バッファを作成（シェーダーバインディング用）
+    std::vector<DXRVertex> dummyVertices(1);
+    std::vector<uint32_t> dummyIndices(3);
+
+    dummyVertices[0] = {
+        {0.0f, 0.0f, 0.0f},  // position
+        {0.0f, 1.0f, 0.0f},  // normal
+        {0.0f, 0.0f}         // texCoord
+    };
+    dummyIndices[0] = 0;
+    dummyIndices[1] = 0;
+    dummyIndices[2] = 0;
+
+    m_totalVertexCount = 1;
+    m_totalIndexCount = 3;
+
+    // ダミー頂点バッファ作成
+    {
+        UINT vertexBufferSize = static_cast<UINT>( dummyVertices.size() * sizeof(DXRVertex) );
+        CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+
+        HRESULT hr = m_device->CreateCommittedResource(
+            &uploadHeapProps,
+            D3D12_HEAP_FLAG_NONE,
+            &vertexBufferDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&m_globalVertexBuffer)
+        );
+
+        if ( SUCCEEDED(hr) ) {
+            void* mappedData;
+            m_globalVertexBuffer->Map(0, nullptr, &mappedData);
+            memcpy(mappedData, dummyVertices.data(), vertexBufferSize);
+            m_globalVertexBuffer->Unmap(0, nullptr);
+        }
+    }
+
+    // ダミーインデックスバッファ作成
+    {
+        UINT indexBufferSize = static_cast<UINT>( dummyIndices.size() * sizeof(uint32_t) );
+        CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+        CD3DX12_RESOURCE_DESC indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
+
+        HRESULT hr = m_device->CreateCommittedResource(
+            &uploadHeapProps,
+            D3D12_HEAP_FLAG_NONE,
+            &indexBufferDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&m_globalIndexBuffer)
+        );
+
+        if ( SUCCEEDED(hr) ) {
+            void* mappedData;
+            m_globalIndexBuffer->Map(0, nullptr, &mappedData);
+            memcpy(mappedData, dummyIndices.data(), indexBufferSize);
+            m_globalIndexBuffer->Unmap(0, nullptr);
+        }
+    }
+
+    // ダミーオフセットバッファ作成（全て0）
+    std::vector<uint32_t> dummyVertexOffsets(tlasData.blasDataList.size(), 0);
+    std::vector<uint32_t> dummyIndexOffsets(tlasData.blasDataList.size(), 0);
+    CreateInstanceOffsetBuffer(dummyVertexOffsets, dummyIndexOffsets);
+
+    OutputDebugStringA("Dummy buffers created - BLAS individual buffers will be used\n");
+}
+
+void DXRRenderer::CreateInstanceOffsetBuffer(const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets) {
+    struct InstanceOffsetData {
+        uint32_t vertexOffset;
+        uint32_t indexOffset;
+        uint32_t padding[2]; // 16バイトアライメント
+    };
+
+    std::vector<InstanceOffsetData> offsetArray;
+
+    char debugMsg[256];
+    sprintf_s(debugMsg, "=== Creating Instance Offset Buffer (FIXED) ===\n");
+    OutputDebugStringA(debugMsg);
+
+    // ★★★ サイズチェック ★★★
+    if ( vertexOffsets.size() != indexOffsets.size() ) {
+        sprintf_s(debugMsg, "ERROR: Offset array size mismatch! vertex=%zu, index=%zu\n",
+            vertexOffsets.size(), indexOffsets.size());
+        OutputDebugStringA(debugMsg);
+        return;
+    }
+
+    for ( size_t i = 0; i < vertexOffsets.size(); ++i ) {
+        InstanceOffsetData offset;
+        offset.vertexOffset = vertexOffsets[i];
+        offset.indexOffset = indexOffsets[i];
+        offset.padding[0] = 0;
+        offset.padding[1] = 0;
+        offsetArray.push_back(offset);
+
+        sprintf_s(debugMsg, "Instance[%zu]: vertexOffset=%u, indexOffset=%u\n",
+            i, offset.vertexOffset, offset.indexOffset);
+        OutputDebugStringA(debugMsg);
+    }
+
+    UINT offsetBufferSize = static_cast<UINT>( offsetArray.size() * sizeof(InstanceOffsetData) );
+    sprintf_s(debugMsg, "Offset buffer size: %u bytes (%zu entries)\n",
+        offsetBufferSize, offsetArray.size());
+    OutputDebugStringA(debugMsg);
+
+    CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC offsetBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(offsetBufferSize);
+
+    HRESULT hr = m_device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &offsetBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&m_instanceOffsetBuffer)
+    );
+
+    if ( SUCCEEDED(hr) ) {
+        void* mappedData;
+        m_instanceOffsetBuffer->Map(0, nullptr, &mappedData);
+        memcpy(mappedData, offsetArray.data(), offsetBufferSize);
+        m_instanceOffsetBuffer->Unmap(0, nullptr);
+
+        sprintf_s(debugMsg, "Instance offset buffer created successfully\n");
+        OutputDebugStringA(debugMsg);
+    }
+    else {
+        sprintf_s(debugMsg, "ERROR: Failed to create instance offset buffer (HRESULT: 0x%08X)\n", hr);
+        OutputDebugStringA(debugMsg);
+    }
 }
 
 ComPtr<IDxcBlob> DXRRenderer::CompileShaderFromFile(const std::wstring& hlslPath, const std::wstring& entryPoint, const std::wstring& target) {
@@ -996,9 +1237,9 @@ void DXRRenderer::CreateOutputResource() {
         throw std::runtime_error("Failed to create raytracing output resource");
     }
 
-    // ディスクリプタヒープ作成
+    // ★★★ ディスクリプタヒープ作成（UAV 1個 + SRV 4個） ★★★
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    descriptorHeapDesc.NumDescriptors = 1;
+    descriptorHeapDesc.NumDescriptors = 5;  // UAV(1) + SRV(4)
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -1007,10 +1248,9 @@ void DXRRenderer::CreateOutputResource() {
         throw std::runtime_error("Failed to create descriptor heap");
     }
 
-    // UAVディスクリプタ作成
+    // UAVディスクリプタ作成（出力テクスチャ）
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-
     m_device->CreateUnorderedAccessView(
         m_raytracingOutput.Get(),
         nullptr,
@@ -1018,7 +1258,7 @@ void DXRRenderer::CreateOutputResource() {
         m_descriptorHeap->GetCPUDescriptorHandleForHeapStart()
     );
 
-    // 定数バッファ作成
+    // シーン定数バッファ作成
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC constantBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(SceneConstantBuffer));
 
@@ -1036,110 +1276,47 @@ void DXRRenderer::CreateOutputResource() {
     }
 }
 
-void DXRRenderer::CreateLocalRootSignature() {
-    // ローカルルートシグネチャ作成（マテリアル用定数バッファ）
-    CD3DX12_ROOT_PARAMETER localRootParameter;
-    localRootParameter.InitAsConstantBufferView(1, 1); // register(b1, space1)
+void DXRRenderer::CreateMaterialBuffer(const TLASData& tlasData) {
+    if ( tlasData.blasDataList.empty() ) return;
 
-    CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(1, &localRootParameter);
-    localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+    // マテリアルデータを配列に変換
+    std::vector<DXRMaterialData> materials;
+    for ( const auto& blasData : tlasData.blasDataList ) {
+        materials.push_back(blasData.material);
 
-    ComPtr<ID3DBlob> signature;
-    ComPtr<ID3DBlob> error;
-    HRESULT hr = D3D12SerializeRootSignature(&localRootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
-
-    if ( FAILED(hr) ) {
-        if ( error ) {
-            std::string errorMsg(static_cast<char*>( error->GetBufferPointer() ));
-            throw std::runtime_error("Failed to serialize local root signature: " + errorMsg);
-        }
-        throw std::runtime_error("Failed to serialize local root signature");
+        // デバッグ出力
+        char debugMsg[256];
+        sprintf_s(debugMsg, "Material[%zu]: albedo=(%.3f,%.3f,%.3f), type=%d\n",
+            materials.size() - 1, blasData.material.albedo.x,
+            blasData.material.albedo.y, blasData.material.albedo.z,
+            blasData.material.materialType);
+        OutputDebugStringA(debugMsg);
     }
 
-    hr = m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_localRootSignature));
-    if ( FAILED(hr) ) {
-        throw std::runtime_error("Failed to create local root signature");
-    }
-}
-
-void DXRRenderer::CreateMaterialConstantBuffers() {
-    // 4つのマテリアル用定数バッファを作成
-    m_materialConstantBuffers.resize(4);
+    // マテリアルバッファ作成
+    UINT materialBufferSize = static_cast<UINT>( materials.size() * sizeof(DXRMaterialData) );
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
-    UINT alignedSize = AlignTo(sizeof(DXRMaterialData), 256);
-    CD3DX12_RESOURCE_DESC constantBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(alignedSize);
+    CD3DX12_RESOURCE_DESC materialBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(materialBufferSize);
 
-    for ( int i = 0; i < 4; ++i ) {
-        HRESULT hr = m_device->CreateCommittedResource(
-            &uploadHeapProps,
-            D3D12_HEAP_FLAG_NONE,
-            &constantBufferDesc,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&m_materialConstantBuffers[i])
-        );
+    HRESULT hr = m_device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &materialBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&m_materialBuffer)
+    );
 
-        if ( FAILED(hr) ) {
-            throw std::runtime_error("Failed to create material constant buffer");
-        }
-    }
-
-    // マテリアルデータを設定
-    UpdateMaterialData();
-}
-
-void DXRRenderer::UpdateMaterialData() {
-    // 現在のシーンからマテリアルデータを取得
-    auto& gameManager = Singleton<GameManager>::getInstance();
-    DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
-
-    if ( !dxrScene ) return;
-
-    auto dxrShapes = dxrScene->GetDXRShapes();
-
-    // 修正：マテリアルタイプ別にマテリアルを収集
-    std::vector<DXRMaterialData> materialsByType(4);
-
-    // デフォルト値を設定（使われないマテリアルタイプ用）
-    for ( int i = 0; i < 4; ++i ) {
-        materialsByType[i].albedo = { 0.5f, 0.5f, 0.5f };
-        materialsByType[i].roughness = 1.0f;
-        materialsByType[i].refractiveIndex = 1.0f;
-        materialsByType[i].emission = { 0.0f, 0.0f, 0.0f };
-        materialsByType[i].materialType = i;
-    }
-
-    // 実際のオブジェクトからマテリアルデータを収集
-    for ( auto* shape : dxrShapes ) {
-        if ( shape ) {
-            DXRMaterialData material = shape->GetMaterialData();
-            int materialType = material.materialType;
-
-            // マテリアルタイプが有効範囲内の場合のみ設定
-            if ( materialType >= 0 && materialType < 4 ) {
-                materialsByType[materialType] = material;
-
-                // デバッグ出力
-                char debugMsg[256];
-                sprintf_s(debugMsg, "Setting material[%d]: albedo=(%.3f, %.3f, %.3f), type=%d\n",
-                    materialType, material.albedo.x, material.albedo.y, material.albedo.z, material.materialType);
-                OutputDebugStringA(debugMsg);
-            }
-        }
-    }
-
-    // 各定数バッファに対応するマテリアルデータを設定
-    for ( int i = 0; i < 4; ++i ) {
+    if ( SUCCEEDED(hr) ) {
         void* mappedData;
-        m_materialConstantBuffers[i]->Map(0, nullptr, &mappedData);
-        memcpy(mappedData, &materialsByType[i], sizeof(DXRMaterialData));
-        m_materialConstantBuffers[i]->Unmap(0, nullptr);
+        m_materialBuffer->Map(0, nullptr, &mappedData);
+        memcpy(mappedData, materials.data(), materialBufferSize);
+        m_materialBuffer->Unmap(0, nullptr);
 
-        // 確認用デバッグ出力
         char debugMsg[256];
-        sprintf_s(debugMsg, "Final material buffer[%d]: albedo=(%.3f, %.3f, %.3f), type=%d\n",
-            i, materialsByType[i].albedo.x, materialsByType[i].albedo.y, materialsByType[i].albedo.z, materialsByType[i].materialType);
+        sprintf_s(debugMsg, "Material buffer created: %zu materials, size: %u bytes\n",
+            materials.size(), materialBufferSize);
         OutputDebugStringA(debugMsg);
     }
 }
@@ -1148,13 +1325,13 @@ void DXRRenderer::CreateShaderTables() {
     // シェーダー識別子取得
     ComPtr<ID3D12StateObjectProperties> stateObjectProps;
     HRESULT hr = m_rtStateObject.As(&stateObjectProps);
-    if (FAILED(hr)) {
+    if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to get state object properties");
     }
 
     // RayGeneration シェーダーテーブル作成
     void* rayGenShaderID = stateObjectProps->GetShaderIdentifier(L"RayGen");
-    if (!rayGenShaderID) {
+    if ( !rayGenShaderID ) {
         throw std::runtime_error("Failed to get RayGen shader identifier");
     }
 
@@ -1170,7 +1347,7 @@ void DXRRenderer::CreateShaderTables() {
         IID_PPV_ARGS(&m_rayGenShaderTable)
     );
 
-    if (FAILED(hr)) {
+    if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to create RayGen shader table");
     }
 
@@ -1181,7 +1358,7 @@ void DXRRenderer::CreateShaderTables() {
 
     // Miss シェーダーテーブル作成
     void* missShaderID = stateObjectProps->GetShaderIdentifier(L"Miss");
-    if (!missShaderID) {
+    if ( !missShaderID ) {
         throw std::runtime_error("Failed to get Miss shader identifier");
     }
 
@@ -1196,7 +1373,7 @@ void DXRRenderer::CreateShaderTables() {
         IID_PPV_ARGS(&m_missShaderTable)
     );
 
-    if (FAILED(hr)) {
+    if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to create Miss shader table");
     }
 
@@ -1205,17 +1382,25 @@ void DXRRenderer::CreateShaderTables() {
     memcpy(mappedMissData, missShaderID, s_shaderIdentifierSize);
     m_missShaderTable->Unmap(0, nullptr);
 
-    // ★★★ Hit Group シェーダーテーブル作成（ローカルルートシグネチャ対応） ★★★
-    const wchar_t* hitGroupNames[] = {
-        L"HitGroup_Lambertian",
-        L"HitGroup_Metal",
-        L"HitGroup_Dielectric",
-        L"HitGroup_DiffuseLight"
-    };
+    // ★ ヒットグループシェーダーテーブル（修正版）
+    auto& gameManager = Singleton<GameManager>::getInstance();
+    DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
+    if ( !dxrScene ) {
+        throw std::runtime_error("No DXRScene found for shader table creation");
+    }
 
-    // ヒットグループエントリのサイズ = シェーダーID + ローカルルートシグネチャデータ
-    UINT hitGroupEntrySize = AlignTo(s_shaderIdentifierSize + sizeof(D3D12_GPU_VIRTUAL_ADDRESS), D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
-    CD3DX12_RESOURCE_DESC hitGroupShaderTableDesc = CD3DX12_RESOURCE_DESC::Buffer(hitGroupEntrySize * 4);
+    TLASData tlasData = dxrScene->GetTLASData();
+    size_t numInstances = tlasData.blasDataList.size();
+
+    // 各マテリアルタイプのシェーダーIDを取得
+    void* lambertianHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_Lambertian");
+    void* metalHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_Metal");
+    void* dielectricHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_Dielectric");
+    void* lightHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_DiffuseLight");
+
+    // ヒットグループテーブル作成
+    UINT hitGroupEntrySize = AlignTo(s_shaderIdentifierSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+    CD3DX12_RESOURCE_DESC hitGroupShaderTableDesc = CD3DX12_RESOURCE_DESC::Buffer(hitGroupEntrySize * numInstances);
 
     hr = m_device->CreateCommittedResource(
         &uploadHeapProps,
@@ -1226,32 +1411,25 @@ void DXRRenderer::CreateShaderTables() {
         IID_PPV_ARGS(&m_hitGroupShaderTable)
     );
 
-    if (FAILED(hr)) {
-        throw std::runtime_error("Failed to create HitGroup shader table");
-    }
-
-    // 各ヒットグループのシェーダーIDとローカルルートシグネチャデータをコピー
     void* mappedHitGroupData;
     m_hitGroupShaderTable->Map(0, nullptr, &mappedHitGroupData);
 
-    for (int i = 0; i < 4; ++i) {
-        void* hitGroupShaderID = stateObjectProps->GetShaderIdentifier(hitGroupNames[i]);
-        if (!hitGroupShaderID) {
-            throw std::runtime_error("Hit group shader identifier not found");
+    for ( size_t i = 0; i < numInstances; ++i ) {
+        char* entryStart = static_cast<char*>( mappedHitGroupData ) + ( i * hitGroupEntrySize );
+
+        // ★ マテリアルタイプに応じてシェーダーIDを選択
+        void* shaderID = nullptr;
+        switch ( tlasData.blasDataList[i].material.materialType ) {
+            case 0: shaderID = lambertianHitGroupID; break;   // Lambertian
+            case 1: shaderID = metalHitGroupID; break;        // Metal
+            case 2: shaderID = dielectricHitGroupID; break;   // Dielectric
+            case 3: shaderID = lightHitGroupID; break;        // DiffuseLight
+            default: shaderID = lambertianHitGroupID; break;  // デフォルト
         }
 
-        char* entryStart = static_cast<char*>(mappedHitGroupData) + (i * hitGroupEntrySize);
-        
-        // シェーダーIDをコピー
-        memcpy(entryStart, hitGroupShaderID, s_shaderIdentifierSize);
-        
-        // ローカルルートシグネチャデータ（マテリアル定数バッファのGPUアドレス）をコピー
-        D3D12_GPU_VIRTUAL_ADDRESS materialCBAddress = m_materialConstantBuffers[i]->GetGPUVirtualAddress();
-        memcpy(entryStart + s_shaderIdentifierSize, &materialCBAddress, sizeof(D3D12_GPU_VIRTUAL_ADDRESS));
+        memcpy(entryStart, shaderID, s_shaderIdentifierSize);
     }
 
     m_hitGroupShaderTable->Unmap(0, nullptr);
-
-    // シェーダーテーブルエントリサイズを更新
-    s_hitGroupEntrySize = hitGroupEntrySize; // クラスメンバーとして追加が必要
+    s_hitGroupEntrySize = hitGroupEntrySize;
 }

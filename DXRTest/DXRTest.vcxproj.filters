@@ -182,6 +182,18 @@
     <None Include="src\Shader\Common.hlsli">
       <Filter>Shader</Filter>
     </None>
+    <None Include="src\Shader\Utils.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="src\Shader\GeometryData.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="src\Shader\LightData.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="src\Shader\LightFunc.hlsli">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="src\Shader\RayGen.hlsl">

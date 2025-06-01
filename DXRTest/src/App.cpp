@@ -58,7 +58,7 @@ void App::Init() {
                 m_windowName.c_str(),
                 WS_OVERLAPPEDWINDOW,
                 CW_USEDEFAULT, CW_USEDEFAULT,
-                1280, 720,
+                1920, 1080,
                 nullptr, nullptr, m_hInstance, nullptr);
 
             if ( FAILED(m_hWnd) )

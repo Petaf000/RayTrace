@@ -24,14 +24,14 @@ void CornelBoxScene::CreateMaterials() {
     m_greenMaterial.roughness = 1.0f;
     m_greenMaterial.refractiveIndex = 1.0f;
     m_greenMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_greenMaterial.materialType = 1; // 一時的に1番を使用
+    m_greenMaterial.materialType = 0; // 一時的に1番を使用
 
     // 白い壁 - materialType = 2（一時的にDielectricとして扱う）
     m_whiteMaterial.albedo = { 0.73f, 0.73f, 0.73f };
     m_whiteMaterial.roughness = 1.0f;
     m_whiteMaterial.refractiveIndex = 1.0f;
     m_whiteMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_whiteMaterial.materialType = 2; // 一時的に2番を使用
+    m_whiteMaterial.materialType = 0; // 一時的に2番を使用
 
     // 発光マテリアル（天井ライト）
     m_lightMaterial.albedo = { 1.0f, 1.0f, 1.0f };
@@ -60,29 +60,13 @@ void CornelBoxScene::CreateWalls() {
     auto* leftWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), m_greenMaterial);
     leftWall->SetPosition({ 277.5f, 0.0f, 0.0f });
 
-    // デバッグ出力を追加
-    char debugMsg[256];
-    sprintf_s(debugMsg, "=== Wall Material Debug ===\n");
-    OutputDebugStringA(debugMsg);
-    sprintf_s(debugMsg, "Green wall material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
-        m_greenMaterial.albedo.x, m_greenMaterial.albedo.y, m_greenMaterial.albedo.z, m_greenMaterial.materialType);
-    OutputDebugStringA(debugMsg);
-
     // 左壁（赤）
     auto* rightWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), m_redMaterial);
     rightWall->SetPosition({ -277.5f, 0.0f, 0.0f });
 
-    sprintf_s(debugMsg, "Red wall material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
-        m_redMaterial.albedo.x, m_redMaterial.albedo.y, m_redMaterial.albedo.z, m_redMaterial.materialType);
-    OutputDebugStringA(debugMsg);
-
     // 奥壁（白）
     auto* backWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 555.0f, 10.0f), m_whiteMaterial);
     backWall->SetPosition({ 0.0f, 0.0f, 0.0f });
-
-    sprintf_s(debugMsg, "White wall material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
-        m_whiteMaterial.albedo.x, m_whiteMaterial.albedo.y, m_whiteMaterial.albedo.z, m_whiteMaterial.materialType);
-    OutputDebugStringA(debugMsg);
 
     // 床（白）
     auto* floor = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), m_whiteMaterial);
@@ -95,25 +79,23 @@ void CornelBoxScene::CreateWalls() {
     // 天井ライト
     auto* light = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(130.0f, 5.0f, 105.0f), m_lightMaterial);
     light->SetPosition({ 0.0f, 267.5f, -100.0f });
-
-    sprintf_s(debugMsg, "Light material: albedo=(%.3f, %.3f, %.3f), type=%d\n",
-        m_lightMaterial.albedo.x, m_lightMaterial.albedo.y, m_lightMaterial.albedo.z, m_lightMaterial.materialType);
-    OutputDebugStringA(debugMsg);
 }
 
 void CornelBoxScene::CreateObjects() {
-    // アルミニウム球（少し大きく）
-    auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 12.0f, m_metalMaterial);
-    aluminumSphere->SetPosition({ 0.0f, 190.0f, 300.0f }); // 手前に
-
+   
     // ガラス球（少し大きく）
-    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 8.0f, m_glassMaterial);
-    glassSphere->SetPosition({ 380.0f, 190.0f, 250.0f }); // 手前に
+    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, m_redMaterial);
+    glassSphere->SetPosition({ 0.0f, -102.5f, -250.0f }); // 手前に
 
+    // アルミニウム球（少し大きく）
+    auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, m_redMaterial);
+    aluminumSphere->SetPosition({ 150.0f, -107.5f, -125.0f }); // 手前に
     // 白いボックス（大きく）
     auto* whiteBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(165.0f, 330.5f, 165.0f), m_whiteMaterial);
     whiteBox->SetPosition({ -130.0f, -107.5f, -100.0f }); // 中央、手前に
     whiteBox->SetRotation({ 0.0f, XMConvertToRadians(-15.0f), 0.0f }); // 45度回転
+
+    
 }
 
 void CornelBoxScene::SetupCamera() {

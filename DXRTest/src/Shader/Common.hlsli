@@ -1,7 +1,10 @@
-// shader/Common.hlsli - 共通ヘッダー
+// shader/Common.hlsli - 共通ヘッダー（デバッグ版）
 #ifndef COMMON_HLSLI
 #define COMMON_HLSLI
 
+#include "Utils.hlsli"
+#include "GeometryData.hlsli"
+#include "LightFunc.hlsli"
 
 // 定数バッファ
 cbuffer SceneConstantBuffer : register(b0)
@@ -16,85 +19,82 @@ cbuffer SceneConstantBuffer : register(b0)
 RaytracingAccelerationStructure SceneBVH : register(t0);
 RWTexture2D<float4> RenderTarget : register(u0);
 
-// レイペイロード
-struct RayPayload
+// ★★★ 追加：各種バッファ ★★★
+StructuredBuffer<MaterialData> MaterialBuffer : register(t1);
+StructuredBuffer<DXRVertex> VertexBuffer : register(t2);
+StructuredBuffer<uint> IndexBuffer : register(t3);
+StructuredBuffer<InstanceOffsetData> InstanceOffsetBuffer : register(t4);
+
+// ★★★ 追加：マテリアル取得ヘルパー関数 ★★★
+MaterialData GetMaterial(uint instanceID)
 {
-    float3 color;
-    uint depth;
-    uint seed;
-};
-
-// 頂点属性
-struct VertexAttributes
-{
-    float2 barycentrics: SV_IntersectionAttributes;
-};
-
-// マテリアルタイプ
-#define MATERIAL_LAMBERTIAN  0
-#define MATERIAL_METAL       1
-#define MATERIAL_DIELECTRIC  2
-#define MATERIAL_LIGHT       3
-
-// マテリアルデータ（シェーダー用）
-struct MaterialData
-{
-    float3 albedo;
-    float roughness;
-    float refractiveIndex;
-    float3 emission;
-    int materialType;
-    float padding;
-};
-
-// 数学的定数
-#define PI 3.14159265359f
-#define INV_PI 0.31830988618f
-
-// ユーティリティ関数
-float3 OffsetRay(const float3 p, const float3 n)
-{
-    return p + n * 0.001f;
+    // 境界チェック付きでマテリアルを取得
+    if (instanceID < 32) // 想定される最大インスタンス数
+    {
+        return MaterialBuffer[instanceID];
+    }
+    else
+    {
+        // デフォルトマテリアル
+        MaterialData defaultMaterial;
+        defaultMaterial.albedo = float3(1.0f, 0.0f, 1.0f); // マゼンタ（エラー色）
+        defaultMaterial.roughness = 1.0f;
+        defaultMaterial.refractiveIndex = 1.0f;
+        defaultMaterial.emission = float3(0, 0, 0);
+        defaultMaterial.materialType = MATERIAL_LAMBERTIAN;
+        defaultMaterial.padding = 0.0f;
+        return defaultMaterial;
+    }
 }
 
-// 乱数生成（簡易版）
-uint WangHash(uint seed)
+// ★★★ デバッグ用：法線を色に変換する関数 ★★★
+float3 NormalToColor(float3 normal)
 {
-    seed = (seed ^ 61) ^ (seed >> 16);
-    seed *= 9;
-    seed = seed ^ (seed >> 4);
-    seed *= 0x27d4eb2d;
-    seed = seed ^ (seed >> 15);
-    return seed;
+    // 法線ベクトル (-1 to 1) を色 (0 to 1) に変換
+    return normal * 0.5f + 0.5f;
 }
 
-float RandomFloat(inout uint seed)
+// ★★★ 最もシンプルな法線取得（デバッグ用）★★★
+float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentrics)
 {
-    seed = WangHash(seed);
-    return (seed & 0xFFFFFF) / float(0x1000000);
-}
-
-float3 RandomUnitVector(inout uint seed)
-{
-    float z = RandomFloat(seed) * 2.0f - 1.0f;
-    float a = RandomFloat(seed) * 2.0f * PI;
-    float r = sqrt(1.0f - z * z);
-    float x = r * cos(a);
-    float y = r * sin(a);
-    return float3(x, y, z);
-}
-
-float3 RandomCosineDirection(inout uint seed)
-{
-    float r1 = RandomFloat(seed);
-    float r2 = RandomFloat(seed);
+    // 1. インスタンスのオフセット情報を取得
+    InstanceOffsetData offsetData = InstanceOffsetBuffer[instanceID];
     
-    float z = sqrt(1.0f - r2);
-    float phi = 2.0f * PI * r1;
-    float x = cos(phi) * sqrt(r2);
-    float y = sin(phi) * sqrt(r2);
+    // 2. プリミティブIDから三角形の3つのインデックスを取得
+    uint indexOffset = offsetData.indexOffset + primitiveID * 3;
+    uint i0 = IndexBuffer[indexOffset + 0] + offsetData.vertexOffset;
+    uint i1 = IndexBuffer[indexOffset + 1] + offsetData.vertexOffset;
+    uint i2 = IndexBuffer[indexOffset + 2] + offsetData.vertexOffset;
     
-    return float3(x, y, z);
+    // 3. 3つの頂点の法線を取得（ローカル座標）
+    float3 n0 = VertexBuffer[i0].normal;
+    float3 n1 = VertexBuffer[i1].normal;
+    float3 n2 = VertexBuffer[i2].normal;
+    
+    // ★★★ デバッグ：頂点法線をそのまま返す（変換なし）★★★
+    float3 interpolatedNormal = n0 * (1.0f - barycentrics.x - barycentrics.y) +
+                               n1 * barycentrics.x +
+                               n2 * barycentrics.y;
+    
+    return normalize(interpolatedNormal);
 }
 
+// ★★★ ワールド変換版の法線取得 ★★★
+float3 GetWorldNormal(uint instanceID, uint primitiveID, float2 barycentrics)
+{
+    // ローカル法線を取得
+    float3 localNormal = GetInterpolatedNormal(instanceID, primitiveID, barycentrics);
+    
+    // ワールド変換を適用
+    float3x4 objectToWorld = ObjectToWorld3x4();
+    
+    // 法線変換（回転のみ）
+    float3 worldNormal = float3(
+        dot(localNormal, objectToWorld._m00_m10_m20),
+        dot(localNormal, objectToWorld._m01_m11_m21),
+        dot(localNormal, objectToWorld._m02_m12_m22)
+    );
+    
+    return normalize(worldNormal);
+}
 #endif // COMMON_HLSLI

@@ -1,91 +1,158 @@
-//=========================================
-// shader/ClosestHit_Lambertian.hlsl - 汎用版
 #include "Common.hlsli"
-// マテリアルデータ（ローカルルートシグネチャから）
-ConstantBuffer<MaterialData> MaterialCB : register(b1, space1);
+
+// ・・・ デバッグ版から取得した正確な法線計算関数 ・・・
+float3 GetBLASNormal(uint instanceID, uint primitiveID, float2 barycentrics)
+{
+    // ・・・ DXRの標準的な方法：ObjectToWorld変換を使用 ・・・
+    float3x4 objectToWorld = ObjectToWorld3x4();
+    
+    // ・・・ ジオメトリック法線を直接計算 ・・・
+    // WorldRayOrigin + RayTCurrent * WorldRayDirection で交点を取得
+    float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+    
+    // ・・・ 簡単な方法：ワールド位置から法線を推測 ・・・
+    // これは球体とボックスで異なる計算を行う
+    
+    // インスタンス6,7は球体なので、ワールド位置から中心への方向が法線
+    if (instanceID == 6 || instanceID == 7)
+    {
+        // 球体の中心位置を取得（変換行列の平行移動成分）
+        float3 sphereCenter = float3(objectToWorld._m03_m13_m23);
+        
+        // 球体表面の法線は中心から表面への方向
+        float3 normal = normalize(worldPos - sphereCenter);
+        return normal;
+    }
+    else
+    {
+        return GetInterpolatedNormal(instanceID, primitiveID, barycentrics);
+    }
+}
+
+// ・・・ Lambertian材質BRDF サンプリング ・・・
+BRDFSample SampleLambertianBRDF(float3 normal, MaterialData material, inout uint seed)
+{
+    BRDFSample sample;
+    
+    // コサイン重み付きサンプリング
+    float r1 = RandomFloat(seed);
+    float r2 = RandomFloat(seed);
+    
+    float cosTheta = sqrt(1.0f - r2);
+    float sinTheta = sqrt(r2);
+    float phi = 2.0f * PI * r1;
+    
+    // 局所座標系での方向
+    float3 localDir = float3(
+        sinTheta * cos(phi),
+        sinTheta * sin(phi),
+        cosTheta
+    );
+    
+    // 法線基準の座標系に変換
+    float3 up = abs(normal.z) < 0.999f ? float3(0, 0, 1) : float3(1, 0, 0);
+    float3 tangent = normalize(cross(up, normal));
+    float3 bitangent = cross(normal, tangent);
+    
+    sample.direction = localDir.x * tangent + localDir.y * bitangent + localDir.z * normal;
+    sample.brdf = material.albedo / PI; // Lambertian BRDF
+    sample.pdf = cosTheta / PI; // コサイン重み付きPDF
+    sample.valid = true;
+    
+    return sample;
+}
+
 [shader("closesthit")]
 void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
 {
-    // 最大深度チェック
-    if (payload.depth >= 4)
+    // 最大反射回数チェック
+    if (payload.depth >= 6)
     {
         payload.color = float3(0, 0, 0);
         return;
     }
     
-    // ヒット点計算
-    float3 hitPoint = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+    uint instanceID = InstanceID();
+    uint primitiveID = PrimitiveIndex();
+    MaterialData material = GetMaterial(instanceID);
     
-    // プリミティブインデックスから面を判定
-    uint primitiveIndex = PrimitiveIndex();
-    float3 normal;
+    // 交点を計算
+    float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
-    // ボックスの面に応じた法線
-    uint faceIndex = primitiveIndex / 2; // 2つの三角形で1つの面
+    // ・・・ デバッグ版から移植した正確な法線取得 ・・・
+    float3 normal = GetBLASNormal(instanceID, primitiveID, attr.barycentrics);
     
-    switch (faceIndex)
-    {
-        case 0:
-            normal = float3(0, 0, 1);
-            break; // 前面 (Z+)
-        case 1:
-            normal = float3(0, 0, -1);
-            break; // 背面 (Z-)
-        case 2:
-            normal = float3(1, 0, 0);
-            break; // 右面 (X+)
-        case 3:
-            normal = float3(-1, 0, 0);
-            break; // 左面 (X-)
-        case 4:
-            normal = float3(0, 1, 0);
-            break; // 上面 (Y+)
-        case 5:
-            normal = float3(0, -1, 0);
-            break; // 下面 (Y-)
-        default:
-            normal = float3(0, 0, 1);
-            break; // デフォルト
-    }
-    
-    // オブジェクト空間の法線をワールド空間に変換
-    float4x3 objectToWorld = ObjectToWorld4x3();
-    normal = normalize(mul((float3x3) objectToWorld, normal));
-    
-    // レイが裏面にヒットした場合は法線を反転
-    if (dot(normal, -WorldRayDirection()) < 0.0f)
+    // レイ方向と法線の向きを確認
+    float3 rayDir = normalize(WorldRayDirection());
+    if (dot(normal, rayDir) > 0.0f)
     {
         normal = -normal;
     }
     
-    // 通常のLambertian反射処理
-    // 深度0でもランバート反射を行う（本来の処理）
-    // 通常のLambertian反射処理
-    // ランバート反射
-    uint tempSeed = payload.seed;
-    float3 direction = RandomUnitVector(tempSeed);
-    payload.seed = tempSeed;
-    float3 scatterDirection = normalize(normal + direction);
+    // 発光成分
+    float3 emitted = material.emission;
+    float3 finalColor = emitted;
     
-    // 新しいレイの生成
-    RayDesc scatteredRay;
-    scatteredRay.Origin = OffsetRay(hitPoint, normal);
-    scatteredRay.Direction = scatterDirection;
-    scatteredRay.TMin = 0.001f;
-    scatteredRay.TMax = 10000.0f;
+    // ・・・ シンプルな直接照明 + 間接照明 ・・・
     
-    // 再帰的レイトレース
-    RayPayload scatteredPayload;
-    scatteredPayload.color = float3(0, 0, 0);
-    scatteredPayload.depth = payload.depth + 1;
-    scatteredPayload.seed = payload.seed;
+    // 1. 直接照明（Next Event Estimation）
+    LightSample lightSample = SampleAreaLight(worldPos, payload.seed);
     
-    TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, scatteredRay, scatteredPayload);
+    if (lightSample.valid)
+    {
+        float NdotL = max(0.0f, dot(normal, lightSample.direction));
+        
+        if (NdotL > 0.0f)
+        {
+            // シャドウレイで可視性チェック
+            RayDesc shadowRay;
+            shadowRay.Origin = OffsetRay(worldPos, normal);
+            shadowRay.Direction = lightSample.direction;
+            shadowRay.TMin = 0.001f;
+            shadowRay.TMax = lightSample.distance - 0.001f;
+            
+            RayPayload shadowPayload;
+            shadowPayload.color = float3(1, 1, 1);
+            shadowPayload.depth = 999;
+            shadowPayload.seed = payload.seed;
+            
+            TraceRay(SceneBVH, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+                     0xFF, 0, 1, 0, shadowRay, shadowPayload);
+            
+            if (length(shadowPayload.color) > 0.5f)
+            {
+                // 直接照明の寄与
+                float3 brdf = material.albedo / PI;
+                finalColor += brdf * lightSample.radiance * NdotL / lightSample.pdf;
+            }
+        }
+    }
     
-    // 色の計算 - マテリアルのalbedoと散乱した光の色を合成
-    float cosTheta = max(0.0f, dot(normal, scatterDirection));
+    // 2. 間接照明（簡略化 - 最初の数回のみ）
+    if (payload.depth < 3) // 計算コストを抑えるため最初の数回のみ
+    {
+        BRDFSample brdfSample = SampleLambertianBRDF(normal, material, payload.seed);
+        
+        if (brdfSample.valid)
+        {
+            // 間接照明レイをトレース
+            RayDesc ray;
+            ray.Origin = OffsetRay(worldPos, normal);
+            ray.Direction = brdfSample.direction;
+            ray.TMin = 0.001f;
+            ray.TMax = 1000.0f;
+            
+            RayPayload newPayload;
+            newPayload.color = float3(0, 0, 0);
+            newPayload.depth = payload.depth + 1;
+            newPayload.seed = payload.seed;
+            
+            TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
+            // 間接照明の寄与（適度な重み）
+            finalColor += material.albedo * newPayload.color * 0.5f;
+            
+        }
+    }
     
-    // 微量の環境光を追加（0.1倍）してコントラストを改善
-    float3 ambient = MaterialCB.albedo * 0.1f;
-    payload.color = MaterialCB.albedo * scatteredPayload.color * cosTheta + ambient;
+    payload.color = finalColor;
 }

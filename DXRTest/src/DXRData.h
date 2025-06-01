@@ -33,3 +33,11 @@ struct TLASData {
     std::vector<XMMATRIX> instanceTransforms;
     ComPtr<ID3D12Resource> instanceBuffer;
 };
+
+// ★★★ DXR設定定数 ★★★
+namespace DXRConfig {
+    static constexpr UINT MAX_INSTANCES = 128;           // 最大インスタンス数
+    static constexpr UINT MAX_MATERIALS = 64;            // 最大マテリアル数
+    static constexpr UINT MAX_RAY_DEPTH = 8;             // 最大レイの深度
+    static constexpr UINT SHADER_IDENTIFIER_SIZE = 32;   // シェーダー識別子サイズ
+}

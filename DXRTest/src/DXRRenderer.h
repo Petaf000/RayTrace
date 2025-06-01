@@ -26,14 +26,16 @@ private:
     void CreateRaytracingPipelineStateObject();
     void CreateShaderTables();
     void CreateOutputResource();
-    void CreateLocalRootSignature();
-    void CreateMaterialConstantBuffers();
-    void UpdateMaterialData();
+    void CreateMaterialBuffer(const TLASData& tlasData);
 
     // リソース作成
     void CreateAccelerationStructures();
     void CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuffer);
     void CreateTLAS(TLASData& tlasData);
+    void CreateDescriptorsForBuffers(const TLASData& tlasData);
+    void CreateVertexIndexBuffers(const TLASData& tlasData);
+    void CreateInstanceOffsetBuffer(const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets);
+
 
     // DXCCompiler
     // 実行時HLSLコンパイル関数
@@ -53,6 +55,8 @@ private:
     void UpdateCamera();
     UINT AlignTo(UINT size, UINT alignment);
 
+
+
     // DXR関連オブジェクト
     ComPtr<ID3D12Device5> m_device;
     ComPtr<ID3D12GraphicsCommandList4> m_commandList;
@@ -61,8 +65,6 @@ private:
     // ルートシグネチャとパイプライン
     ComPtr<ID3D12RootSignature> m_globalRootSignature;
     ComPtr<ID3D12StateObject> m_rtStateObject;
-    // ローカルルートシグネチャ追加
-    ComPtr<ID3D12RootSignature> m_localRootSignature;
 
     // アクセラレーション構造
     ComPtr<ID3D12Resource> m_topLevelAS;
@@ -93,8 +95,14 @@ private:
     };
     ComPtr<ID3D12Resource> m_sceneConstantBuffer;
 
-    // マテリアル定数バッファ
-    std::vector<ComPtr<ID3D12Resource>> m_materialConstantBuffers;
+    // 各種バッファ
+    ComPtr<ID3D12Resource> m_materialBuffer;
+    ComPtr<ID3D12Resource> m_globalVertexBuffer;
+    ComPtr<ID3D12Resource> m_globalIndexBuffer;
+    ComPtr<ID3D12Resource> m_instanceOffsetBuffer;
+
+    UINT m_totalVertexCount = 0;
+    UINT m_totalIndexCount = 0;
 
     // シェーダー識別子
     static const UINT s_shaderIdentifierSize = 32;
