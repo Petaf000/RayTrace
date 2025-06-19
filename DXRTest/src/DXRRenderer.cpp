@@ -932,34 +932,81 @@ void DXRRenderer::CreateDescriptorsForBuffers(const TLASData& tlasData) {
 
 void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
     char debugMsg[256];
-    sprintf_s(debugMsg, "=== SKIPPING Unified Buffer Creation ===\n");
-    OutputDebugStringA(debugMsg);
-    sprintf_s(debugMsg, "Using individual BLAS buffers instead\n");
+    sprintf_s(debugMsg, "=== Creating FIXED Unified Global Buffers (SPHERE-SAFE) ===\n");
     OutputDebugStringA(debugMsg);
 
-    // ★★★ 統合バッファは作成せず、個別BLASバッファのみを使用 ★★★
-    // BLASでは既に各オブジェクトが専用バッファを持っているため、
-    // 追加の統合バッファは不要
+    // ★★★ 全体のサイズを計算 ★★★
+    m_totalVertexCount = 0;
+    m_totalIndexCount = 0;
 
-    // ダミーの空バッファを作成（シェーダーバインディング用）
-    std::vector<DXRVertex> dummyVertices(1);
-    std::vector<uint32_t> dummyIndices(3);
+    for ( const auto& blasData : tlasData.blasDataList ) {
+        m_totalVertexCount += static_cast<UINT>( blasData.vertices.size() );
+        m_totalIndexCount += static_cast<UINT>( blasData.indices.size() );
+    }
 
-    dummyVertices[0] = {
-        {0.0f, 0.0f, 0.0f},  // position
-        {0.0f, 1.0f, 0.0f},  // normal
-        {0.0f, 0.0f}         // texCoord
-    };
-    dummyIndices[0] = 0;
-    dummyIndices[1] = 0;
-    dummyIndices[2] = 0;
+    sprintf_s(debugMsg, "Total vertices: %u, Total indices: %u\n", m_totalVertexCount, m_totalIndexCount);
+    OutputDebugStringA(debugMsg);
 
-    m_totalVertexCount = 1;
-    m_totalIndexCount = 3;
+    if ( m_totalVertexCount == 0 || m_totalIndexCount == 0 ) {
+        OutputDebugStringA("ERROR: No vertex/index data to create unified buffers!\n");
+        return;
+    }
 
-    // ダミー頂点バッファ作成
+    // ★★★ 統合頂点・インデックスデータ構築（修正版） ★★★
+    std::vector<DXRVertex> allVertices;
+    std::vector<uint32_t> allIndices;
+    std::vector<uint32_t> vertexOffsets;
+    std::vector<uint32_t> indexOffsets;
+
+    allVertices.reserve(m_totalVertexCount);
+    allIndices.reserve(m_totalIndexCount);
+
+    uint32_t currentVertexOffset = 0;
+    uint32_t currentIndexOffset = 0;
+
+    for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
+        const auto& blasData = tlasData.blasDataList[i];
+
+        // ★★★ オフセットを記録（インデックス配列内でのオフセット） ★★★
+        vertexOffsets.push_back(currentVertexOffset);
+        indexOffsets.push_back(currentIndexOffset);
+
+        sprintf_s(debugMsg, "Instance[%zu]: %zu vertices, %zu indices\n",
+            i, blasData.vertices.size(), blasData.indices.size());
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "  -> Will be placed at vertexOffset=%u, indexOffset=%u\n",
+            currentVertexOffset, currentIndexOffset);
+        OutputDebugStringA(debugMsg);
+
+        // ★★★ 頂点データをそのままコピー ★★★
+        allVertices.insert(allVertices.end(), blasData.vertices.begin(), blasData.vertices.end());
+
+        // ★★★ 重要：インデックスデータは元の値のまま、頂点オフセットは別管理 ★★★
+        // これにより各オブジェクトの元の頂点構造が保持される
+        allIndices.insert(allIndices.end(), blasData.indices.begin(), blasData.indices.end());
+
+        // デバッグ：元のインデックス値を確認
+        sprintf_s(debugMsg, "  Original indices (first 6): ");
+        OutputDebugStringA(debugMsg);
+        for ( size_t j = 0; j < min(6, blasData.indices.size()); ++j ) {
+            sprintf_s(debugMsg, "%u ", blasData.indices[j]);
+            OutputDebugStringA(debugMsg);
+        }
+        sprintf_s(debugMsg, "\n");
+        OutputDebugStringA(debugMsg);
+
+        // 次のオフセットを更新
+        currentVertexOffset += static_cast<uint32_t>( blasData.vertices.size() );
+        currentIndexOffset += static_cast<uint32_t>( blasData.indices.size() );
+    }
+
+    // ★★★ 統合頂点バッファを作成 ★★★
     {
-        UINT vertexBufferSize = static_cast<UINT>( dummyVertices.size() * sizeof(DXRVertex) );
+        UINT vertexBufferSize = static_cast<UINT>( allVertices.size() * sizeof(DXRVertex) );
+        sprintf_s(debugMsg, "Creating unified vertex buffer: %u bytes (%zu vertices)\n",
+            vertexBufferSize, allVertices.size());
+        OutputDebugStringA(debugMsg);
+
         CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
         CD3DX12_RESOURCE_DESC vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
 
@@ -975,14 +1022,24 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
         if ( SUCCEEDED(hr) ) {
             void* mappedData;
             m_globalVertexBuffer->Map(0, nullptr, &mappedData);
-            memcpy(mappedData, dummyVertices.data(), vertexBufferSize);
+            memcpy(mappedData, allVertices.data(), vertexBufferSize);
             m_globalVertexBuffer->Unmap(0, nullptr);
+            OutputDebugStringA("Unified vertex buffer created successfully\n");
+        }
+        else {
+            sprintf_s(debugMsg, "ERROR: Failed to create unified vertex buffer (HRESULT: 0x%08X)\n", hr);
+            OutputDebugStringA(debugMsg);
+            return;
         }
     }
 
-    // ダミーインデックスバッファ作成
+    // ★★★ 統合インデックスバッファを作成 ★★★
     {
-        UINT indexBufferSize = static_cast<UINT>( dummyIndices.size() * sizeof(uint32_t) );
+        UINT indexBufferSize = static_cast<UINT>( allIndices.size() * sizeof(uint32_t) );
+        sprintf_s(debugMsg, "Creating unified index buffer: %u bytes (%zu indices)\n",
+            indexBufferSize, allIndices.size());
+        OutputDebugStringA(debugMsg);
+
         CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
         CD3DX12_RESOURCE_DESC indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
 
@@ -998,17 +1055,49 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
         if ( SUCCEEDED(hr) ) {
             void* mappedData;
             m_globalIndexBuffer->Map(0, nullptr, &mappedData);
-            memcpy(mappedData, dummyIndices.data(), indexBufferSize);
+            memcpy(mappedData, allIndices.data(), indexBufferSize);
             m_globalIndexBuffer->Unmap(0, nullptr);
+            OutputDebugStringA("Unified index buffer created successfully\n");
+        }
+        else {
+            sprintf_s(debugMsg, "ERROR: Failed to create unified index buffer (HRESULT: 0x%08X)\n", hr);
+            OutputDebugStringA(debugMsg);
+            return;
         }
     }
 
-    // ダミーオフセットバッファ作成（全て0）
-    std::vector<uint32_t> dummyVertexOffsets(tlasData.blasDataList.size(), 0);
-    std::vector<uint32_t> dummyIndexOffsets(tlasData.blasDataList.size(), 0);
-    CreateInstanceOffsetBuffer(dummyVertexOffsets, dummyIndexOffsets);
+    // ★★★ オフセット情報バッファを作成 ★★★
+    CreateInstanceOffsetBuffer(vertexOffsets, indexOffsets);
 
-    OutputDebugStringA("Dummy buffers created - BLAS individual buffers will be used\n");
+    // ★★★ 検証：作成されたデータの整合性をチェック ★★★
+    sprintf_s(debugMsg, "=== Unified Buffer Validation (SPHERE-SAFE) ===\n");
+    OutputDebugStringA(debugMsg);
+
+    for ( size_t i = 0; i < min(3, tlasData.blasDataList.size()); ++i ) {
+        uint32_t vOffset = vertexOffsets[i];
+        uint32_t iOffset = indexOffsets[i];
+
+        sprintf_s(debugMsg, "Instance[%zu]: vOffset=%u, iOffset=%u\n", i, vOffset, iOffset);
+        OutputDebugStringA(debugMsg);
+
+        // 最初の三角形の頂点を確認
+        if ( iOffset + 2 < allIndices.size() ) {
+            uint32_t i0 = allIndices[iOffset + 0] + vOffset;  // オフセット適用
+            uint32_t i1 = allIndices[iOffset + 1] + vOffset;
+            uint32_t i2 = allIndices[iOffset + 2] + vOffset;
+
+            sprintf_s(debugMsg, "  Triangle 0 indices: %u, %u, %u\n", i0, i1, i2);
+            OutputDebugStringA(debugMsg);
+
+            if ( i0 < allVertices.size() && i1 < allVertices.size() && i2 < allVertices.size() ) {
+                sprintf_s(debugMsg, "  Vertex[%u]: pos=(%.3f,%.3f,%.3f)\n", i0,
+                    allVertices[i0].position.x, allVertices[i0].position.y, allVertices[i0].position.z);
+                OutputDebugStringA(debugMsg);
+            }
+        }
+    }
+
+    OutputDebugStringA("SPHERE-SAFE unified buffer creation completed successfully!\n");
 }
 
 void DXRRenderer::CreateInstanceOffsetBuffer(const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets) {
@@ -1021,7 +1110,7 @@ void DXRRenderer::CreateInstanceOffsetBuffer(const std::vector<uint32_t>& vertex
     std::vector<InstanceOffsetData> offsetArray;
 
     char debugMsg[256];
-    sprintf_s(debugMsg, "=== Creating Instance Offset Buffer (FIXED) ===\n");
+    sprintf_s(debugMsg, "=== Creating Instance Offset Buffer (REAL OFFSETS) ===\n");
     OutputDebugStringA(debugMsg);
 
     // ★★★ サイズチェック ★★★
@@ -1044,6 +1133,7 @@ void DXRRenderer::CreateInstanceOffsetBuffer(const std::vector<uint32_t>& vertex
             i, offset.vertexOffset, offset.indexOffset);
         OutputDebugStringA(debugMsg);
     }
+
 
     UINT offsetBufferSize = static_cast<UINT>( offsetArray.size() * sizeof(InstanceOffsetData) );
     sprintf_s(debugMsg, "Offset buffer size: %u bytes (%zu entries)\n",

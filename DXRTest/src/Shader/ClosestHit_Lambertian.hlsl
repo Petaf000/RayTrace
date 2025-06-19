@@ -88,7 +88,6 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     {
         normal = -normal;
     }
-    
     // ”­Œõ¬•ª
     float3 emitted = material.emission;
     float3 finalColor = emitted;
