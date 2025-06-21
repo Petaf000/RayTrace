@@ -84,11 +84,11 @@ void CornelBoxScene::CreateWalls() {
 void CornelBoxScene::CreateObjects() {
    
     // ガラス球（少し大きく）
-    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, m_redMaterial);
+    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, m_glassMaterial);
     glassSphere->SetPosition({ 0.0f, -102.5f, -250.0f }); // 手前に
 
     // アルミニウム球（少し大きく）
-    auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, m_redMaterial);
+    auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, m_metalMaterial);
     aluminumSphere->SetPosition({ 150.0f, -107.5f, -125.0f }); // 手前に
     // 白いボックス（大きく）
     auto* whiteBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(165.0f, 330.5f, 165.0f), m_whiteMaterial);

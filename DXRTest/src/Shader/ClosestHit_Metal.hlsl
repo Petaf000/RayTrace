@@ -37,7 +37,6 @@ void ClosestHit_Metal(inout RayPayload payload, in VertexAttributes attr)
         payload.color = float3(0, 0, 0);
         return;
     }
-    
     uint instanceID = InstanceID();
     MaterialData material = GetMaterial(instanceID);
     

@@ -115,9 +115,13 @@ void DXRRenderer::Render() {
 
     // Hit group
     raytraceDesc.HitGroupTable.StartAddress = m_hitGroupShaderTable->GetGPUVirtualAddress();
+    raytraceDesc.HitGroupTable.SizeInBytes = s_hitGroupEntrySize * 4;  // 4つのマテリアルタイプ分
+    raytraceDesc.HitGroupTable.StrideInBytes = s_hitGroupEntrySize;
+    /*
+    raytraceDesc.HitGroupTable.StartAddress = m_hitGroupShaderTable->GetGPUVirtualAddress();
     raytraceDesc.HitGroupTable.SizeInBytes = s_hitGroupEntrySize;
     raytraceDesc.HitGroupTable.StrideInBytes = s_hitGroupEntrySize;
-
+    */
     // ★ ディスパッチ設定（サイズ確認済み） ★
     raytraceDesc.Width = m_width;
     raytraceDesc.Height = m_height;
@@ -763,7 +767,6 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
 
         // マテリアルタイプでヒットグループを選択
         instanceDesc.InstanceContributionToHitGroupIndex = static_cast<UINT>( blasData.material.materialType );
-
         instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
         instanceDesc.AccelerationStructure = m_bottomLevelAS[i]->GetGPUVirtualAddress();
 
@@ -1488,6 +1491,45 @@ void DXRRenderer::CreateShaderTables() {
     void* dielectricHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_Dielectric");
     void* lightHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_DiffuseLight");
 
+    // マテリアルタイプ別のシェーダーID配列
+    void* materialShaderIDs[4] = {
+        lambertianHitGroupID,    // マテリアルタイプ 0
+        metalHitGroupID,         // マテリアルタイプ 1  
+        dielectricHitGroupID,    // マテリアルタイプ 2
+        lightHitGroupID          // マテリアルタイプ 3
+    };
+
+    // ヒットグループテーブルを4エントリ（マテリアルタイプ分）で作成
+    UINT hitGroupEntrySize = AlignTo(s_shaderIdentifierSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+    CD3DX12_RESOURCE_DESC hitGroupShaderTableDesc = CD3DX12_RESOURCE_DESC::Buffer(hitGroupEntrySize * 4);
+
+    hr = m_device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &hitGroupShaderTableDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&m_hitGroupShaderTable)
+    );
+
+    void* mappedHitGroupData;
+    m_hitGroupShaderTable->Map(0, nullptr, &mappedHitGroupData);
+
+    // マテリアルタイプ順にシェーダーIDを配置
+    for ( int materialType = 0; materialType < 4; ++materialType ) {
+        char* entryStart = static_cast<char*>( mappedHitGroupData ) + ( materialType * hitGroupEntrySize );
+        memcpy(entryStart, materialShaderIDs[materialType], s_shaderIdentifierSize);
+
+        char debugMsg[256];
+        sprintf_s(debugMsg, "ShaderTable[%d]: MaterialType=%d, ShaderID=%p\n",
+            materialType, materialType, materialShaderIDs[materialType]);
+        OutputDebugStringA(debugMsg);
+    }
+
+    m_hitGroupShaderTable->Unmap(0, nullptr);
+    s_hitGroupEntrySize = hitGroupEntrySize;
+
+    /*
     // ヒットグループテーブル作成
     UINT hitGroupEntrySize = AlignTo(s_shaderIdentifierSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
     CD3DX12_RESOURCE_DESC hitGroupShaderTableDesc = CD3DX12_RESOURCE_DESC::Buffer(hitGroupEntrySize * numInstances);
@@ -1522,4 +1564,5 @@ void DXRRenderer::CreateShaderTables() {
 
     m_hitGroupShaderTable->Unmap(0, nullptr);
     s_hitGroupEntrySize = hitGroupEntrySize;
+    */
 }

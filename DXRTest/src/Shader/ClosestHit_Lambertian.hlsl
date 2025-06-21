@@ -1,34 +1,5 @@
 #include "Common.hlsli"
 
-// ・・・ デバッグ版から取得した正確な法線計算関数 ・・・
-float3 GetBLASNormal(uint instanceID, uint primitiveID, float2 barycentrics)
-{
-    // ・・・ DXRの標準的な方法：ObjectToWorld変換を使用 ・・・
-    float3x4 objectToWorld = ObjectToWorld3x4();
-    
-    // ・・・ ジオメトリック法線を直接計算 ・・・
-    // WorldRayOrigin + RayTCurrent * WorldRayDirection で交点を取得
-    float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-    
-    // ・・・ 簡単な方法：ワールド位置から法線を推測 ・・・
-    // これは球体とボックスで異なる計算を行う
-    
-    // インスタンス6,7は球体なので、ワールド位置から中心への方向が法線
-    if (instanceID == 6 || instanceID == 7)
-    {
-        // 球体の中心位置を取得（変換行列の平行移動成分）
-        float3 sphereCenter = float3(objectToWorld._m03_m13_m23);
-        
-        // 球体表面の法線は中心から表面への方向
-        float3 normal = normalize(worldPos - sphereCenter);
-        return normal;
-    }
-    else
-    {
-        return GetInterpolatedNormal(instanceID, primitiveID, barycentrics);
-    }
-}
-
 // ・・・ Lambertian材質BRDF サンプリング ・・・
 BRDFSample SampleLambertianBRDF(float3 normal, MaterialData material, inout uint seed)
 {
@@ -75,12 +46,11 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     uint instanceID = InstanceID();
     uint primitiveID = PrimitiveIndex();
     MaterialData material = GetMaterial(instanceID);
-    
     // 交点を計算
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
     // ・・・ デバッグ版から移植した正確な法線取得 ・・・
-    float3 normal = GetBLASNormal(instanceID, primitiveID, attr.barycentrics);
+    float3 normal = GetInterpolatedNormal(instanceID, primitiveID, attr.barycentrics);
     
     // レイ方向と法線の向きを確認
     float3 rayDir = normalize(WorldRayDirection());
@@ -89,8 +59,7 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
         normal = -normal;
     }
     // 発光成分
-    float3 emitted = material.emission;
-    float3 finalColor = emitted;
+    float3 finalColor = 0.0f;
     
     // ・・・ シンプルな直接照明 + 間接照明 ・・・
     

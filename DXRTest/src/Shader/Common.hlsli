@@ -53,62 +53,26 @@ float3 NormalToColor(float3 normal)
     // 法線ベクトル (-1 to 1) を色 (0 to 1) に変換
     return normal * 0.5f + 0.5f;
 }
-
 // ★★★ 最もシンプルな法線取得（デバッグ用）★★★
 float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentrics)
 {
-    /*
-    // 1. インスタンスのオフセット情報を取得
-    InstanceOffsetData offsetData = InstanceOffsetBuffer[instanceID];
-    
-    // 2. プリミティブIDから三角形の3つのインデックスを取得
-    uint indexOffset = offsetData.indexOffset + primitiveID * 3;
-    uint i0 = IndexBuffer[indexOffset + 0] + offsetData.vertexOffset;
-    uint i1 = IndexBuffer[indexOffset + 1] + offsetData.vertexOffset;
-    uint i2 = IndexBuffer[indexOffset + 2] + offsetData.vertexOffset;
-    
-    // 3. 3つの頂点の法線を取得（ローカル座標）
-    float3 n0 = VertexBuffer[i0].normal;
-    float3 n1 = VertexBuffer[i1].normal;
-    float3 n2 = VertexBuffer[i2].normal;
-    
-    // ★★★ デバッグ：頂点法線をそのまま返す（変換なし）★★★
-    float3 interpolatedNormal = n0 * (1.0f - barycentrics.x - barycentrics.y) +
-                               n1 * barycentrics.x +
-                               n2 * barycentrics.y;
-    
-    return normalize(interpolatedNormal);
-    */
-    
     // オフセット情報を取得
     InstanceOffsetData offset = InstanceOffsetBuffer[instanceID];
     
-    // 三角形のインデックスを取得
-    uint triangleIndex = PrimitiveIndex();
-    uint baseIndex = offset.indexOffset + triangleIndex * 3;
+    // 三角形のインデックスを取得  
+    uint baseIndex = offset.indexOffset + primitiveID * 3;
     
-    // ★★★ 重要：インデックス取得時にvertexOffsetを適用 ★★★
+    // 頂点インデックス取得
     uint i0 = IndexBuffer[baseIndex + 0] + offset.vertexOffset;
     uint i1 = IndexBuffer[baseIndex + 1] + offset.vertexOffset;
     uint i2 = IndexBuffer[baseIndex + 2] + offset.vertexOffset;
     
-    // 統合バッファから頂点データを取得
-    DXRVertex v0 = VertexBuffer[i0];
-    DXRVertex v1 = VertexBuffer[i1];
-    DXRVertex v2 = VertexBuffer[i2];
+    // 頂点法線を重心座標で補間
+    float3 normal = VertexBuffer[i0].normal * (1.0f - barycentrics.x - barycentrics.y) +
+                    VertexBuffer[i1].normal * barycentrics.x +
+                    VertexBuffer[i2].normal * barycentrics.y;
     
-    // ★★★ 各オブジェクトの元の頂点構造が保持されているため、正確な法線計算が可能 ★★★
-    float3 interpolatedNormal = float3(1.0 - barycentrics.x - barycentrics.y,
-                                barycentrics.x,
-                                barycentrics.y);
-    
-    float3 worldPos = v0.position * interpolatedNormal.x +
-                      v1.position * interpolatedNormal.y +
-                      v2.position * interpolatedNormal.z;
-    
-    return normalize(v0.normal * interpolatedNormal.x +
-                             v1.normal * interpolatedNormal.y +
-                             v2.normal * interpolatedNormal.z);
+    return normalize(normal);
 }
 
 // ★★★ ワールド変換版の法線取得 ★★★
