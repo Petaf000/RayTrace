@@ -46,7 +46,8 @@ struct InstanceOffsetData
 {
     uint vertexOffset;
     uint indexOffset;
-    uint2 padding;
+    uint materialID;
+    uint padding;
 };
 
 #endif

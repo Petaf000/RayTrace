@@ -3,6 +3,7 @@
 #include "CornelBoxScene.h"
 #include "DXRBox.h"
 #include "DXRSphere.h"
+#include "Input.h"
 
 void CornelBoxScene::Init() {
     CreateMaterials();
@@ -11,91 +12,106 @@ void CornelBoxScene::Init() {
     SetupCamera();
 }
 
+void CornelBoxScene::Update() {
+    DXRScene::Update();
+    if( Input::GetKeyPress(VK_LEFT) )
+        m_cameraData.position.x -= 5.0f;
+    if ( Input::GetKeyPress(VK_RIGHT) )
+        m_cameraData.position.x += 5.0f;
+    if ( Input::GetKeyPress(VK_UP) )
+        m_cameraData.position.y += 5.0f;
+    if ( Input::GetKeyPress(VK_DOWN) )
+        m_cameraData.position.y -= 5.0f;
+
+}
+
 void CornelBoxScene::CreateMaterials() {
-    // 赤い壁（左壁）- materialType = 0
-    m_redMaterial.albedo = { 0.65f, 0.05f, 0.05f };
-    m_redMaterial.roughness = 1.0f;
-    m_redMaterial.refractiveIndex = 1.0f;
-    m_redMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_redMaterial.materialType = 0; // Lambertian - 赤用
+    // シーンが持つユニークなマテリアルのリストをクリア
+    m_uniqueMaterials.clear();
 
-    // 緑の壁（右壁）- materialType = 1（一時的にMetalとして扱う）
-    m_greenMaterial.albedo = { 0.12f, 0.45f, 0.15f };
-    m_greenMaterial.roughness = 1.0f;
-    m_greenMaterial.refractiveIndex = 1.0f;
-    m_greenMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_greenMaterial.materialType = 0; // 一時的に1番を使用
+    DXRMaterialData material;
 
-    // 白い壁 - materialType = 2（一時的にDielectricとして扱う）
-    m_whiteMaterial.albedo = { 0.73f, 0.73f, 0.73f };
-    m_whiteMaterial.roughness = 1.0f;
-    m_whiteMaterial.refractiveIndex = 1.0f;
-    m_whiteMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_whiteMaterial.materialType = 0; // 一時的に2番を使用
+    // Material 0: Red
+    material.albedo = { 0.65f, 0.05f, 0.05f };
+    material.roughness = 1.0f;
+    material.refractiveIndex = 1.0f;
+    material.emission = { 0.0f, 0.0f, 0.0f };
+    material.materialType = 0; // Lambertian
+    m_uniqueMaterials.push_back(material);
 
-    // 発光マテリアル（天井ライト）
-    m_lightMaterial.albedo = { 1.0f, 1.0f, 1.0f };
-    m_lightMaterial.roughness = 0.0f;
-    m_lightMaterial.refractiveIndex = 1.0f;
-    m_lightMaterial.emission = { 15.0f, 15.0f, 15.0f };
-    m_lightMaterial.materialType = 3; // DiffuseLight
+    // Material 1: Green
+    material.albedo = { 0.12f, 0.45f, 0.15f };
+    material.materialType = 0; // Lambertian
+    m_uniqueMaterials.push_back(material);
 
-    // 金属マテリアル（アルミニウム球）
-    m_metalMaterial.albedo = { 0.8f, 0.85f, 0.88f };
-    m_metalMaterial.roughness = 0.0f;
-    m_metalMaterial.refractiveIndex = 1.0f;
-    m_metalMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_metalMaterial.materialType = 1; // Metal（実際のMetal）
+    // Material 2: White
+    material.albedo = { 0.73f, 0.73f, 0.73f };
+    material.materialType = 0; // Lambertian
+    m_uniqueMaterials.push_back(material);
 
-    // ガラスマテリアル（誘電体球）
-    m_glassMaterial.albedo = { 1.0f, 1.0f, 1.0f };
-    m_glassMaterial.roughness = 0.0f;
-    m_glassMaterial.refractiveIndex = 1.5f;
-    m_glassMaterial.emission = { 0.0f, 0.0f, 0.0f };
-    m_glassMaterial.materialType = 2; // Dielectric（実際のDielectric）
+    // Material 3: Light
+    material.albedo = { 1.0f, 1.0f, 1.0f };
+    material.emission = { 15.0f, 15.0f, 15.0f };
+    material.materialType = 3; // DiffuseLight
+    m_uniqueMaterials.push_back(material);
+
+    // Material 4: Metal
+    material.albedo = { 0.8f, 0.85f, 0.88f };
+    material.roughness = 0.0f;
+    material.emission = { 0.0f, 0.0f, 0.0f };
+    material.materialType = 1; // Metal
+    m_uniqueMaterials.push_back(material);
+
+    // Material 5: Glass
+    material.albedo = { 1.0f, 1.0f, 1.0f };
+    material.roughness = 0.0f;
+    material.refractiveIndex = 1.5f;
+    material.materialType = 2; // Dielectric
+    m_uniqueMaterials.push_back(material);
 }
 
 void CornelBoxScene::CreateWalls() {
-    // 右壁（緑）
-    auto* leftWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), m_greenMaterial);
-    leftWall->SetPosition({ 277.5f, 0.0f, 0.0f });
+    // 各オブジェクトにマテリアルデータを直接渡す代わりに、マテリアルID（リストのインデックス）を渡す
+    // ※AddGameObjectやDXRBox/SphereのコンストラクタがマテリアルIDを受け取れるように修正が必要です
 
-    // 左壁（赤）
-    auto* rightWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), m_redMaterial);
-    rightWall->SetPosition({ -277.5f, 0.0f, 0.0f });
+    // 右壁（緑、ID:1）
+    auto* rightWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), 1);
+    rightWall->SetPosition({ 277.5f, 0.0f, 0.0f });
 
-    // 奥壁（白）
-    auto* backWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 555.0f, 10.0f), m_whiteMaterial);
+    // 左壁（赤、ID:0）
+    auto* leftWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), 0);
+    leftWall->SetPosition({ -277.5f, 0.0f, 0.0f });
+
+    // 奥壁（白、ID:2）
+    auto* backWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 555.0f, 10.0f), 2);
     backWall->SetPosition({ 0.0f, 0.0f, 0.0f });
 
-    // 床（白）
-    auto* floor = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), m_whiteMaterial);
+    // 床（白、ID:2）
+    auto* floor = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), 2);
     floor->SetPosition({ 0.0f, -277.5f, 0.0f });
 
-    // 天井（白）
-    auto* ceiling = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), m_whiteMaterial);
+    // 天井（白、ID:2）
+    auto* ceiling = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), 2);
     ceiling->SetPosition({ 0.0f, 277.5f, 0.0f });
 
-    // 天井ライト
-    auto* light = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(130.0f, 5.0f, 105.0f), m_lightMaterial);
+    // 天井ライト（ID:3）
+    auto* light = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(130.0f, 5.0f, 105.0f), 3);
     light->SetPosition({ 0.0f, 267.5f, -100.0f });
 }
 
 void CornelBoxScene::CreateObjects() {
-   
-    // ガラス球（少し大きく）
-    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, m_glassMaterial);
-    glassSphere->SetPosition({ 0.0f, -102.5f, -250.0f }); // 手前に
+    // ガラス球（ID:5）
+    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, 5);
+    glassSphere->SetPosition({ 0.0f, -102.5f, -250.0f });
 
-    // アルミニウム球（少し大きく）
-    auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, m_metalMaterial);
-    aluminumSphere->SetPosition({ 150.0f, -107.5f, -125.0f }); // 手前に
-    // 白いボックス（大きく）
-    auto* whiteBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(165.0f, 330.5f, 165.0f), m_whiteMaterial);
-    whiteBox->SetPosition({ -130.0f, -107.5f, -100.0f }); // 中央、手前に
-    whiteBox->SetRotation({ 0.0f, XMConvertToRadians(-15.0f), 0.0f }); // 45度回転
+    // アルミニウム球（ID:4）
+    auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, 4);
+    aluminumSphere->SetPosition({ 150.0f, -107.5f, -125.0f });
 
-    
+    // 白いボックス（ID:2）
+    auto* whiteBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(165.0f, 330.5f, 165.0f), 2);
+    whiteBox->SetPosition({ -130.0f, -107.5f, -100.0f });
+    whiteBox->SetRotation({ 0.0f, XMConvertToRadians(-15.0f), 0.0f });
 }
 
 void CornelBoxScene::SetupCamera() {

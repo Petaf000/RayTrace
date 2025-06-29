@@ -503,7 +503,7 @@ void DXRRenderer::CreateAccelerationStructures() {
     CreateTLAS(tlasData);
 
     // ★★★ 新規追加：ディスクリプタ作成 ★★★
-    CreateDescriptorsForBuffers(tlasData);
+    CreateDescriptorsForBuffers(dxrScene->GetUniqueMaterials().size(), tlasData);
 
     Singleton<Renderer>::getInstance().ExecuteCommandListAndWait();
     OutputDebugStringA("Acceleration structures created successfully\n");
@@ -766,14 +766,13 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
         instanceDesc.InstanceMask = 0xFF;
 
         // マテリアルタイプでヒットグループを選択
-        instanceDesc.InstanceContributionToHitGroupIndex = static_cast<UINT>( blasData.material.materialType );
+        auto& gameManager = Singleton<GameManager>::getInstance();
+        DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
+		const auto& materialData = dxrScene->GetUniqueMaterials();
+    
+        instanceDesc.InstanceContributionToHitGroupIndex = static_cast<UINT>( materialData[blasData.materialID].materialType );
         instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
         instanceDesc.AccelerationStructure = m_bottomLevelAS[i]->GetGPUVirtualAddress();
-
-        sprintf_s(debugMsg, "Instance[%zu]: ID=%u, MaterialType=%d, Albedo=(%.2f,%.2f,%.2f)\n",
-            i, instanceDesc.InstanceID, blasData.material.materialType,
-            blasData.material.albedo.x, blasData.material.albedo.y, blasData.material.albedo.z);
-        OutputDebugStringA(debugMsg);
 
         instanceDescs.push_back(instanceDesc);
     }
@@ -864,7 +863,7 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
     OutputDebugStringA("TLAS created with verified transforms\n");
 }
 
-void DXRRenderer::CreateDescriptorsForBuffers(const TLASData& tlasData) {
+void DXRRenderer::CreateDescriptorsForBuffers(const UINT materialCount, const TLASData& tlasData) {
     UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
@@ -877,15 +876,11 @@ void DXRRenderer::CreateDescriptorsForBuffers(const TLASData& tlasData) {
         materialSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
         materialSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         materialSrvDesc.Buffer.FirstElement = 0;
-        materialSrvDesc.Buffer.NumElements = static_cast<UINT>( tlasData.blasDataList.size() );
+        materialSrvDesc.Buffer.NumElements = static_cast<UINT>( materialCount );
         materialSrvDesc.Buffer.StructureByteStride = sizeof(DXRMaterialData);
         materialSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
         m_device->CreateShaderResourceView(m_materialBuffer.Get(), &materialSrvDesc, cpuHandle);
-
-        char debugMsg[256];
-        sprintf_s(debugMsg, "Material buffer SRV created at t1: %zu materials\n", tlasData.blasDataList.size());
-        OutputDebugStringA(debugMsg);
     }
     cpuHandle.Offset(1, descriptorSize);
 
@@ -1070,7 +1065,7 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
     }
 
     // ★★★ オフセット情報バッファを作成 ★★★
-    CreateInstanceOffsetBuffer(vertexOffsets, indexOffsets);
+    CreateInstanceOffsetBuffer(tlasData, vertexOffsets, indexOffsets);
 
     // ★★★ 検証：作成されたデータの整合性をチェック ★★★
     sprintf_s(debugMsg, "=== Unified Buffer Validation (SPHERE-SAFE) ===\n");
@@ -1103,41 +1098,29 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
     OutputDebugStringA("SPHERE-SAFE unified buffer creation completed successfully!\n");
 }
 
-void DXRRenderer::CreateInstanceOffsetBuffer(const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets) {
+void DXRRenderer::CreateInstanceOffsetBuffer(const TLASData& tlasData,
+    const std::vector<uint32_t>& vertexOffsets,
+    const std::vector<uint32_t>& indexOffsets) {
+    // ★★★ 構造体をHLSLと一致させる ★★★
     struct InstanceOffsetData {
         uint32_t vertexOffset;
         uint32_t indexOffset;
-        uint32_t padding[2]; // 16バイトアライメント
+        uint32_t materialID;
+        uint32_t padding;
     };
 
     std::vector<InstanceOffsetData> offsetArray;
+    offsetArray.reserve(tlasData.blasDataList.size());
+
+    for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
+        InstanceOffsetData data = {};
+        data.vertexOffset = vertexOffsets[i];
+        data.indexOffset = indexOffsets[i];
+        data.materialID = tlasData.blasDataList[i].materialID;
+        offsetArray.push_back(data);
+    }
 
     char debugMsg[256];
-    sprintf_s(debugMsg, "=== Creating Instance Offset Buffer (REAL OFFSETS) ===\n");
-    OutputDebugStringA(debugMsg);
-
-    // ★★★ サイズチェック ★★★
-    if ( vertexOffsets.size() != indexOffsets.size() ) {
-        sprintf_s(debugMsg, "ERROR: Offset array size mismatch! vertex=%zu, index=%zu\n",
-            vertexOffsets.size(), indexOffsets.size());
-        OutputDebugStringA(debugMsg);
-        return;
-    }
-
-    for ( size_t i = 0; i < vertexOffsets.size(); ++i ) {
-        InstanceOffsetData offset;
-        offset.vertexOffset = vertexOffsets[i];
-        offset.indexOffset = indexOffsets[i];
-        offset.padding[0] = 0;
-        offset.padding[1] = 0;
-        offsetArray.push_back(offset);
-
-        sprintf_s(debugMsg, "Instance[%zu]: vertexOffset=%u, indexOffset=%u\n",
-            i, offset.vertexOffset, offset.indexOffset);
-        OutputDebugStringA(debugMsg);
-    }
-
-
     UINT offsetBufferSize = static_cast<UINT>( offsetArray.size() * sizeof(InstanceOffsetData) );
     sprintf_s(debugMsg, "Offset buffer size: %u bytes (%zu entries)\n",
         offsetBufferSize, offsetArray.size());
@@ -1372,19 +1355,13 @@ void DXRRenderer::CreateOutputResource() {
 void DXRRenderer::CreateMaterialBuffer(const TLASData& tlasData) {
     if ( tlasData.blasDataList.empty() ) return;
 
-    // マテリアルデータを配列に変換
-    std::vector<DXRMaterialData> materials;
-    for ( const auto& blasData : tlasData.blasDataList ) {
-        materials.push_back(blasData.material);
+    // ★★★ シーンからユニークマテリアルのリストを取得 ★★★
+    auto& gameManager = Singleton<GameManager>::getInstance();
+    DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
+    if ( !dxrScene ) return;
 
-        // デバッグ出力
-        char debugMsg[256];
-        sprintf_s(debugMsg, "Material[%zu]: albedo=(%.3f,%.3f,%.3f), type=%d\n",
-            materials.size() - 1, blasData.material.albedo.x,
-            blasData.material.albedo.y, blasData.material.albedo.z,
-            blasData.material.materialType);
-        OutputDebugStringA(debugMsg);
-    }
+    const auto& materials = dxrScene->GetUniqueMaterials(); // シーンから直接リストを取得する関数を想定
+    if ( materials.empty() ) return;
 
     // マテリアルバッファ作成
     UINT materialBufferSize = static_cast<UINT>( materials.size() * sizeof(DXRMaterialData) );

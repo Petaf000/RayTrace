@@ -28,12 +28,10 @@ StructuredBuffer<InstanceOffsetData> InstanceOffsetBuffer : register(t4);
 // ★★★ 追加：マテリアル取得ヘルパー関数 ★★★
 MaterialData GetMaterial(uint instanceID)
 {
-    // 境界チェック付きでマテリアルを取得
-    if (instanceID < 32) // 想定される最大インスタンス数
-    {
-        return MaterialBuffer[instanceID];
-    }
-    else
+    InstanceOffsetData instanceData = InstanceOffsetBuffer[instanceID];
+    
+    // TODO: CPP側でマテリアルがない時の処理を追加する
+    /*if (instanceData.materialID == 0xFFFFFFFF)
     {
         // デフォルトマテリアル
         MaterialData defaultMaterial;
@@ -44,7 +42,8 @@ MaterialData GetMaterial(uint instanceID)
         defaultMaterial.materialType = MATERIAL_LAMBERTIAN;
         defaultMaterial.padding = 0.0f;
         return defaultMaterial;
-    }
+    }*/
+    return MaterialBuffer[instanceData.materialID];
 }
 
 // ★★★ デバッグ用：法線を色に変換する関数 ★★★
@@ -75,22 +74,20 @@ float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentr
     return normalize(normal);
 }
 
-// ★★★ ワールド変換版の法線取得 ★★★
+// ★★★ ワールド変換版の法線取得（修正版） ★★★
 float3 GetWorldNormal(uint instanceID, uint primitiveID, float2 barycentrics)
 {
     // ローカル法線を取得
     float3 localNormal = GetInterpolatedNormal(instanceID, primitiveID, barycentrics);
-    
-    // ワールド変換を適用
+
+    // ワールド変換行列を取得
     float3x4 objectToWorld = ObjectToWorld3x4();
-    
-    // 法線変換（回転のみ）
-    float3 worldNormal = float3(
-        dot(localNormal, objectToWorld._m00_m10_m20),
-        dot(localNormal, objectToWorld._m01_m11_m21),
-        dot(localNormal, objectToWorld._m02_m12_m22)
-    );
-    
+
+    // 法線をワールド空間に変換
+    // objectToWorldの左上の3x3部分（回転とスケーリングを担う）を乗算する
+    float3 worldNormal = mul((float3x3) objectToWorld, localNormal);
+
+    // 変換後の法線を正規化して返す
     return normalize(worldNormal);
 }
 #endif // COMMON_HLSLI

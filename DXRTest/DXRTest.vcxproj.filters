@@ -84,6 +84,9 @@
     <ClCompile Include="src\DXRRenderer.cpp">
       <Filter>System\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="src\Input.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Renderer.h">
@@ -175,6 +178,9 @@
     </ClInclude>
     <ClInclude Include="src\DXRRenderer.h">
       <Filter>System\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Input.h">
+      <Filter>System</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

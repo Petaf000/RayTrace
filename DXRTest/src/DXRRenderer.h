@@ -32,9 +32,9 @@ private:
     void CreateAccelerationStructures();
     void CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuffer);
     void CreateTLAS(TLASData& tlasData);
-    void CreateDescriptorsForBuffers(const TLASData& tlasData);
+    void CreateDescriptorsForBuffers(const UINT materialCount, const TLASData& tlasData);
     void CreateVertexIndexBuffers(const TLASData& tlasData);
-    void CreateInstanceOffsetBuffer(const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets);
+    void CreateInstanceOffsetBuffer(const TLASData& tlasData, const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets);
 
 
     // DXCCompiler

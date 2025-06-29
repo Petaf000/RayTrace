@@ -7,6 +7,8 @@
 #include "DXRRenderer.h"
 #include "CornelBoxScene.h"
 
+#include "Input.h"
+
 void GameManager::Init() {
 	m_lastTime = timeGetTime();
 
@@ -25,7 +27,7 @@ void GameManager::Init() {
 	StartDrawThread();
 	
 
-	//Input::Init();
+	Input::Init();
 	// 
 	//OpenScene<Game>();
 }
@@ -38,7 +40,7 @@ void GameManager::UnInit() {
 	if ( m_scene )
 		m_scene->UnInit();
 
-	//Input::Uninit();
+	Input::Uninit();
 	
 	Singleton<DXRRenderer>::getInstance().UnInit();
 	Singleton<Renderer>::getInstance().Cleanup();
@@ -59,7 +61,7 @@ void GameManager::Update() {
 	}
 		
 	
-	//Input::Update();
+	Input::Update();
 	
 	if ( m_scene )
 		m_scene->Update();

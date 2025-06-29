@@ -151,6 +151,7 @@
     <ClCompile Include="src\DXRScene.cpp" />
     <ClCompile Include="src\DXRSphere.cpp" />
     <ClCompile Include="src\GameManager.cpp" />
+    <ClCompile Include="src\Input.cpp" />
     <ClCompile Include="src\Main.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>
@@ -184,6 +185,7 @@
     <ClInclude Include="src\GameObject2D.h" />
     <ClInclude Include="src\GameObject3D.h" />
     <ClInclude Include="src\GameObjectUtils.h" />
+    <ClInclude Include="src\Input.h" />
     <ClInclude Include="src\Pch.h" />
     <ClInclude Include="src\Position.h" />
     <ClInclude Include="src\Renderer.h" />

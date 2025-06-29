@@ -22,7 +22,7 @@ struct BLASData {
     std::vector<DXRVertex> vertices;
     std::vector<uint32_t> indices;
     ComPtr<ID3D12Resource> indexBuffer;
-    DXRMaterialData material;
+    uint32_t materialID;
     XMMATRIX transform;
     ComPtr<ID3D12Resource> scratchBuffer;
 };

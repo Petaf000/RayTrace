@@ -5,9 +5,9 @@
 class DXRBox : public DXRShape {
 public:
     DXRBox() = default;
-    DXRBox(const XMFLOAT3& size, const DXRMaterialData& material) {
+    DXRBox(const XMFLOAT3& size, const uint32_t& material) {
 		m_Transform.Scale = size;
-        m_materialData = material;
+		m_materialID = material;
     };
     virtual ~DXRBox() = default;
 
@@ -16,8 +16,6 @@ public:
 
     virtual std::vector<DXRVertex> GetVertices() const override { return m_vertices; };
     virtual std::vector<uint32_t> GetIndices() const override { return m_indices; };
-    virtual DXRMaterialData GetMaterialData() const override { return m_materialData; };
-    virtual void SetMaterialData(const DXRMaterialData& material) override { m_materialData = material; };
 
     // ★修正：SetSize()でジオメトリを再生成するように変更
     void SetScale(const XMFLOAT3& scale) override{

@@ -50,7 +50,7 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
     // ・・・ デバッグ版から移植した正確な法線取得 ・・・
-    float3 normal = GetInterpolatedNormal(instanceID, primitiveID, attr.barycentrics);
+    float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
     // レイ方向と法線の向きを確認
     float3 rayDir = normalize(WorldRayDirection());

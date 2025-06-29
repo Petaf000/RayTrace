@@ -29,7 +29,8 @@ public:
 
     void SetCamera(const CameraData& camera) { m_cameraData = camera; }
     CameraData GetCamera() const { return m_cameraData; }
-
+	const std::vector<DXRMaterialData>& GetUniqueMaterials() const { return m_uniqueMaterials; }
 protected:
     CameraData m_cameraData;
+    std::vector<DXRMaterialData> m_uniqueMaterials;
 };

@@ -16,41 +16,17 @@ public:
     // DXR用データ取得（純粋仮想関数）
     virtual std::vector<DXRVertex> GetVertices() const = 0;
     virtual std::vector<uint32_t> GetIndices() const = 0;
-    virtual DXRMaterialData GetMaterialData() const = 0;
-    virtual void SetMaterialData(const DXRMaterialData& material) = 0;
+    // ★★★ マテリアルIDを扱うように変更 ★★★
+    virtual uint32_t GetMaterialID() const { return m_materialID; }
+    virtual void SetMaterialID(uint32_t id) { m_materialID = id; }
 
     // BLAS構築用データ取得
     BLASData GetBLASData() const {
         BLASData blasData;
-
-        // ∴∴∴ 重要：ローカル座標系の頂点をそのまま使用 ∴∴∴
-        // 頂点データは単位サイズ（正規化された座標）で取得
-        // 実際のスケール・位置・回転はワールド変換行列で適用
-        auto localVertices = GetVertices();
-        auto localIndices = GetIndices();
-
-        // デバッグ：頂点データの範囲をチェック
-        if ( !localVertices.empty() ) {
-            float minX = localVertices[0].position.x, maxX = localVertices[0].position.x;
-            float minY = localVertices[0].position.y, maxY = localVertices[0].position.y;
-            float minZ = localVertices[0].position.z, maxZ = localVertices[0].position.z;
-
-            for ( const auto& vertex : localVertices ) {
-                minX = min(minX, vertex.position.x); maxX = max(maxX, vertex.position.x);
-                minY = min(minY, vertex.position.y); maxY = max(maxY, vertex.position.y);
-                minZ = min(minZ, vertex.position.z); maxZ = max(maxZ, vertex.position.z);
-            }
-
-            char debugMsg[256];
-            sprintf_s(debugMsg, "BLASData bounds: X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f]\n",
-                minX, maxX, minY, maxY, minZ, maxZ);
-            OutputDebugStringA(debugMsg);
-        }
-
         // ∴∴∴ 頂点はローカル座標のまま格納 ∴∴∴
-        blasData.vertices = localVertices;
-        blasData.indices = localIndices;
-        blasData.material = GetMaterialData();
+        blasData.vertices = GetVertices();
+        blasData.indices = GetIndices();
+        blasData.materialID = GetMaterialID();
 
         // ∴∴∴ ワールド変換行列をtransformに設定 ∴∴∴
         blasData.transform = GetWorldMatrix();
@@ -70,5 +46,5 @@ public:
     }
 
 protected:
-    DXRMaterialData m_materialData;
+    uint32_t m_materialID;
 };
