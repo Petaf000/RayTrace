@@ -40,7 +40,7 @@ struct Time {
 
 	float GetDeltaSec() {
 		QueryPerformanceCounter(&Qpc);
-		return (float)( Qpc.QuadPart - LastTime ) / Qpf.QuadPart ;
+		return (float)( Qpc.QuadPart - LastTime ) / Qpf.QuadPart;
 	}
 
 

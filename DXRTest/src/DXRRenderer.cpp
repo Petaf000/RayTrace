@@ -1,19 +1,18 @@
-// DXRRenderer.cpp
+ï»¿// DXRRenderer.cpp
 #include "DXRRenderer.h"
 #include "Renderer.h"
 #include "GameManager.h"
 #include "DXRScene.h"
-#include "App.h"
 
 void DXRRenderer::Init(Renderer* renderer) {
-    // Renderer‚©‚çdeviceæ“¾
+    // Rendererã‹ã‚‰deviceå–å¾—
     ID3D12Device* baseDevice = renderer->GetDevice();
     HRESULT hr = baseDevice->QueryInterface(IID_PPV_ARGS(&m_device));
     if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to create DXR Device");
     }
 
-    // CommandQueue‚ÆCommandListæ“¾
+    // CommandQueueã¨CommandListå–å¾—
     m_commandQueue = renderer->GetCommandQueue();
 
     ComPtr<ID3D12GraphicsCommandList> baseCommandList = renderer->GetCommandList();
@@ -22,31 +21,71 @@ void DXRRenderer::Init(Renderer* renderer) {
         throw std::runtime_error("Failed to create DXR CommandList");
     }
 
-    // ƒTƒCƒY‚ğRenderer‚ÆŠ®‘S‚Éˆê’v‚³‚¹‚é
+    // ã‚µã‚¤ã‚ºã‚’Rendererã¨å®Œå…¨ã«ä¸€è‡´ã•ã›ã‚‹
     m_width = renderer->GetBufferWidth();
     m_height = renderer->GetBufferHeight();
 
     char debugMsg[256];
-    sprintf_s(debugMsg, "=== DXR Init ===\n");
+    sprintf_s(debugMsg, "=== DXR Init with Denoiser ===\n");
     OutputDebugStringA(debugMsg);
     sprintf_s(debugMsg, "Setting DXR size to match renderer: %ux%u\n", m_width, m_height);
     OutputDebugStringA(debugMsg);
 
+    // â˜…â˜…â˜… ã“ã‚ŒãŒæ­£ã—ã„åˆæœŸåŒ–é †åºã§ã™ â˜…â˜…â˜…
     InitializeDXR(m_device.Get());
     CreateRootSignature();
     CreateRaytracingPipelineStateObject();
-    CreateOutputResource();
+
+    // 1. å…ˆã«ã‚¢ã‚¯ã‚»ãƒ©ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³æ§‹é€ ã¨ã€ãã‚Œã«ä¼´ã†å…¨ãƒãƒƒãƒ•ã‚¡ã‚’ä½œæˆã™ã‚‹
     CreateAccelerationStructures();
+
+    // 2. ä½œæˆã•ã‚ŒãŸãƒãƒƒãƒ•ã‚¡ã‚’ä½¿ã£ã¦ã€ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ã‚’ä½œæˆã™ã‚‹
+    CreateOutputResource();
+
+    // 3. ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒ†ãƒ¼ãƒ–ãƒ«ã‚’ä½œæˆã™ã‚‹
     CreateShaderTables();
 
-    // š ImGui‰Šú‰»‚ÍíœiRenderer‚ªŠÇ—j š
-    // ImGui‰Šú‰»ƒR[ƒh‚ğíœ
+    // 4. ãƒ‡ãƒã‚¤ã‚¶ãƒ¼ã‚’åˆæœŸåŒ–ã™ã‚‹
+    CreateDenoiserResources();
+    CreateDenoiserPipeline();
+
+    // â˜…â˜…â˜… è¿½åŠ ï¼šImGuiç”¨ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ’ãƒ¼ãƒ—ã®ä½œæˆ â˜…â˜…â˜…
+    D3D12_DESCRIPTOR_HEAP_DESC imguiHeapDesc = {};
+    // è¡¨ç¤ºã—ãŸã„ãƒãƒƒãƒ•ã‚¡ã®æ•° (u0, u4, G-Buffer(3)) = 5
+    imguiHeapDesc.NumDescriptors = 5;
+    imguiHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    imguiHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+    // â˜…â˜…â˜… è¿½åŠ ï¼šRendererã‹ã‚‰å…±æœ‰ãƒ’ãƒ¼ãƒ—ã‚’å—ã‘å–ã‚Šã€è‡ªåˆ†ã®é ˜åŸŸã‚’ç¢ºä¿ â˜…â˜…â˜…
+    ID3D12DescriptorHeap* sharedSrvHeap = renderer->GetSRVHeap();
+    UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // ä¾‹ãˆã°ã€å…±æœ‰ãƒ’ãƒ¼ãƒ—ã®128ç•ªç›®ã‹ã‚‰5ã¤ã‚’DXRãƒ‡ãƒãƒƒã‚°ç”¨ã«ä½¿ã†ã€ã¨ã„ã†ãƒ«ãƒ¼ãƒ«ã‚’æ±ºã‚ã‚‹
+    const int dxrDebugViewOffset = 1;
+
+    m_debugSrvHeapStart_CPU = CD3DX12_CPU_DESCRIPTOR_HANDLE(sharedSrvHeap->GetCPUDescriptorHandleForHeapStart());
+    m_debugSrvHeapStart_CPU.Offset(dxrDebugViewOffset, descriptorSize);
+
+    m_debugSrvHeapStart_GPU = CD3DX12_GPU_DESCRIPTOR_HANDLE(sharedSrvHeap->GetGPUDescriptorHandleForHeapStart());
+    m_debugSrvHeapStart_GPU.Offset(dxrDebugViewOffset, descriptorSize);
+
+    // â˜…â˜…â˜… è¿½åŠ ï¼šãƒ‡ãƒãƒƒã‚°ç”¨ãƒ“ãƒ¥ãƒ¼ã®ä½œæˆ â˜…â˜…â˜…
+    CreateDebugBufferViews();
+
+    // ãƒ‡ãƒã‚¤ã‚¶ãƒ¼è¨­å®š
+    SetDenoiserEnabled(true);
+    SetDenoiserIterations(3);  // é€šå¸¸3å›ã§ååˆ†
+    SetDenoiserParameters(
+        0.15f,   // colorSigma: ã‚ˆã‚Šä½ã„å€¤ã§ã‚¨ãƒƒã‚¸ã‚’ä¿æŒ
+        16.0f,   // normalSigma: ã‚ˆã‚Šé«˜ã„å€¤ã§æ³•ç·šã®å¾®å°ãªå¤‰åŒ–ã‚’è¨±å®¹
+        0.1f     // depthSigma: ã‚ˆã‚Šä½ã„å€¤ã§æ·±åº¦å¢ƒç•Œã‚’ä¿æŒ
+    );
 
     OutputDebugStringA("DXR initialization completed\n");
 }
 
 void DXRRenderer::UnInit() {
-    // ƒŠƒ\[ƒX‚ÌƒNƒŠ[ƒ“ƒAƒbƒv
+    // æ—¢å­˜ã®ãƒªã‚½ãƒ¼ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—
     m_rayGenShaderTable.Reset();
     m_missShaderTable.Reset();
     m_hitGroupShaderTable.Reset();
@@ -59,49 +98,41 @@ void DXRRenderer::UnInit() {
     m_rtStateObject.Reset();
     m_globalRootSignature.Reset();
     m_sceneConstantBuffer.Reset();
+
+    // ãƒ‡ãƒã‚¤ã‚¶ãƒ¼ãƒªã‚½ãƒ¼ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—
+    m_denoiserPSO.Reset();
+    m_denoiserRootSignature.Reset();
+    m_denoiserConstants.Reset();
+    m_denoiserDescriptorHeap.Reset();
+    m_albedoBuffer.Reset();
+    m_normalBuffer.Reset();
+    m_depthBuffer.Reset();
+    m_denoisedOutput.Reset();
 }
 
 void DXRRenderer::Render() {
     static int frameCount = 0;
     frameCount++;
 
-    char debugMsg[512];
-    sprintf_s(debugMsg, "=== Frame %d - Detailed Debug ===\n", frameCount);
-    OutputDebugStringA(debugMsg);
 
-    // Œ»İ‚ÌƒV[ƒ“‚ğæ“¾
+    // ç¾åœ¨ã®ã‚·ãƒ¼ãƒ³ã‚’å–å¾—
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
 
     if ( !dxrScene ) {
-        OutputDebugStringA("ERROR: No DXRScene found!\n");
         return;
     }
 
     UpdateCamera();
 
-    // š ƒTƒCƒY‚ÌŠm”F‚ÆC³ š
+    // ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡å–å¾—
     auto& renderer = Singleton<Renderer>::getInstance();
     ID3D12Resource* currentBackBuffer = renderer.GetBackBuffer(renderer.GetCurrentFrameIndex());
-
     if ( !currentBackBuffer ) {
-        OutputDebugStringA("ERROR: currentBackBuffer is NULL!\n");
         return;
     }
 
-    // ƒoƒbƒNƒoƒbƒtƒ@‚ÌƒŠƒ\[ƒX‹Lq‚ğæ“¾
-    D3D12_RESOURCE_DESC backBufferDesc = currentBackBuffer->GetDesc();
-
-    sprintf_s(debugMsg, "BackBuffer: %ux%u (format: %d)\n",
-        (UINT)backBufferDesc.Width, backBufferDesc.Height, (int)backBufferDesc.Format);
-    OutputDebugStringA(debugMsg);
-    sprintf_s(debugMsg, "DXR current size: %ux%u\n", m_width, m_height);
-    OutputDebugStringA(debugMsg);
-
-    // š 4ƒtƒŒ[ƒ€–ÚˆÈ~FƒŒƒCƒgƒŒ[ƒVƒ“ƒOÀs š
-    OutputDebugStringA("=== Raytracing Execution ===\n");
-
-    // ƒŒƒCƒgƒŒ[ƒVƒ“ƒOÀs
+    // ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚·ãƒ³ã‚°å®Ÿè¡Œè¨­å®š
     D3D12_DISPATCH_RAYS_DESC raytraceDesc = {};
 
     // RayGeneration shader
@@ -115,82 +146,326 @@ void DXRRenderer::Render() {
 
     // Hit group
     raytraceDesc.HitGroupTable.StartAddress = m_hitGroupShaderTable->GetGPUVirtualAddress();
-    raytraceDesc.HitGroupTable.SizeInBytes = s_hitGroupEntrySize * 4;  // 4‚Â‚Ìƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv•ª
+    raytraceDesc.HitGroupTable.SizeInBytes = s_hitGroupEntrySize * 4;  // 4ã¤ã®ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—åˆ†
     raytraceDesc.HitGroupTable.StrideInBytes = s_hitGroupEntrySize;
-    /*
-    raytraceDesc.HitGroupTable.StartAddress = m_hitGroupShaderTable->GetGPUVirtualAddress();
-    raytraceDesc.HitGroupTable.SizeInBytes = s_hitGroupEntrySize;
-    raytraceDesc.HitGroupTable.StrideInBytes = s_hitGroupEntrySize;
-    */
-    // š ƒfƒBƒXƒpƒbƒ`İ’èiƒTƒCƒYŠm”FÏ‚İj š
+
+    // ãƒ‡ã‚£ã‚¹ãƒ‘ãƒƒãƒè¨­å®š
     raytraceDesc.Width = m_width;
     raytraceDesc.Height = m_height;
     raytraceDesc.Depth = 1;
 
-    sprintf_s(debugMsg, "About to dispatch rays: %ux%ux%u\n",
-        raytraceDesc.Width, raytraceDesc.Height, raytraceDesc.Depth);
-    OutputDebugStringA(debugMsg);
-
-
-    // ƒOƒ[ƒoƒ‹ƒ‹[ƒgƒVƒOƒlƒ`ƒƒİ’è
+    // ã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£è¨­å®š
     m_commandList->SetComputeRootSignature(m_globalRootSignature.Get());
 
-    // DXR—pƒfƒBƒXƒNƒŠƒvƒ^ƒq[ƒvİ’è
+    // DXRç”¨ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ’ãƒ¼ãƒ—è¨­å®š
     ID3D12DescriptorHeap* dxrHeaps[] = { m_descriptorHeap.Get() };
     m_commandList->SetDescriptorHeaps(1, dxrHeaps);
 
-    // ƒŠƒ\[ƒXİ’è
-    CD3DX12_GPU_DESCRIPTOR_HANDLE srvHandle(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+    // ãƒªã‚½ãƒ¼ã‚¹è¨­å®š
+    // â˜…â˜…â˜… ãƒ’ãƒ¼ãƒ—ã®å…ˆé ­ã‚’æŒ‡ã™ãƒ™ãƒ¼ã‚¹ãƒãƒ³ãƒ‰ãƒ«ã‚’æº–å‚™ â˜…â˜…â˜…
+    CD3DX12_GPU_DESCRIPTOR_HANDLE tableBaseHandle(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
-    m_commandList->SetComputeRootDescriptorTable(0, srvHandle);  // UAV (o—Í)
-    m_commandList->SetComputeRootShaderResourceView(1, m_topLevelAS->GetGPUVirtualAddress());  // TLAS
-    m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());  // ’è”ƒoƒbƒtƒ@
+    // ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ 0: UAVãƒ†ãƒ¼ãƒ–ãƒ« (u0-u3)
+    // ãƒ’ãƒ¼ãƒ—ã®å…ˆé ­ (Index 0) ã‹ã‚‰å§‹ã¾ã‚‹ã®ã§ã€ã‚ªãƒ•ã‚»ãƒƒãƒˆã¯ä¸è¦
+    m_commandList->SetComputeRootDescriptorTable(0, tableBaseHandle);
 
-    // ššš V‹K’Ç‰ÁFƒCƒ“ƒXƒ^ƒ“ƒX/’¸“_/ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@ ššš
-    srvHandle.Offset(1, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-    m_commandList->SetComputeRootDescriptorTable(3, srvHandle);  // SRVƒe[ƒuƒ‹ (t1-t3)
+    // ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ 1: TLAS
+    m_commandList->SetComputeRootShaderResourceView(1, m_topLevelAS->GetGPUVirtualAddress());
 
-    // ƒŒƒCƒgƒŒ[ƒVƒ“ƒOÀs
+    // ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ 2: å®šæ•°ãƒãƒƒãƒ•ã‚¡
+    m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());
+
+    // ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ 3: SRVãƒ†ãƒ¼ãƒ–ãƒ« (t1-t8)
+    // â˜…â˜…â˜… ã“ã‚ŒãŒæ­£ã—ã„è¨­å®šã§ã™ â˜…â˜…â˜…
+    CD3DX12_GPU_DESCRIPTOR_HANDLE srvTableHandle = tableBaseHandle;
+    // t1 ã®ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ã¾ã§4ã¤åˆ† (u0, u1, u2, u3) é€²ã‚ã‚‹
+    srvTableHandle.Offset(5, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    m_commandList->SetComputeRootDescriptorTable(3, srvTableHandle);
+    // ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚·ãƒ³ã‚°å®Ÿè¡Œ
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
-
-    OutputDebugStringA("Executing DispatchRays...\n");
     m_commandList->DispatchRays(&raytraceDesc);
-    OutputDebugStringA("DispatchRays completed successfully!\n");
 
-    // UAVƒoƒŠƒA
-    CD3DX12_RESOURCE_BARRIER uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(m_raytracingOutput.Get());
-    m_commandList->ResourceBarrier(1, &uavBarrier);
-
-    // š ƒŒƒCƒgƒŒ[ƒVƒ“ƒOŒ‹‰Ê‚ğƒoƒbƒNƒoƒbƒtƒ@‚ÉƒRƒs[ š
-    OutputDebugStringA("Starting raytracing result copy...\n");
-
-    // ƒŠƒ\[ƒXó‘Ô‚ğ‘JˆÚ
-    CD3DX12_RESOURCE_BARRIER barriers[] = {
-        CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(),
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
-        CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
-            D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
+    // UAVãƒãƒªã‚¢ï¼ˆãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚·ãƒ³ã‚°å®Œäº†å¾…ã¡ï¼‰
+    std::vector<CD3DX12_RESOURCE_BARRIER> uavBarriers = {
+        CD3DX12_RESOURCE_BARRIER::UAV(m_raytracingOutput.Get()),
+        CD3DX12_RESOURCE_BARRIER::UAV(m_albedoBuffer.Get()),
+        CD3DX12_RESOURCE_BARRIER::UAV(m_normalBuffer.Get()),
+        CD3DX12_RESOURCE_BARRIER::UAV(m_depthBuffer.Get())
     };
-    m_commandList->ResourceBarrier(2, barriers);
+    m_commandList->ResourceBarrier(static_cast<UINT>( uavBarriers.size() ), uavBarriers.data());
 
-    // ƒŠƒ\[ƒXƒRƒs[
-    m_commandList->CopyResource(currentBackBuffer, m_raytracingOutput.Get());
-    OutputDebugStringA("CopyResource completed\n");
+    if ( m_denoiserEnabled ) {
+        // --- ãƒ‡ãƒã‚¤ã‚¶ãƒ¼ãŒæœ‰åŠ¹ãªå ´åˆã®å‡¦ç† ---
+        ID3D12Resource* finalDenoisedResult = RunDenoiser();
 
-    // ƒŠƒ\[ƒXó‘Ô‚ğ•œŒ³
-    CD3DX12_RESOURCE_BARRIER restoreBarriers[] = {
-        CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(),
-            D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-        CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
-            D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT)
-    };
-    m_commandList->ResourceBarrier(2, restoreBarriers);
+        // æœ€çµ‚çµæœã‚’ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒ”ãƒ¼ã™ã‚‹æº–å‚™
+        std::vector<CD3DX12_RESOURCE_BARRIER> preCopyBarriers = {
+            CD3DX12_RESOURCE_BARRIER::Transition(finalDenoisedResult,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+                D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
+        };
+        m_commandList->ResourceBarrier(static_cast<UINT>( preCopyBarriers.size() ), preCopyBarriers.data());
 
-    OutputDebugStringA("Raytracing render completed successfully!\n");
+        // ã‚³ãƒ”ãƒ¼å®Ÿè¡Œ
+        m_commandList->CopyResource(currentBackBuffer, finalDenoisedResult);
+
+        // ImGuiæç”»ã®ãŸã‚ã«ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã‚’ãƒ¬ãƒ³ãƒ€ãƒ¼ã‚¿ãƒ¼ã‚²ãƒƒãƒˆçŠ¶æ…‹ã¸
+        std::vector<CD3DX12_RESOURCE_BARRIER> postCopyBarriers = {
+            CD3DX12_RESOURCE_BARRIER::Transition(finalDenoisedResult,
+                D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+                D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET)
+        };
+        m_commandList->ResourceBarrier(static_cast<UINT>( postCopyBarriers.size() ), postCopyBarriers.data());
+    }
+    else {
+        // --- â˜…â˜…â˜… ä¿®æ­£ï¼šãƒ‡ãƒã‚¤ã‚¶ãƒ¼ãŒç„¡åŠ¹ãªå ´åˆã®å‡¦ç† â˜…â˜…â˜… ---
+        // æœ€çµ‚çµæœã¯ m_raytracingOutput ã¨ãªã‚‹
+        ID3D12Resource* finalResult = m_raytracingOutput.Get();
+
+        // æœ€çµ‚çµæœã‚’ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒ”ãƒ¼ã™ã‚‹æº–å‚™
+        std::vector<CD3DX12_RESOURCE_BARRIER> preCopyBarriers = {
+            CD3DX12_RESOURCE_BARRIER::Transition(finalResult,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+                D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
+        };
+        m_commandList->ResourceBarrier(static_cast<UINT>( preCopyBarriers.size() ), preCopyBarriers.data());
+
+        // ã‚³ãƒ”ãƒ¼å®Ÿè¡Œ
+        m_commandList->CopyResource(currentBackBuffer, finalResult);
+
+        // ImGuiæç”»ã®ãŸã‚ã«ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã‚’ãƒ¬ãƒ³ãƒ€ãƒ¼ã‚¿ãƒ¼ã‚²ãƒƒãƒˆçŠ¶æ…‹ã¸
+        std::vector<CD3DX12_RESOURCE_BARRIER> postCopyBarriers = {
+            CD3DX12_RESOURCE_BARRIER::Transition(finalResult,
+                D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+                // â˜…â˜…â˜… ã“ã“ãŒé‡è¦ãªå¤‰æ›´ç‚¹ã§ã™ â˜…â˜…â˜…
+                CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+                    D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET)
+        };
+        m_commandList->ResourceBarrier(static_cast<UINT>( postCopyBarriers.size() ), postCopyBarriers.data());
+    }
+}
+
+void DXRRenderer::RenderDXRIMGUI() {
+
+    // === 1. ImGuiã§è¡¨ç¤ºã™ã‚‹ãƒªã‚½ãƒ¼ã‚¹ã‚’SRVçŠ¶æ…‹ã¸é·ç§» (ã“ã®éƒ¨åˆ†ã¯å¤‰æ›´ãªã—) ===
+    std::vector<CD3DX12_RESOURCE_BARRIER> barriers;
+
+    // è¡¨ç¤ºã™ã‚‹ãƒªã‚½ãƒ¼ã‚¹ã¯ã€Œå¸¸ã«ã€é·ç§»ã•ã›ã‚‹
+    barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+    barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_albedoBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+    barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+    barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_depthBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+    if ( m_denoiserEnabled ) {
+        barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_denoisedOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+    }
+
+    if ( !barriers.empty() ) {
+        m_commandList->ResourceBarrier(static_cast<UINT>( barriers.size() ), barriers.data());
+    }
+
+    // === â˜…â˜…â˜… æ–°è¦è¿½åŠ ï¼šãƒ‡ãƒã‚¤ã‚¶ãƒ¼ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿èª¿æ•´ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ â˜…â˜…â˜… ===
+    ImGui::Begin("Denoiser Parameters");
+
+    // é™çš„å¤‰æ•°ã§ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ä¿æŒï¼ˆåˆæœŸå€¤ã¯æ¨å¥¨å€¤ï¼‰
+    static float colorSigma = 0.45f;
+    static float normalSigma = 8.0f;
+    static float depthSigma = 0.3f;
+    static int iterations = 5;
+    static bool denoiserEnabled = true;
+
+    // ãƒ‡ãƒã‚¤ã‚¶ãƒ¼ã®ON/OFFåˆ‡ã‚Šæ›¿ãˆ
+    if ( ImGui::Checkbox("Enable Denoiser", &denoiserEnabled) ) {
+        SetDenoiserEnabled(denoiserEnabled);
+    }
+
+    ImGui::Separator();
+
+    // ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãŒå¤‰æ›´ã•ã‚ŒãŸã‹ã‚’è¿½è·¡
+    bool parametersChanged = false;
+
+    // Color Sigma ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼
+    ImGui::Text("Color Sigma (Color difference sensitivity)");
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Lower = more strict, Higher = more tolerant");
+    if ( ImGui::SliderFloat("##ColorSigma", &colorSigma, 0.05f, 1.0f, "%.3f") ) {
+        parametersChanged = true;
+    }
+
+    // ãƒ—ãƒªã‚»ãƒƒãƒˆå€¤ãƒœã‚¿ãƒ³
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("0.2") ) { colorSigma = 0.2f; parametersChanged = true; }
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("0.45") ) { colorSigma = 0.45f; parametersChanged = true; }
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("0.8") ) { colorSigma = 0.8f; parametersChanged = true; }
+
+    ImGui::Spacing();
+
+    // Normal Sigma ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼
+    ImGui::Text("Normal Sigma (Surface normal similarity)");
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Lower = more strict, Higher = more tolerant");
+    if ( ImGui::SliderFloat("##NormalSigma", &normalSigma, 1.0f, 64.0f, "%.1f") ) {
+        parametersChanged = true;
+    }
+
+    // ãƒ—ãƒªã‚»ãƒƒãƒˆå€¤ãƒœã‚¿ãƒ³
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("4.0") ) { normalSigma = 4.0f; parametersChanged = true; }
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("8.0") ) { normalSigma = 8.0f; parametersChanged = true; }
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("16.0") ) { normalSigma = 16.0f; parametersChanged = true; }
+
+    ImGui::Spacing();
+
+    // Depth Sigma ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼
+    ImGui::Text("Depth Sigma (Depth difference sensitivity)");
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Lower = more strict, Higher = more tolerant");
+    if ( ImGui::SliderFloat("##DepthSigma", &depthSigma, 0.01f, 1.0f, "%.3f") ) {
+        parametersChanged = true;
+    }
+
+    // ãƒ—ãƒªã‚»ãƒƒãƒˆå€¤ãƒœã‚¿ãƒ³
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("0.1") ) { depthSigma = 0.1f; parametersChanged = true; }
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("0.3") ) { depthSigma = 0.3f; parametersChanged = true; }
+    ImGui::SameLine();
+    if ( ImGui::SmallButton("0.6") ) { depthSigma = 0.6f; parametersChanged = true; }
+
+    ImGui::Separator();
+
+    // Iterations ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼
+    ImGui::Text("Iterations (Number of filter passes)");
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "More iterations = smoother but slower");
+    if ( ImGui::SliderInt("##Iterations", &iterations, 1, 8) ) {
+        SetDenoiserIterations(iterations);
+    }
+
+    ImGui::Separator();
+
+    // ãƒ—ãƒªã‚»ãƒƒãƒˆè¨­å®šãƒœã‚¿ãƒ³
+    ImGui::Text("Presets:");
+    if ( ImGui::Button("Conservative (Sharp)") ) {
+        colorSigma = 0.25f;
+        normalSigma = 12.0f;
+        depthSigma = 0.15f;
+        iterations = 4;
+        parametersChanged = true;
+        SetDenoiserIterations(iterations);
+    }
+    ImGui::SameLine();
+    if ( ImGui::Button("Balanced (Default)") ) {
+        colorSigma = 0.15f;
+        normalSigma = 16.0f;
+        depthSigma = 0.1f;
+        iterations = 5;
+        parametersChanged = true;
+        SetDenoiserIterations(iterations);
+    }
+    ImGui::SameLine();
+    if ( ImGui::Button("Aggressive (Smooth)") ) {
+        colorSigma = 0.7f;
+        normalSigma = 4.0f;
+        depthSigma = 0.5f;
+        iterations = 6;
+        parametersChanged = true;
+        SetDenoiserIterations(iterations);
+    }
+
+    // ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãŒå¤‰æ›´ã•ã‚ŒãŸå ´åˆã®ã¿æ›´æ–°
+    if ( parametersChanged ) {
+        SetDenoiserParameters(colorSigma, normalSigma, depthSigma);
+    }
+
+    ImGui::Separator();
+
+    // ç¾åœ¨ã®å€¤ã‚’è¡¨ç¤ºï¼ˆãƒ‡ãƒãƒƒã‚°ç”¨ï¼‰
+    ImGui::Text("Current Values:");
+    ImGui::Text("  Color: %.3f, Normal: %.1f, Depth: %.3f", colorSigma, normalSigma, depthSigma);
+    ImGui::Text("  Iterations: %d, Enabled: %s", iterations, denoiserEnabled ? "Yes" : "No");
+
+    ImGui::End();
+
+    // === â˜…â˜…â˜… 2. ImGuiã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®æç”» (ã“ã“ã‹ã‚‰è¡¨ç¤ºé †ã‚’ä¿®æ­£) â˜…â˜…â˜… ===
+    ImGui::Begin("DXR Debug Buffers");
+
+    UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    CD3DX12_GPU_DESCRIPTOR_HANDLE baseGpuHandle = m_debugSrvHeapStart_GPU;
+    ImVec2 imageSize(m_width / 2.0f, m_height / 2.0f);
+    const int padding = 15;
+
+    // --- ãƒ‡ãƒã‚¤ã‚ºå‰å¾Œã®æ¯”è¼ƒ ---
+    ImGui::Text("--- Denoise Comparison ---");
+
+    // 1. ãƒã‚¤ã‚ºã‚ã‚Šç”»åƒ (u0) ã‚’è¡¨ç¤º
+    CD3DX12_GPU_DESCRIPTOR_HANDLE noisyHandle = baseGpuHandle;
+    ImGui::Text("Noisy Input (u0)");
+    ImGui::SameLine(imageSize.x + padding); // æ¨ªã«ä¸¦ã¹ã‚‹
+    ImGui::Text("Denoised Output (u4)");
+
+    ImGui::Image((ImTextureID)noisyHandle.ptr, imageSize);
+
+    ImGui::SameLine(); // æ¨ªã«ä¸¦ã¹ã‚‹
+
+    // 2. ãƒ‡ãƒã‚¤ã‚ºæ¸ˆã¿ç”»åƒ (u4) ã‚’è¡¨ç¤º
+    CD3DX12_GPU_DESCRIPTOR_HANDLE denoisedHandle = baseGpuHandle;
+    denoisedHandle.Offset(4, descriptorSize); // u4ã¯5ç•ªç›®ãªã®ã§ã‚ªãƒ•ã‚»ãƒƒãƒˆã¯4
+
+    if ( m_denoiserEnabled ) {
+        ImGui::Image((ImTextureID)denoisedHandle.ptr, imageSize);
+    }
+    else {
+        ImGui::Text("Disabled");
+    }
+
+    ImGui::Separator(); // åŒºåˆ‡ã‚Šç·š
+
+    // --- ãã®ä»–ã®G-Buffer ---
+    ImGui::Text("--- G-Buffers ---");
+
+    // 3. Albedo G-Buffer (t5) ã‚’è¡¨ç¤º
+    CD3DX12_GPU_DESCRIPTOR_HANDLE albedoHandle = baseGpuHandle;
+    albedoHandle.Offset(1, descriptorSize); // t5ã¯2ç•ªç›®ãªã®ã§ã‚ªãƒ•ã‚»ãƒƒãƒˆã¯1
+    ImGui::Text("Albedo (t5)");
+    ImGui::Image((ImTextureID)albedoHandle.ptr, imageSize);
+
+    // 4. Normal G-Buffer (t6) ã‚’è¡¨ç¤º
+    CD3DX12_GPU_DESCRIPTOR_HANDLE normalHandle = baseGpuHandle;
+    normalHandle.Offset(2, descriptorSize); // t6ã¯3ç•ªç›®ãªã®ã§ã‚ªãƒ•ã‚»ãƒƒãƒˆã¯2
+    ImGui::Text("Normal (t6)");
+    ImGui::Image((ImTextureID)normalHandle.ptr, imageSize);
+
+    // 5. Depth G-Buffer (t7) ã‚’è¡¨ç¤º
+    CD3DX12_GPU_DESCRIPTOR_HANDLE depthHandle = baseGpuHandle;
+    depthHandle.Offset(3, descriptorSize); // t7ã¯4ç•ªç›®ãªã®ã§ã‚ªãƒ•ã‚»ãƒƒãƒˆã¯3
+    ImGui::Text("Depth (t7)");
+    ImGui::Image((ImTextureID)depthHandle.ptr, imageSize);
+
+    ImGui::End();
+
+    // === 3. çŠ¶æ…‹ã‚’å…ƒã«æˆ»ã™ (ã“ã®éƒ¨åˆ†ã¯å¤‰æ›´ãªã—) ===
+    std::vector<CD3DX12_RESOURCE_BARRIER> restoreBarriers;
+
+    restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+    restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_albedoBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+    restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+    restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_depthBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+
+    if ( m_denoiserEnabled ) {
+        restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_denoisedOutput.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+    }
+
+    if ( !restoreBarriers.empty() ) {
+        m_commandList->ResourceBarrier(static_cast<UINT>( restoreBarriers.size() ), restoreBarriers.data());
+    }
 }
 
 void DXRRenderer::InitializeDXR(ID3D12Device* device) {
-    // DXR‹@”\‚ÌŠm”F
+    // DXRæ©Ÿèƒ½ã®ç¢ºèª
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
     HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
 
@@ -200,20 +475,21 @@ void DXRRenderer::InitializeDXR(ID3D12Device* device) {
 }
 
 void DXRRenderer::CreateRootSignature() {
-    // ƒOƒ[ƒoƒ‹ƒ‹[ƒgƒVƒOƒlƒ`ƒƒì¬
+    // ã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ä½œæˆï¼ˆG-Buffer + Denoiserå¯¾å¿œï¼‰
     CD3DX12_DESCRIPTOR_RANGE descriptorRanges[2];
 
-    // UAV ƒŒƒ“ƒWio—ÍƒeƒNƒXƒ`ƒƒj
-    descriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);  // u0
+    // UAV ãƒ¬ãƒ³ã‚¸ï¼ˆå‡ºåŠ›ãƒ†ã‚¯ã‚¹ãƒãƒ£ + G-Bufferï¼‰
+    descriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 5, 0);  // u0-u3: RenderTarget, Albedo, Normal, Depth
 
-    // SRV ƒŒƒ“ƒWiƒ}ƒeƒŠƒAƒ‹A’¸“_AƒCƒ“ƒfƒbƒNƒXAƒIƒtƒZƒbƒgƒoƒbƒtƒ@j
-    descriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 1);  // t1, t2, t3, t4
+    // SRV ãƒ¬ãƒ³ã‚¸ï¼ˆãƒãƒ†ãƒªã‚¢ãƒ«ã€é ‚ç‚¹ã€ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã€ã‚ªãƒ•ã‚»ãƒƒãƒˆãƒãƒƒãƒ•ã‚¡ + G-Bufferèª­ã¿å–ã‚Šç”¨ï¼‰
+    descriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8, 1);  // t1-t8: Materials, Vertex, Index, Offset + G-Buffer
 
-    CD3DX12_ROOT_PARAMETER rootParameters[4];
-    rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0]);  // o—ÍUAV
+    CD3DX12_ROOT_PARAMETER rootParameters[5];  // 4 â†’ 5ã«æ‹¡å¼µ
+    rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0]);  // å‡ºåŠ›UAV + G-Buffer UAV
     rootParameters[1].InitAsShaderResourceView(0);                     // TLAS (t0)
-    rootParameters[2].InitAsConstantBufferView(0);                     // ƒV[ƒ“’è”ƒoƒbƒtƒ@ (b0)
-    rootParameters[3].InitAsDescriptorTable(1, &descriptorRanges[1]);  // SRVƒe[ƒuƒ‹ (t1-t4)
+    rootParameters[2].InitAsConstantBufferView(0);                     // ã‚·ãƒ¼ãƒ³å®šæ•°ãƒãƒƒãƒ•ã‚¡ (b0)
+    rootParameters[3].InitAsDescriptorTable(1, &descriptorRanges[1]);  // SRVãƒ†ãƒ¼ãƒ–ãƒ« (t1-t8)
+    rootParameters[4].InitAsConstantBufferView(1);                     // ãƒ‡ãƒã‚¤ã‚¶ãƒ¼å®šæ•°ãƒãƒƒãƒ•ã‚¡ (b1) è¿½åŠ 
 
     CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
 
@@ -233,10 +509,14 @@ void DXRRenderer::CreateRootSignature() {
     if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to create global root signature");
     }
+
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Global root signature created with denoiser support (5 parameters)\n");
+    OutputDebugStringA(debugMsg);
 }
 
 void DXRRenderer::CreateRaytracingPipelineStateObject() {
-    // ƒVƒF[ƒ_[“Ç‚İ‚İ
+    // æ—¢å­˜ã®ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼èª­ã¿è¾¼ã¿ã‚³ãƒ¼ãƒ‰...
     auto rayGenShader = LoadOrCompileShader(L"Src/Shader/RayGen.hlsl", L"RayGen");
     auto missShader = LoadOrCompileShader(L"Src/Shader/Miss.hlsl", L"Miss");
     auto lambertianHitShader = LoadOrCompileShader(L"Src/Shader/ClosestHit_Lambertian.hlsl", L"ClosestHit_Lambertian");
@@ -244,7 +524,7 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
     auto dielectricHitShader = LoadOrCompileShader(L"Src/Shader/ClosestHit_Dielectric.hlsl", L"ClosestHit_Dielectric");
     auto lightHitShader = LoadOrCompileShader(L"Src/Shader/ClosestHit_DiffuseLight.hlsl", L"ClosestHit_DiffuseLight");
 
-    // ƒGƒNƒXƒ|[ƒg–¼‚ğŒÅ’è•¶š—ñ‚Æ‚µ‚Ä’è‹`
+    // ã‚¨ã‚¯ã‚¹ãƒãƒ¼ãƒˆåã‚’å›ºå®šæ–‡å­—åˆ—ã¨ã—ã¦å®šç¾©
     static const wchar_t* exportNames[] = {
         L"RayGen", L"Miss",
         L"ClosestHit_Lambertian", L"ClosestHit_Metal",
@@ -266,20 +546,17 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
         metalHitShader, dielectricHitShader, lightHitShader
     };
 
-    // ŒÅ’èƒTƒCƒY‚Ì”z—ñ‚ğg—p
+    // å›ºå®šã‚µã‚¤ã‚ºã®é…åˆ—ã‚’ä½¿ç”¨
     D3D12_EXPORT_DESC exportDescs[6];
     D3D12_DXIL_LIBRARY_DESC dxilLibDescs[6];
     D3D12_HIT_GROUP_DESC hitGroupDescs[4];
     D3D12_RAYTRACING_SHADER_CONFIG shaderConfigDesc = {};
     D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION shaderConfigAssociationDesc = {};
 
-    // ššš ƒ[ƒJƒ‹ƒ‹[ƒgƒVƒOƒlƒ`ƒƒŠÖ˜A‚ğ’Ç‰Á ššš
-    D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION localRootSigAssociationDesc = {};
-
     std::vector<D3D12_STATE_SUBOBJECT> subobjects;
-    subobjects.reserve(16); // —]—T‚ğ‚Á‚½ƒTƒCƒY
+    subobjects.reserve(16); // ä½™è£•ã‚’æŒã£ãŸã‚µã‚¤ã‚º
 
-    // DXILƒ‰ƒCƒuƒ‰ƒŠƒTƒuƒIƒuƒWƒFƒNƒgì¬
+    // DXILãƒ©ã‚¤ãƒ–ãƒ©ãƒªã‚µãƒ–ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
     for ( int i = 0; i < 6; ++i ) {
         exportDescs[i].Name = exportNames[i];
         exportDescs[i].ExportToRename = nullptr;
@@ -296,7 +573,7 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
         subobjects.push_back(subobj);
     }
 
-    // ƒqƒbƒgƒOƒ‹[ƒvƒTƒuƒIƒuƒWƒFƒNƒgì¬
+    // ãƒ’ãƒƒãƒˆã‚°ãƒ«ãƒ¼ãƒ—ã‚µãƒ–ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
     for ( int i = 0; i < 4; ++i ) {
         hitGroupDescs[i].HitGroupExport = hitGroupNames[i];
         hitGroupDescs[i].Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
@@ -310,16 +587,31 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
         subobjects.push_back(subobj);
     }
 
-    // ƒVƒF[ƒ_[İ’èƒTƒuƒIƒuƒWƒFƒNƒg
-    shaderConfigDesc.MaxPayloadSizeInBytes = ( 3 * sizeof(float) ) + ( 2 * sizeof(unsigned int) );
-    shaderConfigDesc.MaxAttributeSizeInBytes = sizeof(float) * 2;
+    // ===== é‡è¦ï¼šæ‹¡å¼µã•ã‚ŒãŸRayPayloadæ§‹é€ ä½“ã®ã‚µã‚¤ã‚ºã‚’æ­£ã—ãè¨ˆç®— =====
+    // æ‹¡å¼µã•ã‚ŒãŸRayPayloadæ§‹é€ ä½“:
+    // struct RayPayload {
+    //     float3 color;           // 12 bytes
+    //     uint depth;             // 4 bytes
+    //     uint seed;              // 4 bytes
+    //     float3 albedo;          // 12 bytes
+    //     float3 normal;          // 12 bytes
+    //     float3 worldPos;        // 12 bytes
+    //     float hitDistance;      // 4 bytes
+    //     uint materialType;      // 4 bytes
+    //     float roughness;        // 4 bytes
+    //     uint padding;           // 4 bytes
+    // };
+    // åˆè¨ˆ: 72 bytes (16ãƒã‚¤ãƒˆã‚¢ãƒ©ã‚¤ãƒ¡ãƒ³ãƒˆè€ƒæ…®æ¸ˆã¿)
+
+    shaderConfigDesc.MaxPayloadSizeInBytes = 72;  // ä¿®æ­£ï¼šæ‹¡å¼µã•ã‚ŒãŸRayPayloadã®ã‚µã‚¤ã‚º
+    shaderConfigDesc.MaxAttributeSizeInBytes = sizeof(float) * 2;  // VertexAttributes (barycentrics)
 
     D3D12_STATE_SUBOBJECT shaderConfigSubobject = {};
     shaderConfigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
     shaderConfigSubobject.pDesc = &shaderConfigDesc;
     subobjects.push_back(shaderConfigSubobject);
 
-    // ƒVƒF[ƒ_[İ’è‚ğ‚·‚×‚Ä‚ÌƒVƒF[ƒ_[ƒGƒNƒXƒ|[ƒg‚ÉŠÖ˜A•t‚¯
+    // ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼è¨­å®šã‚’ã™ã¹ã¦ã®ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚¨ã‚¯ã‚¹ãƒãƒ¼ãƒˆã«é–¢é€£ä»˜ã‘
     shaderConfigAssociationDesc.pSubobjectToAssociate = &subobjects.back();
     shaderConfigAssociationDesc.NumExports = _countof(exportNames);
     shaderConfigAssociationDesc.pExports = exportNames;
@@ -329,13 +621,13 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
     shaderConfigAssociationSubobject.pDesc = &shaderConfigAssociationDesc;
     subobjects.push_back(shaderConfigAssociationSubobject);
 
-    // ƒOƒ[ƒoƒ‹ƒ‹[ƒgƒVƒOƒlƒ`ƒƒ
+    // ã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£
     D3D12_STATE_SUBOBJECT globalRootSigSubobject = {};
     globalRootSigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
     globalRootSigSubobject.pDesc = m_globalRootSignature.GetAddressOf();
     subobjects.push_back(globalRootSigSubobject);
 
-    // ƒpƒCƒvƒ‰ƒCƒ“İ’è
+    // ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³è¨­å®š
     static D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig = { 8 };
 
     D3D12_STATE_SUBOBJECT pipelineConfigSubobject = {};
@@ -343,7 +635,7 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
     pipelineConfigSubobject.pDesc = &pipelineConfig;
     subobjects.push_back(pipelineConfigSubobject);
 
-    // ƒXƒe[ƒgƒIƒuƒWƒFƒNƒgì¬
+    // ã‚¹ãƒ†ãƒ¼ãƒˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
     D3D12_STATE_OBJECT_DESC raytracingPipelineDesc = {};
     raytracingPipelineDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
     raytracingPipelineDesc.NumSubobjects = static_cast<UINT>( subobjects.size() );
@@ -353,10 +645,16 @@ void DXRRenderer::CreateRaytracingPipelineStateObject() {
     if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to create raytracing pipeline state object");
     }
+
+    // ãƒ‡ãƒãƒƒã‚°æƒ…å ±å‡ºåŠ›
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Raytracing pipeline created with payload size: %d bytes\n",
+        shaderConfigDesc.MaxPayloadSizeInBytes);
+    OutputDebugStringA(debugMsg);
 }
 
 ComPtr<IDxcBlob> DXRRenderer::LoadCSO(const std::wstring& filename) {
-    // ƒtƒ@ƒCƒ‹‚ğŠJ‚­
+    // ãƒ•ã‚¡ã‚¤ãƒ«ã‚’é–‹ã
     std::ifstream file(filename, std::ios::binary);
     if ( !file.is_open() ) {
         std::string errorMsg = "Failed to open shader file: ";
@@ -364,31 +662,31 @@ ComPtr<IDxcBlob> DXRRenderer::LoadCSO(const std::wstring& filename) {
         throw std::runtime_error(errorMsg + filenameStr);
     }
 
-    // ƒtƒ@ƒCƒ‹ƒTƒCƒYæ“¾
+    // ãƒ•ã‚¡ã‚¤ãƒ«ã‚µã‚¤ã‚ºå–å¾—
     file.seekg(0, std::ios::end);
     size_t fileSize = file.tellg();
     file.seekg(0, std::ios::beg);
 
-    // ƒf[ƒ^“Ç‚İ‚İ
+    // ãƒ‡ãƒ¼ã‚¿èª­ã¿è¾¼ã¿
     std::vector<uint8_t> data(fileSize);
     file.read(reinterpret_cast<char*>( data.data() ), fileSize);
     file.close();
 
     if ( !m_dxcUtils ) {
-        // ‚à‚µ m_dxcUtils ‚ª‚±‚Ì“_‚Å‰Šú‰»‚³‚ê‚Ä‚¢‚È‚¢ê‡‚ÌƒtƒH[ƒ‹ƒoƒbƒNˆ—
-        // (–{—ˆ‚Í DXRRenderer ‚Ì‰Šú‰»‚És‚¤‚×‚«)
+        // ã‚‚ã— m_dxcUtils ãŒã“ã®æ™‚ç‚¹ã§åˆæœŸåŒ–ã•ã‚Œã¦ã„ãªã„å ´åˆã®ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å‡¦ç†
+        // (æœ¬æ¥ã¯ DXRRenderer ã®åˆæœŸåŒ–æ™‚ã«è¡Œã†ã¹ã)
         HRESULT hr_init = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&m_dxcUtils));
         if ( FAILED(hr_init) ) {
             throw std::runtime_error("Failed to create DxcUtils instance in LoadCSO");
         }
     }
 
-    ComPtr<IDxcBlobEncoding> blobEncoding; // CreateBlob ‚Í IDxcBlobEncoding** ‚ğŠú‘Ò‚·‚é‚½‚ßA‚±‚ÌŒ^‚Åó‚¯‚é
+    ComPtr<IDxcBlobEncoding> blobEncoding; // CreateBlob ã¯ IDxcBlobEncoding** ã‚’æœŸå¾…ã™ã‚‹ãŸã‚ã€ã“ã®å‹ã§å—ã‘ã‚‹
     HRESULT hr = m_dxcUtils->CreateBlob(
         data.data(),
         static_cast<UINT32>( data.size() ),
         DXC_CP_UTF8,
-        blobEncoding.GetAddressOf() // ³‚µ‚¢ ComPtr ‚Ìg‚¢•û: IDxcBlobEncoding** ‚ğ“n‚·
+        blobEncoding.GetAddressOf() // æ­£ã—ã„ ComPtr ã®ä½¿ã„æ–¹: IDxcBlobEncoding** ã‚’æ¸¡ã™
     );
 
     if ( FAILED(hr) ) {
@@ -396,11 +694,11 @@ ComPtr<IDxcBlob> DXRRenderer::LoadCSO(const std::wstring& filename) {
     }
 
     ComPtr<IDxcBlob> resultBlob;
-    // IDxcBlobEncoding ‚©‚ç IDxcBlob ƒCƒ“ƒ^[ƒtƒF[ƒX‚ğæ“¾ (QueryInterface ‚É‘Š“–)
-    // IDxcBlob ‚Í IDxcBlobEncoding ‚ğŒp³‚µ‚Ä‚¢‚é‚½‚ßA‚±‚Ì•ÏŠ·‚Í¬Œ÷‚·‚é‚Í‚¸‚Å‚·B
+    // IDxcBlobEncoding ã‹ã‚‰ IDxcBlob ã‚¤ãƒ³ã‚¿ãƒ¼ãƒ•ã‚§ãƒ¼ã‚¹ã‚’å–å¾— (QueryInterface ã«ç›¸å½“)
+    // IDxcBlob ã¯ IDxcBlobEncoding ã‚’ç¶™æ‰¿ã—ã¦ã„ã‚‹ãŸã‚ã€ã“ã®å¤‰æ›ã¯æˆåŠŸã™ã‚‹ã¯ãšã§ã™ã€‚
     hr = blobEncoding.As(&resultBlob);
     if ( FAILED(hr) ) {
-        // ‚±‚ÌƒGƒ‰[‚Í’Êí”­¶‚µ‚É‚­‚¢‚Å‚·‚ªA”O‚Ì‚½‚ßƒ`ƒFƒbƒN
+        // ã“ã®ã‚¨ãƒ©ãƒ¼ã¯é€šå¸¸ç™ºç”Ÿã—ã«ãã„ã§ã™ãŒã€å¿µã®ãŸã‚ãƒã‚§ãƒƒã‚¯
         throw std::runtime_error("Failed to obtain IDxcBlob interface from blob encoding");
     }
 
@@ -419,7 +717,7 @@ void DXRRenderer::UpdateCamera() {
 
     auto cameraData = dxrScene->GetCamera();
 
-    // ƒrƒ…[EƒvƒƒWƒFƒNƒVƒ‡ƒ“s—ñŒvZ
+    // ãƒ“ãƒ¥ãƒ¼ãƒ»ãƒ—ãƒ­ã‚¸ã‚§ã‚¯ã‚·ãƒ§ãƒ³è¡Œåˆ—è¨ˆç®—
     XMVECTOR eyePos = XMLoadFloat3(&cameraData.position);
     XMVECTOR targetPos = XMLoadFloat3(&cameraData.target);
     XMVECTOR upVec = XMLoadFloat3(&cameraData.up);
@@ -427,7 +725,7 @@ void DXRRenderer::UpdateCamera() {
     XMMATRIX viewMatrix = XMMatrixInverse(nullptr, XMMatrixLookAtLH(eyePos, targetPos, upVec));
     XMMATRIX projMatrix = XMMatrixPerspectiveFovLH(cameraData.fov, cameraData.aspect, 0.1f, 1000.0f);
 
-    // ƒJƒƒ‰‚©‚çƒIƒuƒWƒFƒNƒg‚Ü‚Å‚Ì‹——£ŒvZ
+    // ã‚«ãƒ¡ãƒ©ã‹ã‚‰ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¾ã§ã®è·é›¢è¨ˆç®—
     float distToSphere1 = sqrtf(powf(190.0f - cameraData.position.x, 2) +
         powf(90.0f - cameraData.position.y, 2) +
         powf(190.0f - cameraData.position.z, 2));
@@ -435,10 +733,8 @@ void DXRRenderer::UpdateCamera() {
     SceneConstantBuffer sceneConstants;
     sceneConstants.projectionMatrix = projMatrix;
     sceneConstants.viewMatrix = viewMatrix;
-    sceneConstants.lightPosition = XMFLOAT4(0.0f, 554.0f, 279.5f, 1.0f);
-    sceneConstants.lightColor = XMFLOAT4(15.0f, 15.0f, 15.0f, 1.0f);
 
-    // ’è”ƒoƒbƒtƒ@XV
+    // å®šæ•°ãƒãƒƒãƒ•ã‚¡æ›´æ–°
     void* mappedData;
     m_sceneConstantBuffer->Map(0, nullptr, &mappedData);
     memcpy(mappedData, &sceneConstants, sizeof(SceneConstantBuffer));
@@ -448,10 +744,10 @@ void DXRRenderer::UpdateCamera() {
 }
 
 // DXRRenderer_AccelerationStructure.cpp
-// DXRRenderer.cpp‚É’Ç‰Á‚·‚é•”•ª
+// DXRRenderer.cppã«è¿½åŠ ã™ã‚‹éƒ¨åˆ†
 
 void DXRRenderer::CreateAccelerationStructures() {
-    // Œ»İ‚ÌƒV[ƒ“‚©‚çTLASƒf[ƒ^æ“¾
+    // ç¾åœ¨ã®ã‚·ãƒ¼ãƒ³ã‹ã‚‰TLASãƒ‡ãƒ¼ã‚¿å–å¾—
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
 
@@ -462,7 +758,7 @@ void DXRRenderer::CreateAccelerationStructures() {
 
     TLASData tlasData = dxrScene->GetTLASData();
 
-    // Ú×‚ÈƒfƒoƒbƒOî•ñ
+    // è©³ç´°ãªãƒ‡ãƒãƒƒã‚°æƒ…å ±
     char debugMsg[512];
     sprintf_s(debugMsg, "=== Acceleration Structure Detailed Debug ===\n");
     OutputDebugStringA(debugMsg);
@@ -474,7 +770,7 @@ void DXRRenderer::CreateAccelerationStructures() {
         return;
     }
 
-    // Šù‘¶‚ÌBLAS/TLASì¬ˆ—...
+    // æ—¢å­˜ã®BLAS/TLASä½œæˆå‡¦ç†...
     m_bottomLevelAS.clear();
     m_bottomLevelASScratch.clear();
 
@@ -489,7 +785,7 @@ void DXRRenderer::CreateAccelerationStructures() {
         m_bottomLevelAS.push_back(blasBuffer);
     }
 
-    // BLASƒoƒŠƒA
+    // BLASãƒãƒªã‚¢
     std::vector<CD3DX12_RESOURCE_BARRIER> blasBarriers;
     for ( auto& blas : m_bottomLevelAS ) {
         blasBarriers.push_back(CD3DX12_RESOURCE_BARRIER::UAV(blas.Get()));
@@ -498,12 +794,12 @@ void DXRRenderer::CreateAccelerationStructures() {
         m_commandList->ResourceBarrier(static_cast<UINT>( blasBarriers.size() ), blasBarriers.data());
     }
 
-    // TLASì¬iƒCƒ“ƒXƒ^ƒ“ƒX–„‚ß‚İ”Åj
+    // TLASä½œæˆï¼ˆã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹åŸ‹ã‚è¾¼ã¿ç‰ˆï¼‰
     OutputDebugStringA("Creating TLAS with embedded materials...\n");
     CreateTLAS(tlasData);
 
-    // ššš V‹K’Ç‰ÁFƒfƒBƒXƒNƒŠƒvƒ^ì¬ ššš
-    CreateDescriptorsForBuffers(dxrScene->GetUniqueMaterials().size(), tlasData);
+    // â˜…â˜…â˜… æ–°è¦è¿½åŠ ï¼šãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ä½œæˆ â˜…â˜…â˜…
+    //CreateDescriptorsForBuffers(dxrScene->GetUniqueMaterials().size(), tlasData);
 
     Singleton<Renderer>::getInstance().ExecuteCommandListAndWait();
     OutputDebugStringA("Acceleration structures created successfully\n");
@@ -516,7 +812,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
     sprintf_s(debugMsg, "=== Creating BLAS (FIXED) ===\n");
     OutputDebugStringA(debugMsg);
 
-    // ššš “ü—Íƒf[ƒ^‚ÌÚ×ŒŸØ ššš
+    // â˜…â˜…â˜… å…¥åŠ›ãƒ‡ãƒ¼ã‚¿ã®è©³ç´°æ¤œè¨¼ â˜…â˜…â˜…
     if ( blasData.vertices.empty() || blasData.indices.empty() ) {
         OutputDebugStringA("ERROR: Empty vertices or indices in BLAS!\n");
         return;
@@ -526,7 +822,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         blasData.vertices.size(), blasData.indices.size());
     OutputDebugStringA(debugMsg);
 
-    // ššš ƒCƒ“ƒfƒbƒNƒX‚Ì‘Ã“–«‚ğŠ®‘SŒŸØ ššš
+    // â˜…â˜…â˜… ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã®å¦¥å½“æ€§ã‚’å®Œå…¨æ¤œè¨¼ â˜…â˜…â˜…
     uint32_t maxValidIndex = static_cast<uint32_t>( blasData.vertices.size() - 1 );
     bool hasInvalidIndices = false;
 
@@ -545,7 +841,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         return;
     }
 
-    // ššš ƒf[ƒ^ƒTƒ“ƒvƒ‹‚ÌÚ×o—Í ššš
+    // â˜…â˜…â˜… ãƒ‡ãƒ¼ã‚¿ã‚µãƒ³ãƒ—ãƒ«ã®è©³ç´°å‡ºåŠ› â˜…â˜…â˜…
     sprintf_s(debugMsg, "First 5 vertices:\n");
     OutputDebugStringA(debugMsg);
     for ( int i = 0; i < min(5, (int)blasData.vertices.size()); ++i ) {
@@ -566,7 +862,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
 
-    // ššš ê—p‚Ì’¸“_ƒoƒbƒtƒ@‚ğŒÂ•Êì¬ ššš
+    // â˜…â˜…â˜… å°‚ç”¨ã®é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã‚’å€‹åˆ¥ä½œæˆ â˜…â˜…â˜…
     UINT vertexBufferSize = static_cast<UINT>( blasData.vertices.size() * sizeof(DXRVertex) );
     sprintf_s(debugMsg, "Creating dedicated vertex buffer: %u bytes\n", vertexBufferSize);
     OutputDebugStringA(debugMsg);
@@ -588,7 +884,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         throw std::runtime_error("Failed to create vertex buffer for BLAS");
     }
 
-    // ššš ’¸“_ƒf[ƒ^‚ğƒAƒbƒvƒ[ƒhiŒŸØ•t‚«jššš
+    // â˜…â˜…â˜… é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿ã‚’ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ï¼ˆæ¤œè¨¼ä»˜ãï¼‰â˜…â˜…â˜…
     void* mappedVertexData;
     hr = blasData.vertexBuffer->Map(0, nullptr, &mappedVertexData);
     if ( FAILED(hr) ) {
@@ -601,7 +897,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
 
     OutputDebugStringA("Vertex buffer uploaded successfully\n");
 
-    // ššš ê—p‚ÌƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ğŒÂ•Êì¬ ššš
+    // â˜…â˜…â˜… å°‚ç”¨ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã‚’å€‹åˆ¥ä½œæˆ â˜…â˜…â˜…
     UINT indexBufferSize = static_cast<UINT>( blasData.indices.size() * sizeof(uint32_t) );
     sprintf_s(debugMsg, "Creating dedicated index buffer: %u bytes\n", indexBufferSize);
     OutputDebugStringA(debugMsg);
@@ -623,7 +919,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
         throw std::runtime_error("Failed to create index buffer for BLAS");
     }
 
-    // ššš ƒCƒ“ƒfƒbƒNƒXƒf[ƒ^‚ğƒAƒbƒvƒ[ƒhiŒŸØ•t‚«jššš
+    // â˜…â˜…â˜… ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒ‡ãƒ¼ã‚¿ã‚’ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ï¼ˆæ¤œè¨¼ä»˜ãï¼‰â˜…â˜…â˜…
     void* mappedIndexData;
     hr = blasData.indexBuffer->Map(0, nullptr, &mappedIndexData);
     if ( FAILED(hr) ) {
@@ -636,18 +932,18 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
 
     OutputDebugStringA("Index buffer uploaded successfully\n");
 
-    // ššš ƒWƒIƒƒgƒŠƒfƒBƒXƒNƒŠƒvƒ^İ’èiÚ×ƒƒO•t‚«jššš
+    // â˜…â˜…â˜… ã‚¸ã‚ªãƒ¡ãƒˆãƒªãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿è¨­å®šï¼ˆè©³ç´°ãƒ­ã‚°ä»˜ãï¼‰â˜…â˜…â˜…
     D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
     geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
     geometryDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
 
-    // ’¸“_ƒf[ƒ^İ’è
+    // é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿è¨­å®š
     geometryDesc.Triangles.VertexBuffer.StartAddress = blasData.vertexBuffer->GetGPUVirtualAddress();
     geometryDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(DXRVertex);
     geometryDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
     geometryDesc.Triangles.VertexCount = static_cast<UINT>( blasData.vertices.size() );
 
-    // ƒCƒ“ƒfƒbƒNƒXƒf[ƒ^İ’è
+    // ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒ‡ãƒ¼ã‚¿è¨­å®š
     geometryDesc.Triangles.IndexBuffer = blasData.indexBuffer->GetGPUVirtualAddress();
     geometryDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
     geometryDesc.Triangles.IndexCount = static_cast<UINT>( blasData.indices.size() );
@@ -657,14 +953,14 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
     sprintf_s(debugMsg, "Expected triangles: %u\n", geometryDesc.Triangles.IndexCount / 3);
     OutputDebugStringA(debugMsg);
 
-    // BLAS"“ü—Íİ’è
+    // BLAS"å…¥åŠ›è¨­å®š
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS blasInputs = {};
     blasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
     blasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
     blasInputs.NumDescs = 1;
     blasInputs.pGeometryDescs = &geometryDesc;
 
-    // ˆÈ‰ºAŠù‘¶‚ÌBLAS\’zˆ—...
+    // ä»¥ä¸‹ã€æ—¢å­˜ã®BLASæ§‹ç¯‰å‡¦ç†...
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO blasPrebuildInfo = {};
     m_device->GetRaytracingAccelerationStructurePrebuildInfo(&blasInputs, &blasPrebuildInfo);
 
@@ -703,7 +999,7 @@ void DXRRenderer::CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuf
 
     m_bottomLevelASScratch.push_back(blasData.scratchBuffer);
 
-    // BLAS\’zÀs
+    // BLASæ§‹ç¯‰å®Ÿè¡Œ
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blasDesc = {};
     blasDesc.Inputs = blasInputs;
     blasDesc.DestAccelerationStructureData = blasBuffer->GetGPUVirtualAddress();
@@ -721,7 +1017,7 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
     sprintf_s(debugMsg, "=== CreateTLAS with Transform Verification ===\n");
     OutputDebugStringA(debugMsg);
 
-    // ƒCƒ“ƒXƒ^ƒ“ƒXƒfƒBƒXƒNƒŠƒvƒ^ì¬
+    // ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ä½œæˆ
     std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instanceDescs;
 
     for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
@@ -729,10 +1025,10 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
 
         D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
 
-        // ˆˆˆ d—vF•ÏŠ·s—ñ‚Ì“KØ‚È“K—p ˆˆˆ
+        // âˆ´âˆ´âˆ´ é‡è¦ï¼šå¤‰æ›è¡Œåˆ—ã®é©åˆ‡ãªé©ç”¨ âˆ´âˆ´âˆ´
         XMMATRIX transform = blasData.transform;
 
-        // ƒfƒoƒbƒOF•ÏŠ·s—ñ‚Ì“à—e‚ğŠm”F
+        // ãƒ‡ãƒãƒƒã‚°ï¼šå¤‰æ›è¡Œåˆ—ã®å†…å®¹ã‚’ç¢ºèª
         XMFLOAT4X4 transformFloat;
         XMStoreFloat4x4(&transformFloat, transform);
         sprintf_s(debugMsg, "Instance[%zu] Transform Matrix:\n", i);
@@ -750,26 +1046,26 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
             transformFloat._41, transformFloat._42, transformFloat._43, transformFloat._44);
         OutputDebugStringA(debugMsg);
 
-        // XMFLOAT3X4‚É•ÏŠ·i4s–Ú‚Í•s—vj
+        // XMFLOAT3X4ã«å¤‰æ›ï¼ˆ4è¡Œç›®ã¯ä¸è¦ï¼‰
         XMFLOAT3X4 transform3x4;
         XMStoreFloat3x4(&transform3x4, transform);
 
-        // ƒCƒ“ƒXƒ^ƒ“ƒX•ÏŠ·s—ñ‚ğİ’è
+        // ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹å¤‰æ›è¡Œåˆ—ã‚’è¨­å®š
         for ( int row = 0; row < 3; ++row ) {
             for ( int col = 0; col < 4; ++col ) {
                 instanceDesc.Transform[row][col] = transform3x4.m[row][col];
             }
         }
 
-        // ˆˆˆ ƒCƒ“ƒXƒ^ƒ“ƒXID‚Æƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv‚Ìİ’è ˆˆˆ
+        // âˆ´âˆ´âˆ´ ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹IDã¨ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—ã®è¨­å®š âˆ´âˆ´âˆ´
         instanceDesc.InstanceID = static_cast<UINT>( i );
         instanceDesc.InstanceMask = 0xFF;
 
-        // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv‚ÅƒqƒbƒgƒOƒ‹[ƒv‚ğ‘I‘ğ
+        // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—ã§ãƒ’ãƒƒãƒˆã‚°ãƒ«ãƒ¼ãƒ—ã‚’é¸æŠ
         auto& gameManager = Singleton<GameManager>::getInstance();
         DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
-		const auto& materialData = dxrScene->GetUniqueMaterials();
-    
+        const auto& materialData = dxrScene->GetUniqueMaterials();
+
         instanceDesc.InstanceContributionToHitGroupIndex = static_cast<UINT>( materialData[blasData.materialID].materialType );
         instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
         instanceDesc.AccelerationStructure = m_bottomLevelAS[i]->GetGPUVirtualAddress();
@@ -777,13 +1073,13 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
         instanceDescs.push_back(instanceDesc);
     }
 
-    // ˆˆˆ ƒ}ƒeƒŠƒAƒ‹ƒoƒbƒtƒ@ì¬ ˆˆˆ
+    // âˆ´âˆ´âˆ´ ãƒãƒ†ãƒªã‚¢ãƒ«ãƒãƒƒãƒ•ã‚¡ä½œæˆ âˆ´âˆ´âˆ´
     CreateMaterialBuffer(tlasData);
 
-    // ˆˆˆ ’¸“_EƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@ì¬ ˆˆˆ
+    // âˆ´âˆ´âˆ´ é ‚ç‚¹ãƒ»ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ä½œæˆ âˆ´âˆ´âˆ´
     CreateVertexIndexBuffers(tlasData);
 
-    // Šù‘¶‚ÌTLASì¬ˆ—...
+    // æ—¢å­˜ã®TLASä½œæˆå‡¦ç†...
     UINT instanceBufferSize = static_cast<UINT>( instanceDescs.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC) );
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
@@ -807,7 +1103,7 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
     memcpy(mappedInstanceData, instanceDescs.data(), instanceBufferSize);
     tlasData.instanceBuffer->Unmap(0, nullptr);
 
-    // TLASƒrƒ‹ƒhˆ—
+    // TLASãƒ“ãƒ«ãƒ‰å‡¦ç†
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS tlasInputs = {};
     tlasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
     tlasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
@@ -863,77 +1159,77 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
     OutputDebugStringA("TLAS created with verified transforms\n");
 }
 
-void DXRRenderer::CreateDescriptorsForBuffers(const UINT materialCount, const TLASData& tlasData) {
-    UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
-    // UAVio—ÍƒeƒNƒXƒ`ƒƒj‚ğƒXƒLƒbƒv
-    cpuHandle.Offset(1, descriptorSize);
-
-    // ššš ƒ}ƒeƒŠƒAƒ‹ƒoƒbƒtƒ@‚ÌSRVì¬ (t1) ššš
-    if ( m_materialBuffer ) {
-        D3D12_SHADER_RESOURCE_VIEW_DESC materialSrvDesc = {};
-        materialSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        materialSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        materialSrvDesc.Buffer.FirstElement = 0;
-        materialSrvDesc.Buffer.NumElements = static_cast<UINT>( materialCount );
-        materialSrvDesc.Buffer.StructureByteStride = sizeof(DXRMaterialData);
-        materialSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-        m_device->CreateShaderResourceView(m_materialBuffer.Get(), &materialSrvDesc, cpuHandle);
-    }
-    cpuHandle.Offset(1, descriptorSize);
-
-    // ššš ’¸“_ƒoƒbƒtƒ@‚ÌSRVì¬ (t2) ššš
-    if ( m_globalVertexBuffer ) {
-        D3D12_SHADER_RESOURCE_VIEW_DESC vertexSrvDesc = {};
-        vertexSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        vertexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        vertexSrvDesc.Buffer.FirstElement = 0;
-        vertexSrvDesc.Buffer.NumElements = m_totalVertexCount;
-        vertexSrvDesc.Buffer.StructureByteStride = sizeof(DXRVertex);
-        vertexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-        m_device->CreateShaderResourceView(m_globalVertexBuffer.Get(), &vertexSrvDesc, cpuHandle);
-        OutputDebugStringA("Vertex buffer SRV created at t2\n");
-    }
-    cpuHandle.Offset(1, descriptorSize);
-
-    // ššš ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ÌSRVì¬ (t3) ššš
-    if ( m_globalIndexBuffer ) {
-        D3D12_SHADER_RESOURCE_VIEW_DESC indexSrvDesc = {};
-        indexSrvDesc.Format = DXGI_FORMAT_R32_UINT;
-        indexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        indexSrvDesc.Buffer.FirstElement = 0;
-        indexSrvDesc.Buffer.NumElements = m_totalIndexCount;
-        indexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-        m_device->CreateShaderResourceView(m_globalIndexBuffer.Get(), &indexSrvDesc, cpuHandle);
-        OutputDebugStringA("Index buffer SRV created at t3\n");
-    }
-    cpuHandle.Offset(1, descriptorSize);
-
-    // ššš ƒCƒ“ƒXƒ^ƒ“ƒXƒIƒtƒZƒbƒgƒoƒbƒtƒ@‚ÌSRVì¬ (t4) ššš
-    if ( m_instanceOffsetBuffer ) {
-        D3D12_SHADER_RESOURCE_VIEW_DESC offsetSrvDesc = {};
-        offsetSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        offsetSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        offsetSrvDesc.Buffer.FirstElement = 0;
-        offsetSrvDesc.Buffer.NumElements = static_cast<UINT>( tlasData.blasDataList.size() );
-        offsetSrvDesc.Buffer.StructureByteStride = 16; // InstanceOffsetData ‚ÌƒTƒCƒY
-        offsetSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-        m_device->CreateShaderResourceView(m_instanceOffsetBuffer.Get(), &offsetSrvDesc, cpuHandle);
-        OutputDebugStringA("Instance offset buffer SRV created at t4\n");
-    }
-}
+//void DXRRenderer::CreateDescriptorsForBuffers(const UINT materialCount, const TLASData& tlasData) {
+//    UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+//    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+//
+//    // UAVï¼ˆå‡ºåŠ›ãƒ†ã‚¯ã‚¹ãƒãƒ£ï¼‰ã‚’ã‚¹ã‚­ãƒƒãƒ—
+//    cpuHandle.Offset(1, descriptorSize);
+//
+//    // â˜…â˜…â˜… ãƒãƒ†ãƒªã‚¢ãƒ«ãƒãƒƒãƒ•ã‚¡ã®SRVä½œæˆ (t1) â˜…â˜…â˜…
+//    if ( m_materialBuffer ) {
+//        D3D12_SHADER_RESOURCE_VIEW_DESC materialSrvDesc = {};
+//        materialSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+//        materialSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+//        materialSrvDesc.Buffer.FirstElement = 0;
+//        materialSrvDesc.Buffer.NumElements = static_cast<UINT>( materialCount );
+//        materialSrvDesc.Buffer.StructureByteStride = sizeof(DXRMaterialData);
+//        materialSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+//
+//        m_device->CreateShaderResourceView(m_materialBuffer.Get(), &materialSrvDesc, cpuHandle);
+//    }
+//    cpuHandle.Offset(1, descriptorSize);
+//
+//    // â˜…â˜…â˜… é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®SRVä½œæˆ (t2) â˜…â˜…â˜…
+//    if ( m_globalVertexBuffer ) {
+//        D3D12_SHADER_RESOURCE_VIEW_DESC vertexSrvDesc = {};
+//        vertexSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+//        vertexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+//        vertexSrvDesc.Buffer.FirstElement = 0;
+//        vertexSrvDesc.Buffer.NumElements = m_totalVertexCount;
+//        vertexSrvDesc.Buffer.StructureByteStride = sizeof(DXRVertex);
+//        vertexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+//
+//        m_device->CreateShaderResourceView(m_globalVertexBuffer.Get(), &vertexSrvDesc, cpuHandle);
+//        OutputDebugStringA("Vertex buffer SRV created at t2\n");
+//    }
+//    cpuHandle.Offset(1, descriptorSize);
+//
+//    // â˜…â˜…â˜… ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã®SRVä½œæˆ (t3) â˜…â˜…â˜…
+//    if ( m_globalIndexBuffer ) {
+//        D3D12_SHADER_RESOURCE_VIEW_DESC indexSrvDesc = {};
+//        indexSrvDesc.Format = DXGI_FORMAT_R32_UINT;
+//        indexSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+//        indexSrvDesc.Buffer.FirstElement = 0;
+//        indexSrvDesc.Buffer.NumElements = m_totalIndexCount;
+//        indexSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+//
+//        m_device->CreateShaderResourceView(m_globalIndexBuffer.Get(), &indexSrvDesc, cpuHandle);
+//        OutputDebugStringA("Index buffer SRV created at t3\n");
+//    }
+//    cpuHandle.Offset(1, descriptorSize);
+//
+//    // â˜…â˜…â˜… ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã‚ªãƒ•ã‚»ãƒƒãƒˆãƒãƒƒãƒ•ã‚¡ã®SRVä½œæˆ (t4) â˜…â˜…â˜…
+//    if ( m_instanceOffsetBuffer ) {
+//        D3D12_SHADER_RESOURCE_VIEW_DESC offsetSrvDesc = {};
+//        offsetSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+//        offsetSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+//        offsetSrvDesc.Buffer.FirstElement = 0;
+//        offsetSrvDesc.Buffer.NumElements = static_cast<UINT>( tlasData.blasDataList.size() );
+//        offsetSrvDesc.Buffer.StructureByteStride = 16; // InstanceOffsetData ã®ã‚µã‚¤ã‚º
+//        offsetSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+//
+//        m_device->CreateShaderResourceView(m_instanceOffsetBuffer.Get(), &offsetSrvDesc, cpuHandle);
+//        OutputDebugStringA("Instance offset buffer SRV created at t4\n");
+//    }
+//}
 
 void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
     char debugMsg[256];
     sprintf_s(debugMsg, "=== Creating FIXED Unified Global Buffers (SPHERE-SAFE) ===\n");
     OutputDebugStringA(debugMsg);
 
-    // ššš ‘S‘Ì‚ÌƒTƒCƒY‚ğŒvZ ššš
+    // â˜…â˜…â˜… å…¨ä½“ã®ã‚µã‚¤ã‚ºã‚’è¨ˆç®— â˜…â˜…â˜…
     m_totalVertexCount = 0;
     m_totalIndexCount = 0;
 
@@ -950,7 +1246,7 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
         return;
     }
 
-    // ššš “‡’¸“_EƒCƒ“ƒfƒbƒNƒXƒf[ƒ^\’ziC³”Åj ššš
+    // â˜…â˜…â˜… çµ±åˆé ‚ç‚¹ãƒ»ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒ‡ãƒ¼ã‚¿æ§‹ç¯‰ï¼ˆä¿®æ­£ç‰ˆï¼‰ â˜…â˜…â˜…
     std::vector<DXRVertex> allVertices;
     std::vector<uint32_t> allIndices;
     std::vector<uint32_t> vertexOffsets;
@@ -965,7 +1261,7 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
     for ( size_t i = 0; i < tlasData.blasDataList.size(); ++i ) {
         const auto& blasData = tlasData.blasDataList[i];
 
-        // ššš ƒIƒtƒZƒbƒg‚ğ‹L˜^iƒCƒ“ƒfƒbƒNƒX”z—ñ“à‚Å‚ÌƒIƒtƒZƒbƒgj ššš
+        // â˜…â˜…â˜… ã‚ªãƒ•ã‚»ãƒƒãƒˆã‚’è¨˜éŒ²ï¼ˆã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹é…åˆ—å†…ã§ã®ã‚ªãƒ•ã‚»ãƒƒãƒˆï¼‰ â˜…â˜…â˜…
         vertexOffsets.push_back(currentVertexOffset);
         indexOffsets.push_back(currentIndexOffset);
 
@@ -976,14 +1272,14 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
             currentVertexOffset, currentIndexOffset);
         OutputDebugStringA(debugMsg);
 
-        // ššš ’¸“_ƒf[ƒ^‚ğ‚»‚Ì‚Ü‚ÜƒRƒs[ ššš
+        // â˜…â˜…â˜… é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿ã‚’ãã®ã¾ã¾ã‚³ãƒ”ãƒ¼ â˜…â˜…â˜…
         allVertices.insert(allVertices.end(), blasData.vertices.begin(), blasData.vertices.end());
 
-        // ššš d—vFƒCƒ“ƒfƒbƒNƒXƒf[ƒ^‚ÍŒ³‚Ì’l‚Ì‚Ü‚ÜA’¸“_ƒIƒtƒZƒbƒg‚Í•ÊŠÇ— ššš
-        // ‚±‚ê‚É‚æ‚èŠeƒIƒuƒWƒFƒNƒg‚ÌŒ³‚Ì’¸“_\‘¢‚ª•Û‚³‚ê‚é
+        // â˜…â˜…â˜… é‡è¦ï¼šã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒ‡ãƒ¼ã‚¿ã¯å…ƒã®å€¤ã®ã¾ã¾ã€é ‚ç‚¹ã‚ªãƒ•ã‚»ãƒƒãƒˆã¯åˆ¥ç®¡ç† â˜…â˜…â˜…
+        // ã“ã‚Œã«ã‚ˆã‚Šå„ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®å…ƒã®é ‚ç‚¹æ§‹é€ ãŒä¿æŒã•ã‚Œã‚‹
         allIndices.insert(allIndices.end(), blasData.indices.begin(), blasData.indices.end());
 
-        // ƒfƒoƒbƒOFŒ³‚ÌƒCƒ“ƒfƒbƒNƒX’l‚ğŠm”F
+        // ãƒ‡ãƒãƒƒã‚°ï¼šå…ƒã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹å€¤ã‚’ç¢ºèª
         sprintf_s(debugMsg, "  Original indices (first 6): ");
         OutputDebugStringA(debugMsg);
         for ( size_t j = 0; j < min(6, blasData.indices.size()); ++j ) {
@@ -993,12 +1289,12 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
         sprintf_s(debugMsg, "\n");
         OutputDebugStringA(debugMsg);
 
-        // Ÿ‚ÌƒIƒtƒZƒbƒg‚ğXV
+        // æ¬¡ã®ã‚ªãƒ•ã‚»ãƒƒãƒˆã‚’æ›´æ–°
         currentVertexOffset += static_cast<uint32_t>( blasData.vertices.size() );
         currentIndexOffset += static_cast<uint32_t>( blasData.indices.size() );
     }
 
-    // ššš “‡’¸“_ƒoƒbƒtƒ@‚ğì¬ ššš
+    // â˜…â˜…â˜… çµ±åˆé ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã‚’ä½œæˆ â˜…â˜…â˜…
     {
         UINT vertexBufferSize = static_cast<UINT>( allVertices.size() * sizeof(DXRVertex) );
         sprintf_s(debugMsg, "Creating unified vertex buffer: %u bytes (%zu vertices)\n",
@@ -1031,7 +1327,7 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
         }
     }
 
-    // ššš “‡ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ğì¬ ššš
+    // â˜…â˜…â˜… çµ±åˆã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã‚’ä½œæˆ â˜…â˜…â˜…
     {
         UINT indexBufferSize = static_cast<UINT>( allIndices.size() * sizeof(uint32_t) );
         sprintf_s(debugMsg, "Creating unified index buffer: %u bytes (%zu indices)\n",
@@ -1064,10 +1360,10 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
         }
     }
 
-    // ššš ƒIƒtƒZƒbƒgî•ñƒoƒbƒtƒ@‚ğì¬ ššš
+    // â˜…â˜…â˜… ã‚ªãƒ•ã‚»ãƒƒãƒˆæƒ…å ±ãƒãƒƒãƒ•ã‚¡ã‚’ä½œæˆ â˜…â˜…â˜…
     CreateInstanceOffsetBuffer(tlasData, vertexOffsets, indexOffsets);
 
-    // ššš ŒŸØFì¬‚³‚ê‚½ƒf[ƒ^‚Ì®‡«‚ğƒ`ƒFƒbƒN ššš
+    // â˜…â˜…â˜… æ¤œè¨¼ï¼šä½œæˆã•ã‚ŒãŸãƒ‡ãƒ¼ã‚¿ã®æ•´åˆæ€§ã‚’ãƒã‚§ãƒƒã‚¯ â˜…â˜…â˜…
     sprintf_s(debugMsg, "=== Unified Buffer Validation (SPHERE-SAFE) ===\n");
     OutputDebugStringA(debugMsg);
 
@@ -1078,9 +1374,9 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
         sprintf_s(debugMsg, "Instance[%zu]: vOffset=%u, iOffset=%u\n", i, vOffset, iOffset);
         OutputDebugStringA(debugMsg);
 
-        // Å‰‚ÌOŠpŒ`‚Ì’¸“_‚ğŠm”F
+        // æœ€åˆã®ä¸‰è§’å½¢ã®é ‚ç‚¹ã‚’ç¢ºèª
         if ( iOffset + 2 < allIndices.size() ) {
-            uint32_t i0 = allIndices[iOffset + 0] + vOffset;  // ƒIƒtƒZƒbƒg“K—p
+            uint32_t i0 = allIndices[iOffset + 0] + vOffset;  // ã‚ªãƒ•ã‚»ãƒƒãƒˆé©ç”¨
             uint32_t i1 = allIndices[iOffset + 1] + vOffset;
             uint32_t i2 = allIndices[iOffset + 2] + vOffset;
 
@@ -1101,7 +1397,7 @@ void DXRRenderer::CreateVertexIndexBuffers(const TLASData& tlasData) {
 void DXRRenderer::CreateInstanceOffsetBuffer(const TLASData& tlasData,
     const std::vector<uint32_t>& vertexOffsets,
     const std::vector<uint32_t>& indexOffsets) {
-    // ššš \‘¢‘Ì‚ğHLSL‚Æˆê’v‚³‚¹‚é ššš
+    // â˜…â˜…â˜… æ§‹é€ ä½“ã‚’HLSLã¨ä¸€è‡´ã•ã›ã‚‹ â˜…â˜…â˜…
     struct InstanceOffsetData {
         uint32_t vertexOffset;
         uint32_t indexOffset;
@@ -1153,8 +1449,182 @@ void DXRRenderer::CreateInstanceOffsetBuffer(const TLASData& tlasData,
     }
 }
 
+void DXRRenderer::CreateDebugBufferViews() {
+    UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    // â˜…â˜…â˜… ä¿®æ­£ï¼šç¢ºä¿ã—ãŸé–‹å§‹ãƒãƒ³ãƒ‰ãƒ«ã‚’ä½¿ã† â˜…â˜…â˜…
+    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_debugSrvHeapStart_CPU;
+
+    // 1. ãƒ¬ã‚¤ãƒˆãƒ¬å‡ºåŠ› (ãƒã‚¤ã‚ºã‚ã‚Š) (u0)
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    srvDesc.Format = m_raytracingOutput->GetDesc().Format;
+    m_device->CreateShaderResourceView(m_raytracingOutput.Get(), &srvDesc, cpuHandle);
+    cpuHandle.Offset(1, descriptorSize);
+
+    // 2. ã‚¢ãƒ«ãƒ™ãƒ‰ G-Buffer (t5)
+    srvDesc.Format = m_albedoBuffer->GetDesc().Format;
+    m_device->CreateShaderResourceView(m_albedoBuffer.Get(), &srvDesc, cpuHandle);
+    cpuHandle.Offset(1, descriptorSize);
+
+    // 3. æ³•ç·š G-Buffer (t6)
+    srvDesc.Format = m_normalBuffer->GetDesc().Format;
+    m_device->CreateShaderResourceView(m_normalBuffer.Get(), &srvDesc, cpuHandle);
+    cpuHandle.Offset(1, descriptorSize);
+
+    // 4. æ·±åº¦ G-Buffer (t7)
+    srvDesc.Format = m_depthBuffer->GetDesc().Format;
+    m_device->CreateShaderResourceView(m_depthBuffer.Get(), &srvDesc, cpuHandle);
+    cpuHandle.Offset(1, descriptorSize);
+
+    // 5. ãƒ‡ãƒã‚¤ã‚ºæ¸ˆã¿å‡ºåŠ› (u4)
+    srvDesc.Format = m_denoisedOutput->GetDesc().Format;
+    m_device->CreateShaderResourceView(m_denoisedOutput.Get(), &srvDesc, cpuHandle);
+}
+
+void DXRRenderer::CreateDenoiserResources() {
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Creating denoiser resources...\n");
+    OutputDebugStringA(debugMsg);
+
+    CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+
+    // ãƒ‡ãƒã‚¤ã‚¶ãƒ¼å®šæ•°ãƒãƒƒãƒ•ã‚¡ã®ã¿ä½œæˆï¼ˆãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ’ãƒ¼ãƒ—ã¯æ—¢å­˜ã‚’ä½¿ç”¨ï¼‰
+    CD3DX12_RESOURCE_DESC constantBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(DenoiserConstants));
+    HRESULT hr = m_device->CreateCommittedResource(
+        &uploadHeapProps, D3D12_HEAP_FLAG_NONE, &constantBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+        IID_PPV_ARGS(&m_denoiserConstants));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create denoiser constants");
+
+    OutputDebugStringA("Denoiser resources created successfully\n");
+}
+
+void DXRRenderer::CreateDenoiserPipeline() {
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Creating denoiser pipeline...\n");
+    OutputDebugStringA(debugMsg);
+
+    // ã‚³ãƒ³ãƒ”ãƒ¥ãƒ¼ãƒˆã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚’ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«/ãƒ­ãƒ¼ãƒ‰
+    auto denoiserShader = LoadOrCompileShader(L"Src/Shader/ATrousDenoiser.hlsl", L"CSMain", L"cs_6_5");
+
+    // ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã‚¹ãƒ†ãƒ¼ãƒˆä½œæˆ - ã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ã‚’ä½¿ç”¨
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = m_globalRootSignature.Get();  // â† ã“ã“ãŒé‡è¦ï¼
+    psoDesc.CS.pShaderBytecode = denoiserShader->GetBufferPointer();
+    psoDesc.CS.BytecodeLength = denoiserShader->GetBufferSize();
+
+    HRESULT hr = m_device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&m_denoiserPSO));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create denoiser pipeline state");
+
+    OutputDebugStringA("Denoiser pipeline created successfully using global root signature\n");
+}
+
+ID3D12Resource* DXRRenderer::RunDenoiser() {
+    if ( !m_denoiserEnabled || m_denoiserIterations <= 0 ) {
+        // ãƒ‡ãƒã‚¤ã‚¶ãƒ¼ãŒç„¡åŠ¹ãªå ´åˆã¯ã€å…ƒã®ãƒ¬ã‚¤ãƒˆãƒ¬çµæœã‚’ãã®ã¾ã¾è¿”ã™
+        return m_raytracingOutput.Get();
+    }
+
+    // --- ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã¨ãƒ’ãƒ¼ãƒ—ã€ä¸å¤‰ã®ãƒ«ãƒ¼ãƒˆãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’è¨­å®š ---
+    m_commandList->SetPipelineState(m_denoiserPSO.Get());
+    m_commandList->SetComputeRootSignature(m_globalRootSignature.Get());
+    ID3D12DescriptorHeap* heaps[] = { m_descriptorHeap.Get() };
+    m_commandList->SetDescriptorHeaps(1, heaps);
+
+    CD3DX12_GPU_DESCRIPTOR_HANDLE tableBaseHandle(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+    m_commandList->SetComputeRootDescriptorTable(0, tableBaseHandle);
+    m_commandList->SetComputeRootShaderResourceView(1, m_topLevelAS->GetGPUVirtualAddress());
+    m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());
+    CD3DX12_GPU_DESCRIPTOR_HANDLE srvTableHandle = tableBaseHandle;
+    srvTableHandle.Offset(5, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    m_commandList->SetComputeRootDescriptorTable(3, srvTableHandle);
+
+    // --- â˜…â˜…â˜… ã“ã“ã‹ã‚‰ãŒæ–°ã—ã„çŠ¶æ…‹ç®¡ç†ãƒ­ã‚¸ãƒƒã‚¯ â˜…â˜…â˜… ---
+
+    // 1. ãƒ‡ãƒã‚¤ã‚¶ãƒ¼å‡¦ç†ã§å¸¸ã«èª­ã¿å–ã‚Šå°‚ç”¨ã¨ãªã‚‹G-Bufferã®çŠ¶æ…‹ã‚’æœ€åˆã«SRVã¸é·ç§»
+    std::vector<CD3DX12_RESOURCE_BARRIER> gbufferToSrvBarriers = {
+        CD3DX12_RESOURCE_BARRIER::Transition(m_albedoBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_depthBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
+    };
+    m_commandList->ResourceBarrier(static_cast<UINT>( gbufferToSrvBarriers.size() ), gbufferToSrvBarriers.data());
+
+    // 2. æœ€åˆã®å…¥åŠ›(u0)ã‚’SRVçŠ¶æ…‹ã¸é·ç§»
+    auto inputToSrvBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    m_commandList->ResourceBarrier(1, &inputToSrvBarrier);
+
+    // 3. A-Trousã‚¤ãƒ†ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³å®Ÿè¡Œ
+    for ( int iteration = 0; iteration < m_denoiserIterations; ++iteration ) {
+        // å‡ºåŠ›å…ˆ(u4)ã¯å¸¸ã«UAVçŠ¶æ…‹ã§ã‚ã‚‹ã“ã¨ã‚’ä¿è¨¼ã™ã‚‹ (UAVãƒãƒªã‚¢)
+        auto uavBarrierForOutput = CD3DX12_RESOURCE_BARRIER::UAV(m_denoisedOutput.Get());
+        m_commandList->ResourceBarrier(1, &uavBarrierForOutput);
+
+        // å®šæ•°ãƒãƒƒãƒ•ã‚¡è¨­å®šã¨ãƒ‡ã‚£ã‚¹ãƒ‘ãƒƒãƒ
+        UpdateDenoiserConstants(1 << iteration);
+        m_commandList->SetComputeRootConstantBufferView(4, m_denoiserConstants->GetGPUVirtualAddress());
+        UINT groupsX = ( m_width + 7 ) / 8;
+        UINT groupsY = ( m_height + 7 ) / 8;
+        m_commandList->Dispatch(groupsX, groupsY, 1);
+
+        // æ›¸ãè¾¼ã¿å®Œäº†ã‚’å¾…ã¤UAVãƒãƒªã‚¢
+        auto uavBarrierAfterWrite = CD3DX12_RESOURCE_BARRIER::UAV(m_denoisedOutput.Get());
+        m_commandList->ResourceBarrier(1, &uavBarrierAfterWrite);
+
+        // ã€Œæœ€å¾Œã®ã‚¤ãƒ†ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ã€ã§ãªã‘ã‚Œã°ã€çµæœ(u4)ã‚’å…¥åŠ›(u0)ã«ã‚³ãƒ”ãƒ¼ã—ã¦æ¬¡ã®æº–å‚™ã‚’ã™ã‚‹
+        if ( iteration < m_denoiserIterations - 1 ) {
+            // ã‚³ãƒ”ãƒ¼ã®ãŸã‚ã®çŠ¶æ…‹é·ç§»
+            std::vector<CD3DX12_RESOURCE_BARRIER> copyBarriers = {
+                CD3DX12_RESOURCE_BARRIER::Transition(m_denoisedOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
+                CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST)
+            };
+            m_commandList->ResourceBarrier(static_cast<UINT>( copyBarriers.size() ), copyBarriers.data());
+
+            // å®Ÿè¡Œï¼šu4(å‡ºåŠ›) -> u0(æ¬¡ã®å…¥åŠ›) ã¸ã‚³ãƒ”ãƒ¼
+            m_commandList->CopyResource(m_raytracingOutput.Get(), m_denoisedOutput.Get());
+
+            // æ¬¡ã®ãƒ«ãƒ¼ãƒ—ã®ãŸã‚ã«çŠ¶æ…‹ã‚’æˆ»ã™
+            std::vector<CD3DX12_RESOURCE_BARRIER> restoreBarriers = {
+                CD3DX12_RESOURCE_BARRIER::Transition(m_denoisedOutput.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+                CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
+            };
+            m_commandList->ResourceBarrier(static_cast<UINT>( restoreBarriers.size() ), restoreBarriers.data());
+        }
+    }
+
+    // 4. ã™ã¹ã¦ã®å‡¦ç†ãŒçµ‚ã‚ã£ãŸã®ã§ã€ä½¿ã£ãŸãƒªã‚½ãƒ¼ã‚¹ã‚’ã™ã¹ã¦UAVçŠ¶æ…‹ã«æˆ»ã™
+    std::vector<CD3DX12_RESOURCE_BARRIER> postLoopBarriers = {
+        CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_albedoBuffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+        CD3DX12_RESOURCE_BARRIER::Transition(m_depthBuffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+    };
+    m_commandList->ResourceBarrier(static_cast<UINT>( postLoopBarriers.size() ), postLoopBarriers.data());
+
+    // æœ€çµ‚çµæœã¯å¸¸ã« m_denoisedOutput ã«å…¥ã£ã¦ã„ã‚‹
+    return m_denoisedOutput.Get();
+}
+
+void DXRRenderer::UpdateDenoiserConstants(int stepSize) {
+    DenoiserConstants constants = {};
+    constants.stepSize = stepSize;
+    constants.colorSigma = m_colorSigma;
+    constants.normalSigma = m_normalSigma;
+    constants.depthSigma = m_depthSigma;
+    constants.texelSize = DirectX::XMFLOAT2(1.0f / m_width, 1.0f / m_height);
+    constants.padding = DirectX::XMFLOAT2(0.0f, 0.0f);
+
+    void* mappedData;
+    HRESULT hr = m_denoiserConstants->Map(0, nullptr, &mappedData);
+    if ( SUCCEEDED(hr) ) {
+        memcpy(mappedData, &constants, sizeof(DenoiserConstants));
+        m_denoiserConstants->Unmap(0, nullptr);
+    }
+}
+
 ComPtr<IDxcBlob> DXRRenderer::CompileShaderFromFile(const std::wstring& hlslPath, const std::wstring& entryPoint, const std::wstring& target) {
-    // HLSLƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚İ
+    // HLSLãƒ•ã‚¡ã‚¤ãƒ«ã‚’èª­ã¿è¾¼ã¿
     ComPtr<IDxcBlobEncoding> sourceBlob;
     HRESULT hr = m_dxcUtils->LoadFile(hlslPath.c_str(), nullptr, &sourceBlob);
     if ( FAILED(hr) ) {
@@ -1163,23 +1633,23 @@ ComPtr<IDxcBlob> DXRRenderer::CompileShaderFromFile(const std::wstring& hlslPath
         throw std::runtime_error(errorMsg + filenameStr);
     }
 
-    // ƒRƒ“ƒpƒCƒ‹ˆø”‚Ìİ’è
+    // ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«å¼•æ•°ã®è¨­å®š
     std::vector<LPCWSTR> arguments = {
-        hlslPath.c_str(),               // ƒtƒ@ƒCƒ‹–¼iƒfƒoƒbƒO—pj
-        L"-E", entryPoint.c_str(),      // ƒGƒ“ƒgƒŠ[ƒ|ƒCƒ“ƒg
-        L"-T", target.c_str(),          // ƒ^[ƒQƒbƒgilib_6_5‚È‚Çj
-        L"-O3",                         // Å“K‰»ƒŒƒxƒ‹
-        L"-Qstrip_debug",               // ƒfƒoƒbƒOî•ñ‚ğíœ
-        L"-Qstrip_reflect",             // ƒŠƒtƒŒƒNƒVƒ‡ƒ“î•ñ‚ğíœ
+        hlslPath.c_str(),               // ãƒ•ã‚¡ã‚¤ãƒ«åï¼ˆãƒ‡ãƒãƒƒã‚°ç”¨ï¼‰
+        L"-E", entryPoint.c_str(),      // ã‚¨ãƒ³ãƒˆãƒªãƒ¼ãƒã‚¤ãƒ³ãƒˆ
+        L"-T", target.c_str(),          // ã‚¿ãƒ¼ã‚²ãƒƒãƒˆï¼ˆlib_6_5ãªã©ï¼‰
+        L"-O3",                         // æœ€é©åŒ–ãƒ¬ãƒ™ãƒ«
+        L"-Qstrip_debug",               // ãƒ‡ãƒãƒƒã‚°æƒ…å ±ã‚’å‰Šé™¤
+        L"-Qstrip_reflect",             // ãƒªãƒ•ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³æƒ…å ±ã‚’å‰Šé™¤
     };
 
-    // DXCBuffer‚ğì¬
+    // DXCBufferã‚’ä½œæˆ
     DxcBuffer sourceBuffer = {};
     sourceBuffer.Ptr = sourceBlob->GetBufferPointer();
     sourceBuffer.Size = sourceBlob->GetBufferSize();
     sourceBuffer.Encoding = CP_UTF8;
 
-    // ƒRƒ“ƒpƒCƒ‹Às
+    // ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«å®Ÿè¡Œ
     ComPtr<IDxcResult> compileResult;
     hr = m_dxcCompiler->Compile(
         &sourceBuffer,
@@ -1193,12 +1663,12 @@ ComPtr<IDxcBlob> DXRRenderer::CompileShaderFromFile(const std::wstring& hlslPath
         throw std::runtime_error("DXC compilation failed");
     }
 
-    // ƒRƒ“ƒpƒCƒ‹Œ‹‰Ê‚ÌŠm”F
+    // ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«çµæœã®ç¢ºèª
     HRESULT compileHR;
     compileResult->GetStatus(&compileHR);
 
     if ( FAILED(compileHR) ) {
-        // ƒGƒ‰[ƒƒbƒZ[ƒW‚ğæ“¾
+        // ã‚¨ãƒ©ãƒ¼ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã‚’å–å¾—
         ComPtr<IDxcBlobEncoding> errorBlob;
         if ( SUCCEEDED(compileResult->GetErrorBuffer(&errorBlob)) && errorBlob ) {
             std::string errorMsg = "Shader compilation failed:\n";
@@ -1210,7 +1680,7 @@ ComPtr<IDxcBlob> DXRRenderer::CompileShaderFromFile(const std::wstring& hlslPath
         }
     }
 
-    // ƒRƒ“ƒpƒCƒ‹Ï‚İƒVƒF[ƒ_[‚ğæ“¾
+    // ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«æ¸ˆã¿ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚’å–å¾—
     ComPtr<IDxcBlob> shaderBlob;
     hr = compileResult->GetResult(&shaderBlob);
     if ( FAILED(hr) ) {
@@ -1221,20 +1691,21 @@ ComPtr<IDxcBlob> DXRRenderer::CompileShaderFromFile(const std::wstring& hlslPath
 }
 
 ComPtr<IDxcBlob> DXRRenderer::LoadOrCompileShader(const std::wstring& hlslPath, const std::wstring& entryPoint, const std::wstring& target) {
-    std::wstring csoPath = hlslPath;  
-    size_t lastSlash = csoPath.find_last_of(L'/');  
-    if (lastSlash != std::wstring::npos) {  
-       csoPath = csoPath.substr(lastSlash + 1);  
-    }  
-    size_t lastDot = csoPath.find_last_of(L'.');  
-    if (lastDot != std::wstring::npos) {  
-       csoPath = csoPath.substr(0, lastDot) + L".cso";  
-    } else {  
-       csoPath += L".cso";  
-    }  
+    std::wstring csoPath = hlslPath;
+    size_t lastSlash = csoPath.find_last_of(L'/');
+    if ( lastSlash != std::wstring::npos ) {
+        csoPath = csoPath.substr(lastSlash + 1);
+    }
+    size_t lastDot = csoPath.find_last_of(L'.');
+    if ( lastDot != std::wstring::npos ) {
+        csoPath = csoPath.substr(0, lastDot) + L".cso";
+    }
+    else {
+        csoPath += L".cso";
+    }
     csoPath = L"Shader/" + csoPath;
 
-    // DXCƒRƒ“ƒpƒCƒ‰[‚Ì‰Šú‰»iˆê“x‚¾‚¯j
+    // DXCã‚³ãƒ³ãƒ‘ã‚¤ãƒ©ãƒ¼ã®åˆæœŸåŒ–ï¼ˆä¸€åº¦ã ã‘ï¼‰
     if ( !m_dxcUtils ) {
         HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&m_dxcUtils));
         if ( FAILED(hr) ) {
@@ -1252,14 +1723,14 @@ ComPtr<IDxcBlob> DXRRenderer::LoadOrCompileShader(const std::wstring& hlslPath, 
         }
     }
 
-    // HLSLƒtƒ@ƒCƒ‹‚ÆCSOƒtƒ@ƒCƒ‹‚ÌXVŠÔ‚ğ”äŠr
+    // HLSLãƒ•ã‚¡ã‚¤ãƒ«ã¨CSOãƒ•ã‚¡ã‚¤ãƒ«ã®æ›´æ–°æ™‚é–“ã‚’æ¯”è¼ƒ
     WIN32_FILE_ATTRIBUTE_DATA hlslAttr, csoAttr;
     bool hlslExists = GetFileAttributesExW(hlslPath.c_str(), GetFileExInfoStandard, &hlslAttr);
     bool csoExists = GetFileAttributesExW(csoPath.c_str(), GetFileExInfoStandard, &csoAttr);
 
     bool needsRecompile = !csoExists || !hlslExists;
     if ( hlslExists && csoExists ) {
-        // HLSLƒtƒ@ƒCƒ‹‚ªCSOƒtƒ@ƒCƒ‹‚æ‚èV‚µ‚¢ê‡‚ÍÄƒRƒ“ƒpƒCƒ‹
+        // HLSLãƒ•ã‚¡ã‚¤ãƒ«ãŒCSOãƒ•ã‚¡ã‚¤ãƒ«ã‚ˆã‚Šæ–°ã—ã„å ´åˆã¯å†ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«
         FILETIME hlslTime = hlslAttr.ftLastWriteTime;
         FILETIME csoTime = csoAttr.ftLastWriteTime;
         needsRecompile = CompareFileTime(&hlslTime, &csoTime) > 0;
@@ -1268,10 +1739,10 @@ ComPtr<IDxcBlob> DXRRenderer::LoadOrCompileShader(const std::wstring& hlslPath, 
     if ( needsRecompile && hlslExists ) {
         std::wcout << L"Compiling shader: " << hlslPath << L" -> " << csoPath << std::endl;
 
-        // HLSLƒtƒ@ƒCƒ‹‚ğƒRƒ“ƒpƒCƒ‹
+        // HLSLãƒ•ã‚¡ã‚¤ãƒ«ã‚’ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«
         ComPtr<IDxcBlob> compiledBlob = CompileShaderFromFile(hlslPath, entryPoint, target);
 
-        // CSOƒtƒ@ƒCƒ‹‚É•Û‘¶
+        // CSOãƒ•ã‚¡ã‚¤ãƒ«ã«ä¿å­˜
         std::ofstream csoFile(csoPath, std::ios::binary);
         if ( csoFile.is_open() ) {
             csoFile.write(
@@ -1285,7 +1756,7 @@ ComPtr<IDxcBlob> DXRRenderer::LoadOrCompileShader(const std::wstring& hlslPath, 
         return compiledBlob;
     }
     else if ( csoExists ) {
-        // Šù‘¶‚ÌCSOƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚İ
+        // æ—¢å­˜ã®CSOãƒ•ã‚¡ã‚¤ãƒ«ã‚’èª­ã¿è¾¼ã¿
         std::wcout << L"Loading cached shader: " << csoPath << std::endl;
         return LoadCSO(csoPath);
     }
@@ -1295,75 +1766,182 @@ ComPtr<IDxcBlob> DXRRenderer::LoadOrCompileShader(const std::wstring& hlslPath, 
 }
 
 void DXRRenderer::CreateOutputResource() {
-    // ƒŒƒCƒgƒŒ[ƒVƒ“ƒOo—Í—pUAVƒeƒNƒXƒ`ƒƒì¬
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Creating output resources and ALL descriptors...\n");
+    OutputDebugStringA(debugMsg);
+
     CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+    // === ãƒªã‚½ãƒ¼ã‚¹ãƒãƒƒãƒ•ã‚¡ä½œæˆ (ã“ã“ã¯å¤‰æ›´ãªã—) ===
+    // ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚·ãƒ³ã‚°å‡ºåŠ›ãƒ†ã‚¯ã‚¹ãƒãƒ£ (u0)
     CD3DX12_RESOURCE_DESC outputResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(
-        DXGI_FORMAT_R8G8B8A8_UNORM, m_width, m_height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-
+        DXGI_FORMAT_R8G8B8A8_UNORM, m_width, m_height, 1, 1, 1, 0,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
     HRESULT hr = m_device->CreateCommittedResource(
-        &defaultHeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &outputResourceDesc,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-        nullptr,
-        IID_PPV_ARGS(&m_raytracingOutput)
-    );
+        &defaultHeapProps, D3D12_HEAP_FLAG_NONE, &outputResourceDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+        IID_PPV_ARGS(&m_raytracingOutput));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create raytracing output resource");
 
-    if ( FAILED(hr) ) {
-        throw std::runtime_error("Failed to create raytracing output resource");
-    }
+    // G-Bufferç”¨ãƒ†ã‚¯ã‚¹ãƒãƒ£ä½œæˆ
+    CD3DX12_RESOURCE_DESC gbufferDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+        DXGI_FORMAT_R32G32B32A32_FLOAT, m_width, m_height, 1, 1, 1, 0,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
-    // ššš ƒfƒBƒXƒNƒŠƒvƒ^ƒq[ƒvì¬iUAV 1ŒÂ + SRV 4ŒÂj ššš
+    hr = m_device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &gbufferDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&m_albedoBuffer));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create albedo buffer");
+    hr = m_device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &gbufferDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&m_normalBuffer));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create normal buffer");
+    hr = m_device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &gbufferDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&m_depthBuffer));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create depth buffer");
+
+    // ãƒ‡ãƒã‚¤ã‚ºæ¸ˆã¿å‡ºåŠ›ãƒãƒƒãƒ•ã‚¡
+    hr = m_device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &outputResourceDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&m_denoisedOutput));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create denoised output");
+
+    // === ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ’ãƒ¼ãƒ—ä½œæˆ (ã“ã“ã¯å¤‰æ›´ãªã—) ===
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    descriptorHeapDesc.NumDescriptors = 5;  // UAV(1) + SRV(4)
+    descriptorHeapDesc.NumDescriptors = 13;  // UAV(4) + SRV(8)
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
     hr = m_device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&m_descriptorHeap));
-    if ( FAILED(hr) ) {
-        throw std::runtime_error("Failed to create descriptor heap");
-    }
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create descriptor heap");
 
-    // UAVƒfƒBƒXƒNƒŠƒvƒ^ì¬io—ÍƒeƒNƒXƒ`ƒƒj
+    // === â˜…â˜…â˜… ã“ã“ã‹ã‚‰ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ä½œæˆã‚’ä¸€æœ¬åŒ– â˜…â˜…â˜… ===
+    UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE handle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+    // --- UAV ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ä½œæˆ (Index 0-3) ---
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    m_device->CreateUnorderedAccessView(
-        m_raytracingOutput.Get(),
-        nullptr,
-        &uavDesc,
-        m_descriptorHeap->GetCPUDescriptorHandleForHeapStart()
-    );
 
-    // ƒV[ƒ“’è”ƒoƒbƒtƒ@ì¬
+    // Index 0: u0 (RenderTarget)
+    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    m_device->CreateUnorderedAccessView(m_raytracingOutput.Get(), nullptr, &uavDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 1: u1 (Albedo)
+    uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    m_device->CreateUnorderedAccessView(m_albedoBuffer.Get(), nullptr, &uavDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 2: u2 (Normal)
+    m_device->CreateUnorderedAccessView(m_normalBuffer.Get(), nullptr, &uavDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 3: u3 (Depth)
+    m_device->CreateUnorderedAccessView(m_depthBuffer.Get(), nullptr, &uavDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 4: u4 (DenoiserOutput)
+    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // m_denoisedOutputã®ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆ
+    m_device->CreateUnorderedAccessView(m_denoisedOutput.Get(), nullptr, &uavDesc, handle);
+    handle.Offset(1, descriptorSize); // ã“ã‚Œã§ handle ã¯ Index 5 (t1ã®å ´æ‰€) ã‚’æŒ‡ã™
+
+    // --- SRV ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ä½œæˆ (Index 4-11) ---
+    // ã“ã®æ™‚ç‚¹ã§ handle ã¯ Index 4 ã‚’æŒ‡ã—ã¦ã„ã‚‹
+
+    auto& gameManager = Singleton<GameManager>::getInstance();
+    DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
+    if ( !dxrScene ) throw std::runtime_error("DXRScene not found during descriptor creation.");
+    const auto& materials = dxrScene->GetUniqueMaterials();
+    TLASData tlasData = dxrScene->GetTLASData();
+
+    // Index 4: t1 (Materials)
+    if ( m_materialBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements = static_cast<UINT>( materials.size() );
+        srvDesc.Buffer.StructureByteStride = sizeof(DXRMaterialData);
+        m_device->CreateShaderResourceView(m_materialBuffer.Get(), &srvDesc, handle);
+    }
+    handle.Offset(1, descriptorSize);
+
+    // Index 5: t2 (Vertex)
+    if ( m_globalVertexBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements = m_totalVertexCount;
+        srvDesc.Buffer.StructureByteStride = sizeof(DXRVertex);
+        m_device->CreateShaderResourceView(m_globalVertexBuffer.Get(), &srvDesc, handle);
+    }
+    handle.Offset(1, descriptorSize);
+
+    // Index 6: t3 (Index)
+    if ( m_globalIndexBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_R32_UINT;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements = m_totalIndexCount;
+        m_device->CreateShaderResourceView(m_globalIndexBuffer.Get(), &srvDesc, handle);
+    }
+    handle.Offset(1, descriptorSize);
+
+    // Index 7: t4 (InstanceOffset)
+    if ( m_instanceOffsetBuffer ) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements = static_cast<UINT>( tlasData.blasDataList.size() );
+        srvDesc.Buffer.StructureByteStride = 16;
+        m_device->CreateShaderResourceView(m_instanceOffsetBuffer.Get(), &srvDesc, handle);
+    }
+    handle.Offset(1, descriptorSize);
+
+    // Index 8: t5 (G-Buffer Albedo)
+    D3D12_SHADER_RESOURCE_VIEW_DESC gbufferSrvDesc = {};
+    gbufferSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    gbufferSrvDesc.Texture2D.MipLevels = 1;
+    gbufferSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    gbufferSrvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    m_device->CreateShaderResourceView(m_albedoBuffer.Get(), &gbufferSrvDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 9: t6 (G-Buffer Normal)
+    m_device->CreateShaderResourceView(m_normalBuffer.Get(), &gbufferSrvDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 10: t7 (G-Buffer Depth)
+    m_device->CreateShaderResourceView(m_depthBuffer.Get(), &gbufferSrvDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 11: t8 (äºˆç´„) - ä½•ã‚‚ä½œæˆã—ãªã„ (ç©ºã)
+    // handle.Offset(1, descriptorSize);
+
+    // === ã‚·ãƒ¼ãƒ³å®šæ•°ãƒãƒƒãƒ•ã‚¡ä½œæˆ (ã“ã“ã¯å¤‰æ›´ãªã—) ===
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC constantBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(SceneConstantBuffer));
-
     hr = m_device->CreateCommittedResource(
-        &uploadHeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &constantBufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&m_sceneConstantBuffer)
-    );
+        &uploadHeapProps, D3D12_HEAP_FLAG_NONE, &constantBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+        IID_PPV_ARGS(&m_sceneConstantBuffer));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create scene constant buffer");
 
-    if ( FAILED(hr) ) {
-        throw std::runtime_error("Failed to create scene constant buffer");
-    }
+    OutputDebugStringA("Output resources and ALL descriptors created CORRECTLY\n");
 }
 
 void DXRRenderer::CreateMaterialBuffer(const TLASData& tlasData) {
     if ( tlasData.blasDataList.empty() ) return;
 
-    // ššš ƒV[ƒ“‚©‚çƒ†ƒj[ƒNƒ}ƒeƒŠƒAƒ‹‚ÌƒŠƒXƒg‚ğæ“¾ ššš
+    // â˜…â˜…â˜… ã‚·ãƒ¼ãƒ³ã‹ã‚‰ãƒ¦ãƒ‹ãƒ¼ã‚¯ãƒãƒ†ãƒªã‚¢ãƒ«ã®ãƒªã‚¹ãƒˆã‚’å–å¾— â˜…â˜…â˜…
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
     if ( !dxrScene ) return;
 
-    const auto& materials = dxrScene->GetUniqueMaterials(); // ƒV[ƒ“‚©‚ç’¼ÚƒŠƒXƒg‚ğæ“¾‚·‚éŠÖ”‚ğ‘z’è
+    const auto& materials = dxrScene->GetUniqueMaterials(); // ã‚·ãƒ¼ãƒ³ã‹ã‚‰ç›´æ¥ãƒªã‚¹ãƒˆã‚’å–å¾—ã™ã‚‹é–¢æ•°ã‚’æƒ³å®š
     if ( materials.empty() ) return;
 
-    // ƒ}ƒeƒŠƒAƒ‹ƒoƒbƒtƒ@ì¬
+    // ãƒãƒ†ãƒªã‚¢ãƒ«ãƒãƒƒãƒ•ã‚¡ä½œæˆ
     UINT materialBufferSize = static_cast<UINT>( materials.size() * sizeof(DXRMaterialData) );
 
     CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
@@ -1392,14 +1970,14 @@ void DXRRenderer::CreateMaterialBuffer(const TLASData& tlasData) {
 }
 
 void DXRRenderer::CreateShaderTables() {
-    // ƒVƒF[ƒ_[¯•Êqæ“¾
+    // ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼è­˜åˆ¥å­å–å¾—
     ComPtr<ID3D12StateObjectProperties> stateObjectProps;
     HRESULT hr = m_rtStateObject.As(&stateObjectProps);
     if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to get state object properties");
     }
 
-    // RayGeneration ƒVƒF[ƒ_[ƒe[ƒuƒ‹ì¬
+    // RayGeneration ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒ†ãƒ¼ãƒ–ãƒ«ä½œæˆ
     void* rayGenShaderID = stateObjectProps->GetShaderIdentifier(L"RayGen");
     if ( !rayGenShaderID ) {
         throw std::runtime_error("Failed to get RayGen shader identifier");
@@ -1426,7 +2004,7 @@ void DXRRenderer::CreateShaderTables() {
     memcpy(mappedRayGenData, rayGenShaderID, s_shaderIdentifierSize);
     m_rayGenShaderTable->Unmap(0, nullptr);
 
-    // Miss ƒVƒF[ƒ_[ƒe[ƒuƒ‹ì¬
+    // Miss ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒ†ãƒ¼ãƒ–ãƒ«ä½œæˆ
     void* missShaderID = stateObjectProps->GetShaderIdentifier(L"Miss");
     if ( !missShaderID ) {
         throw std::runtime_error("Failed to get Miss shader identifier");
@@ -1452,7 +2030,7 @@ void DXRRenderer::CreateShaderTables() {
     memcpy(mappedMissData, missShaderID, s_shaderIdentifierSize);
     m_missShaderTable->Unmap(0, nullptr);
 
-    // š ƒqƒbƒgƒOƒ‹[ƒvƒVƒF[ƒ_[ƒe[ƒuƒ‹iC³”Åj
+    // â˜… ãƒ’ãƒƒãƒˆã‚°ãƒ«ãƒ¼ãƒ—ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒ†ãƒ¼ãƒ–ãƒ«ï¼ˆä¿®æ­£ç‰ˆï¼‰
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
     if ( !dxrScene ) {
@@ -1462,21 +2040,21 @@ void DXRRenderer::CreateShaderTables() {
     TLASData tlasData = dxrScene->GetTLASData();
     size_t numInstances = tlasData.blasDataList.size();
 
-    // Šeƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv‚ÌƒVƒF[ƒ_[ID‚ğæ“¾
+    // å„ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—ã®ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼IDã‚’å–å¾—
     void* lambertianHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_Lambertian");
     void* metalHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_Metal");
     void* dielectricHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_Dielectric");
     void* lightHitGroupID = stateObjectProps->GetShaderIdentifier(L"HitGroup_DiffuseLight");
 
-    // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv•Ê‚ÌƒVƒF[ƒ_[ID”z—ñ
+    // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—åˆ¥ã®ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼IDé…åˆ—
     void* materialShaderIDs[4] = {
-        lambertianHitGroupID,    // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv 0
-        metalHitGroupID,         // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv 1  
-        dielectricHitGroupID,    // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv 2
-        lightHitGroupID          // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv 3
+        lambertianHitGroupID,    // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ— 0
+        metalHitGroupID,         // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ— 1  
+        dielectricHitGroupID,    // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ— 2
+        lightHitGroupID          // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ— 3
     };
 
-    // ƒqƒbƒgƒOƒ‹[ƒvƒe[ƒuƒ‹‚ğ4ƒGƒ“ƒgƒŠiƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv•ªj‚Åì¬
+    // ãƒ’ãƒƒãƒˆã‚°ãƒ«ãƒ¼ãƒ—ãƒ†ãƒ¼ãƒ–ãƒ«ã‚’4ã‚¨ãƒ³ãƒˆãƒªï¼ˆãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—åˆ†ï¼‰ã§ä½œæˆ
     UINT hitGroupEntrySize = AlignTo(s_shaderIdentifierSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
     CD3DX12_RESOURCE_DESC hitGroupShaderTableDesc = CD3DX12_RESOURCE_DESC::Buffer(hitGroupEntrySize * 4);
 
@@ -1492,7 +2070,7 @@ void DXRRenderer::CreateShaderTables() {
     void* mappedHitGroupData;
     m_hitGroupShaderTable->Map(0, nullptr, &mappedHitGroupData);
 
-    // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv‡‚ÉƒVƒF[ƒ_[ID‚ğ”z’u
+    // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—é †ã«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼IDã‚’é…ç½®
     for ( int materialType = 0; materialType < 4; ++materialType ) {
         char* entryStart = static_cast<char*>( mappedHitGroupData ) + ( materialType * hitGroupEntrySize );
         memcpy(entryStart, materialShaderIDs[materialType], s_shaderIdentifierSize);
@@ -1507,7 +2085,7 @@ void DXRRenderer::CreateShaderTables() {
     s_hitGroupEntrySize = hitGroupEntrySize;
 
     /*
-    // ƒqƒbƒgƒOƒ‹[ƒvƒe[ƒuƒ‹ì¬
+    // ãƒ’ãƒƒãƒˆã‚°ãƒ«ãƒ¼ãƒ—ãƒ†ãƒ¼ãƒ–ãƒ«ä½œæˆ
     UINT hitGroupEntrySize = AlignTo(s_shaderIdentifierSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
     CD3DX12_RESOURCE_DESC hitGroupShaderTableDesc = CD3DX12_RESOURCE_DESC::Buffer(hitGroupEntrySize * numInstances);
 
@@ -1526,14 +2104,14 @@ void DXRRenderer::CreateShaderTables() {
     for ( size_t i = 0; i < numInstances; ++i ) {
         char* entryStart = static_cast<char*>( mappedHitGroupData ) + ( i * hitGroupEntrySize );
 
-        // š ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv‚É‰‚¶‚ÄƒVƒF[ƒ_[ID‚ğ‘I‘ğ
+        // â˜… ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—ã«å¿œã˜ã¦ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼IDã‚’é¸æŠ
         void* shaderID = nullptr;
         switch ( tlasData.blasDataList[i].material.materialType ) {
             case 0: shaderID = lambertianHitGroupID; break;   // Lambertian
             case 1: shaderID = metalHitGroupID; break;        // Metal
             case 2: shaderID = dielectricHitGroupID; break;   // Dielectric
             case 3: shaderID = lightHitGroupID; break;        // DiffuseLight
-            default: shaderID = lambertianHitGroupID; break;  // ƒfƒtƒHƒ‹ƒg
+            default: shaderID = lambertianHitGroupID; break;  // ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆ
         }
 
         memcpy(entryStart, shaderID, s_shaderIdentifierSize);

@@ -1,6 +1,7 @@
+// ===== ClosestHit_Metal.hlsl の修正 =====
 #include "Common.hlsli"
 
-// ・・・ Metalマテリアル用BRDFサンプリング ・・・
+// Metal材質用BRDFサンプリング
 BRDFSample SampleMetalBRDF(float3 normal, float3 rayDir, MaterialData material, inout uint seed)
 {
     BRDFSample sample;
@@ -12,7 +13,7 @@ BRDFSample SampleMetalBRDF(float3 normal, float3 rayDir, MaterialData material, 
     float3 perturbation = material.roughness * RandomUnitVector(seed);
     sample.direction = normalize(reflected + perturbation);
     
-    // 法線との内積チェック
+    // 法線との角度チェック
     float NdotL = dot(sample.direction, normal);
     if (NdotL > 0.0f)
     {
@@ -37,6 +38,7 @@ void ClosestHit_Metal(inout RayPayload payload, in VertexAttributes attr)
         payload.color = float3(0, 0, 0);
         return;
     }
+    
     uint instanceID = InstanceID();
     MaterialData material = GetMaterial(instanceID);
     
@@ -45,7 +47,7 @@ void ClosestHit_Metal(inout RayPayload payload, in VertexAttributes attr)
     
     // 正確な法線を頂点データから取得
     uint primitiveID = PrimitiveIndex();
-    float3 normal = GetInterpolatedNormal(instanceID, primitiveID, attr.barycentrics);
+    float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
     // レイ方向と法線の向きを確認
     float3 rayDir = normalize(WorldRayDirection());
@@ -54,10 +56,14 @@ void ClosestHit_Metal(inout RayPayload payload, in VertexAttributes attr)
         normal = -normal;
     }
     
+    // G-Bufferデータを設定（プライマリレイの場合のみ）
+    SetGBufferData(payload, worldPos, normal, material.albedo,
+                   MATERIAL_METAL, material.roughness, RayTCurrent());
+    
     // 発光成分
     float3 emitted = material.emission;
     
-    // ・・・ スペキュラー材質：CPUレイトレと同じ処理 ・・・
+    // スペキュラー拡散：CPUレイトレと同じ処理
     BRDFSample brdfSample = SampleMetalBRDF(normal, rayDir, material, payload.seed);
     
     if (brdfSample.valid)
@@ -73,6 +79,15 @@ void ClosestHit_Metal(inout RayPayload payload, in VertexAttributes attr)
         newPayload.color = float3(0, 0, 0);
         newPayload.depth = payload.depth + 1;
         newPayload.seed = payload.seed;
+        
+        // G-Bufferデータを初期化（セカンダリレイ用）
+        newPayload.albedo = float3(0, 0, 0);
+        newPayload.normal = float3(0, 0, 1);
+        newPayload.worldPos = float3(0, 0, 0);
+        newPayload.hitDistance = 0.0f;
+        newPayload.materialType = 0;
+        newPayload.roughness = 0.0f;
+        newPayload.padding = 0;
         
         TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
         

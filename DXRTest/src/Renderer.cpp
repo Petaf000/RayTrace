@@ -123,7 +123,7 @@ void Renderer::LoadPipeline() {
     m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 1;
+    srvHeapDesc.NumDescriptors = 128;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
@@ -369,15 +369,16 @@ void Renderer::InitFrameForDXR() {
 }
 
 void Renderer::EndFrame() {
-    OutputDebugStringA("EndFrame: Starting...\n");
-
-    // ★ DXRでコピー先として使用された状態から遷移 ★
-    auto transitionToRT = CD3DX12_RESOURCE_BARRIER::Transition(
+    // ★ 削除：この時点でバックバッファは DXRRenderer::Render() によって
+    //         既に D3D12_RESOURCE_STATE_RENDER_TARGET 状態になっているはずなので、
+    //         ここでの遷移は不要かつ間違いです。
+    /* auto transitionToRT = CD3DX12_RESOURCE_BARRIER::Transition(
         m_renderTargets[m_frameIndex].Get(),
-        D3D12_RESOURCE_STATE_PRESENT,  // DXRでPRESENT状態に戻されている
+        D3D12_RESOURCE_STATE_PRESENT,
         D3D12_RESOURCE_STATE_RENDER_TARGET
     );
     m_commandList->ResourceBarrier(1, &transitionToRT);
+    */
 
     // ★ ビューポート・シザー矩形の設定（全画面） ★
     CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( m_bufferWidth ), static_cast<float>( m_bufferHeight ));
@@ -389,20 +390,17 @@ void Renderer::EndFrame() {
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-    OutputDebugStringA("EndFrame: Render target and viewport set\n");
-
     // ★ ImGui用のディスクリプタヒープを設定 ★
-    ID3D12DescriptorHeap* imguiHeaps[] = { m_srvHeap.Get() };
+    // 注意：DXRRendererでデバッグビューを作成したヒープと同じものを設定してください
+    ID3D12DescriptorHeap* imguiHeaps[] = { m_srvHeap.Get() }; // m_srvHeapは正しいですか？ DXRRendererのm_imguiDescriptorHeapかもしれません
     m_commandList->SetDescriptorHeaps(_countof(imguiHeaps), imguiHeaps);
-    OutputDebugStringA("EndFrame: ImGui descriptor heap set\n");
 
     // ImGui描画
     ImGui::Render();
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_commandList.Get());
 
-    OutputDebugStringA("EndFrame: ImGui rendered\n");
-
-    // バックバッファをPresent状態に遷移
+    // ★★★ これが唯一必要な「Presentバリア」です ★★★
+    // バックバッファをPresent状態に遷移させて、画面に表示する準備をします
     auto transitionToPresent = CD3DX12_RESOURCE_BARRIER::Transition(
         m_renderTargets[m_frameIndex].Get(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -411,14 +409,12 @@ void Renderer::EndFrame() {
     m_commandList->ResourceBarrier(1, &transitionToPresent);
 
     // コマンドリスト実行
-    OutputDebugStringW(L"CommandList closed Draw\n");
     ThrowIfFailed(m_commandList->Close());
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
     m_swapChain->Present(1, 0);
-
-    OutputDebugStringA("EndFrame: Completed\n");
+	WaitGPU();
 }
 
 void Renderer::Cleanup() {

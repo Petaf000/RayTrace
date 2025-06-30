@@ -1,4 +1,4 @@
-#include "GameManager.h"
+ï»¿#include "GameManager.h"
 
 #include "timeapi.h"
 
@@ -21,7 +21,7 @@ void GameManager::Init() {
 	m_dxrRenderer = &Singleton<DXRRenderer>::getInstance();
 	m_dxrRenderer->Init(m_renderer);
 
-	m_useDXR = true; // DXR‚ğg—p‚·‚éê‡‚Ítrue‚Éİ’è
+	m_useDXR = true; // DXRã‚’ä½¿ç”¨ã™ã‚‹å ´åˆã¯trueã«è¨­å®š
 
 
 	StartDrawThread();
@@ -53,9 +53,9 @@ void GameManager::Update() {
 	if ( m_nextScene ) {
 		m_scene = std::move(m_nextScene);
 
-		// DXRƒV[ƒ“‚ª•ÏX‚³‚ê‚½ê‡AƒAƒNƒZƒ‰ƒŒ[ƒVƒ‡ƒ“\‘¢‚ğÄ\’z
+		// DXRã‚·ãƒ¼ãƒ³ãŒå¤‰æ›´ã•ã‚ŒãŸå ´åˆã€ã‚¢ã‚¯ã‚»ãƒ©ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³æ§‹é€ ã‚’å†æ§‹ç¯‰
 		if ( m_useDXR && m_dxrRenderer ) {
-			// •K—v‚É‰‚¶‚ÄDXRRenderer‚ÉÄ\’z‚ğ’Ê’m
+			// å¿…è¦ã«å¿œã˜ã¦DXRRendererã«å†æ§‹ç¯‰ã‚’é€šçŸ¥
 			// m_dxrRenderer->RebuildAccelerationStructures();
 		}
 	}
@@ -76,14 +76,14 @@ void GameManager::Draw() {
 	while ( m_isRunningDraw ) {
 		{
 			std::unique_lock<std::mutex> lock(m_drawMutex);
-
+			
 			if ( !m_useDXR ) {
-				// ’Êí‚Ìƒ‰ƒXƒ^ƒ‰ƒCƒ[[ƒVƒ‡ƒ“
+				// é€šå¸¸ã®ãƒ©ã‚¹ã‚¿ãƒ©ã‚¤ã‚¼ãƒ¼ã‚·ãƒ§ãƒ³
 				m_renderer->InitFrame();
 
 				{
 					std::unique_lock<std::mutex> lock(m_updateMutex);
-					// TODO: Scene‚ÌPreDrawˆ—
+					// TODO: Sceneã®PreDrawå‡¦ç†
 				}
 
 				{
@@ -96,9 +96,10 @@ void GameManager::Draw() {
 				m_renderer->EndFrame();
 			}
 			else {
-				// DXRƒŒƒ“ƒ_ƒŠƒ“ƒO
-				m_renderer->InitFrameForDXR();  // V‚µ‚¢ƒƒ\ƒbƒh
+				// DXRãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°
+				m_renderer->InitFrameForDXR();  // æ–°ã—ã„ãƒ¡ã‚½ãƒƒãƒ‰
 				m_dxrRenderer->Render();
+				m_dxrRenderer->RenderDXRIMGUI();
 				DrawIMGUI();
 				m_renderer->EndFrame();
 			}
@@ -113,9 +114,9 @@ void GameManager::StartDrawThread() {
 		m_executor.run(m_renderTask);
 	}
 	catch ( const std::exception& e ) {
-		// TODO: ƒXƒŒƒbƒhƒGƒ‰[‚ÉƒƒCƒ“ƒXƒŒƒbƒh’â~ˆ—
-		// std::atomic<bool>‚Åƒtƒ‰ƒO—§‚Ä‚é
-		MessageBoxA(nullptr, e.what(), "ƒGƒ‰[", MB_OK);
+		// TODO: ã‚¹ãƒ¬ãƒƒãƒ‰ã‚¨ãƒ©ãƒ¼æ™‚ã«ãƒ¡ã‚¤ãƒ³ã‚¹ãƒ¬ãƒƒãƒ‰åœæ­¢å‡¦ç†
+		// std::atomic<bool>ã§ãƒ•ãƒ©ã‚°ç«‹ã¦ã‚‹
+		MessageBoxA(nullptr, e.what(), "ã‚¨ãƒ©ãƒ¼", MB_OK);
 		UnInit();
 	}
 }
@@ -131,35 +132,44 @@ void GameManager::WaitDraw() {
 }
 
 void GameManager::DrawIMGUI() {
-	// IMGUIƒEƒBƒ“ƒhƒEŠJn
+	// IMGUIã‚¦ã‚£ãƒ³ãƒ‰ã‚¦é–‹å§‹
 	ImGui::Begin("Rendering Options");
 
-	// DXRØ‚è‘Ö‚¦ƒ`ƒFƒbƒNƒ{ƒbƒNƒX
+	// DXRåˆ‡ã‚Šæ›¿ãˆãƒã‚§ãƒƒã‚¯ãƒœãƒƒã‚¯ã‚¹
 	bool currentUseDXR = m_useDXR;
 	if ( ImGui::Checkbox("Use DXR Raytracing", &currentUseDXR) ) {
 		m_useDXR = currentUseDXR;
 	}
 
-	// Œ»İ‚Ì•`‰æ•û®•\¦
+	// ç¾åœ¨ã®æç”»æ–¹å¼è¡¨ç¤º
 	ImGui::Text("Current Rendering: %s", m_useDXR ? "DXR Raytracing" : "Rasterization");
 
-	// ƒpƒtƒH[ƒ}ƒ“ƒXî•ñ
+	// ãƒ‘ãƒ•ã‚©ãƒ¼ãƒãƒ³ã‚¹æƒ…å ±
 	ImGui::Text("Frame: %lu", m_frame);
 
-	// DXR‚ª—LŒø‚Èê‡‚Ì’Ç‰ÁƒIƒvƒVƒ‡ƒ“
+	// DXRãŒæœ‰åŠ¹ãªå ´åˆã®è¿½åŠ ã‚ªãƒ—ã‚·ãƒ§ãƒ³
 	if ( m_useDXR ) {
 		ImGui::Separator();
 		ImGui::Text("DXR Settings");
 
-		// «—ˆ“I‚ÉDXRŒÅ—L‚Ìİ’è‚ğ’Ç‰Á‰Â”\
-		// —á: Å‘å”½Ë‰ñ”AƒTƒ“ƒvƒ‹”‚È‚Ç
+		// å°†æ¥çš„ã«DXRå›ºæœ‰ã®è¨­å®šã‚’è¿½åŠ å¯èƒ½
+		// ä¾‹: æœ€å¤§åå°„å›æ•°ã€ã‚µãƒ³ãƒ—ãƒ«æ•°ãªã©
 	}
 
 	ImGui::End();
 
-	// ”CˆÓ‚ÌImGuiŠÖ”‚ÌŒÄ‚Ño‚µ
-	// ‰º‹L‚Å‚Í"Hello, world!"‚Æ‚¢‚¤ƒ^ƒCƒgƒ‹‚ÌƒEƒBƒ“ƒhƒE‚ğ•\¦‚·‚é
+	// ä»»æ„ã®ImGuié–¢æ•°ã®å‘¼ã³å‡ºã—
+	// ä¸‹è¨˜ã§ã¯"Hello, world!"ã¨ã„ã†ã‚¿ã‚¤ãƒˆãƒ«ã®ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚’è¡¨ç¤ºã™ã‚‹
 	ImGui::Begin("Hello, world!");
 	ImGui::Text("This is some useful text.");
 	ImGui::End();
+
+	ImGui::Begin("Performance Info");
+
+	
+	
+	float fps = 1.0f / m_drawTime.DeltaTime;
+	ImGui::Text("DrawFPS: %f", fps);
+	ImGui::End();
+	m_drawTime.LastTime = m_drawTime.Qpc.QuadPart; // æ›´æ–°ã‚¿ã‚¤ãƒŸãƒ³ã‚°ã‚’åˆã‚ã›ã‚‹ãŸã‚ã«LastTimeã‚’æ›´æ–°
 }

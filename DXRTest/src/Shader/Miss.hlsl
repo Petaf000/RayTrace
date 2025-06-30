@@ -16,7 +16,7 @@ void Miss(inout RayPayload payload)
     if (payload.depth == 0)
     {
         // 暗い環境光（参考コードに合わせる）
-        payload.color = float3(0.0f, 0.0f, 0.0f);
+        payload.color = float3(0.0f, 1.0f, 0.0f);
     }
     else
     {

@@ -220,5 +220,8 @@
     <FxCompile Include="src\Shader\ClosestHit_DiffuseLight.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="src\Shader\ATrousDenoiser.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

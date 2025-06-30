@@ -1,6 +1,7 @@
+// ===== ClosestHit_Lambertian.hlsl の修正 =====
 #include "Common.hlsli"
 
-// ・・・ Lambertian材質BRDF サンプリング ・・・
+// LAMBERTIAN拡散BRDF サンプリング
 BRDFSample SampleLambertianBRDF(float3 normal, MaterialData material, inout uint seed)
 {
     BRDFSample sample;
@@ -46,10 +47,11 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     uint instanceID = InstanceID();
     uint primitiveID = PrimitiveIndex();
     MaterialData material = GetMaterial(instanceID);
+    
     // 交点を計算
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
-    // ・・・ デバッグ版から移植した正確な法線取得 ・・・
+    // 正確な法線をワールド空間で取得
     float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
     // レイ方向と法線の向きを確認
@@ -58,10 +60,12 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     {
         normal = -normal;
     }
+    
+    SetGBufferData(payload, worldPos, normal, material.albedo,
+                   MATERIAL_LAMBERTIAN, material.roughness, RayTCurrent());
+    
     // 発光成分
     float3 finalColor = 0.0f;
-    
-    // ・・・ シンプルな直接照明 + 間接照明 ・・・
     
     // 1. 直接照明（Next Event Estimation）
     LightSample lightSample = SampleAreaLight(worldPos, payload.seed);
@@ -115,10 +119,19 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
             newPayload.depth = payload.depth + 1;
             newPayload.seed = payload.seed;
             
+            // G-Bufferデータを初期化（セカンダリレイ用）
+            newPayload.albedo = float3(0, 0, 0);
+            newPayload.normal = float3(0, 0, 1);
+            newPayload.worldPos = float3(0, 0, 0);
+            newPayload.hitDistance = 0.0f;
+            newPayload.materialType = 0;
+            newPayload.roughness = 0.0f;
+            newPayload.padding = 0;
+            
             TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
+            
             // 間接照明の寄与（適度な重み）
             finalColor += material.albedo * newPayload.color * 0.5f;
-            
         }
     }
     

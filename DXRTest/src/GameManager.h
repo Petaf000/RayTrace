@@ -54,6 +54,8 @@ private:
 	unsigned long m_frame{};
 
 	DWORD m_lastTime{};
+	Time m_drawTime{};
+
 
 	bool m_isRunningDraw{};
 	bool m_useDXR = false; // DXR使用フラグ

@@ -1,3 +1,4 @@
+// ===== ClosestHit_Dielectric.hlsl の修正 =====
 #include "Common.hlsli"
 
 // Schlick近似（Dielectric用）
@@ -8,7 +9,7 @@ float Schlick(float cosine, float refractiveIndex)
     return r0 + (1.0f - r0) * pow(1.0f - cosine, 5.0f);
 }
 
-// ★★★ Dielectric専用サンプリング ★★★
+// Dielectric専用サンプリング
 BRDFSample SampleDielectricBRDF(float3 normal, float3 rayDir, MaterialData material, inout uint seed)
 {
     BRDFSample sample;
@@ -86,11 +87,15 @@ void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
     
     // 正確な法線を頂点データから取得
     uint primitiveID = PrimitiveIndex();
-    float3 normal = GetInterpolatedNormal(instanceID, primitiveID, attr.barycentrics);
+    float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
     float3 rayDir = normalize(WorldRayDirection());
     
-    // ★★★ ガラス：屈折と反射の確率的選択 ★★★
+    // G-Bufferデータを設定（プライマリレイの場合のみ）
+    SetGBufferData(payload, worldPos, normal, material.albedo,
+                   MATERIAL_DIELECTRIC, material.roughness, RayTCurrent());
+    
+    // ガラス：屈折と反射の確率的選択
     // ガラスは基本的にスペキュラーなので、直接照明の計算は不要
     
     BRDFSample brdfSample = SampleDielectricBRDF(normal, rayDir, material, payload.seed);
@@ -109,9 +114,18 @@ void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
         newPayload.depth = payload.depth + 1;
         newPayload.seed = payload.seed;
         
+        // G-Bufferデータを初期化（セカンダリレイ用）
+        newPayload.albedo = float3(0, 0, 0);
+        newPayload.normal = float3(0, 0, 1);
+        newPayload.worldPos = float3(0, 0, 0);
+        newPayload.hitDistance = 0.0f;
+        newPayload.materialType = 0;
+        newPayload.roughness = 0.0f;
+        newPayload.padding = 0;
+        
         TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
         
-        // ガラス色で調光（通常は透明なので殆ど影響しない）
+        // ガラス色で調光（通常は透明なのでほぼ影響しない）
         payload.color = brdfSample.brdf * newPayload.color;
     }
     else

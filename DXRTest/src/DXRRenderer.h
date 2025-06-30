@@ -10,10 +10,18 @@ public:
     void Init(Renderer* renderer);
     void UnInit();
     void Render();
+	void RenderDXRIMGUI();
 
 	UINT GetWidth() const { return m_width; }
 	UINT GetHeight() const { return m_height; }
 	
+    void SetDenoiserEnabled(bool enabled) { m_denoiserEnabled = enabled; }
+    void SetDenoiserIterations(int iterations) { m_denoiserIterations = max(1, min(5, iterations)); }
+    void SetDenoiserParameters(float colorSigma, float normalSigma, float depthSigma) {
+        m_colorSigma = colorSigma;
+        m_normalSigma = normalSigma;
+        m_depthSigma = depthSigma;
+    }
 private:
     friend class Singleton<DXRRenderer>;
 
@@ -32,10 +40,18 @@ private:
     void CreateAccelerationStructures();
     void CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuffer);
     void CreateTLAS(TLASData& tlasData);
-    void CreateDescriptorsForBuffers(const UINT materialCount, const TLASData& tlasData);
+    //void CreateDescriptorsForBuffers(const UINT materialCount, const TLASData& tlasData);
     void CreateVertexIndexBuffers(const TLASData& tlasData);
     void CreateInstanceOffsetBuffer(const TLASData& tlasData, const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets);
 
+	// IMGUI用ディスクリプタヒープ作成
+    void CreateDebugBufferViews();
+
+    // デノイザー関連メソッド
+    void CreateDenoiserResources();
+    void CreateDenoiserPipeline();
+    ID3D12Resource* RunDenoiser();
+    void UpdateDenoiserConstants(int stepSize);
 
     // DXCCompiler
     // 実行時HLSLコンパイル関数
@@ -86,12 +102,31 @@ private:
     ComPtr<ID3D12Resource> m_raytracingOutput;
     ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
 
+    // デノイザー用リソース
+    ComPtr<ID3D12PipelineState> m_denoiserPSO;
+    ComPtr<ID3D12RootSignature> m_denoiserRootSignature;
+    ComPtr<ID3D12Resource> m_denoiserConstants;
+    ComPtr<ID3D12DescriptorHeap> m_denoiserDescriptorHeap;
+    // G-Buffer用テクスチャ(デノイザー用)
+    ComPtr<ID3D12Resource> m_albedoBuffer;
+    ComPtr<ID3D12Resource> m_normalBuffer;
+    ComPtr<ID3D12Resource> m_depthBuffer;
+    ComPtr<ID3D12Resource> m_denoisedOutput;
+
+    // デノイザー定数構造体
+    struct DenoiserConstants {
+        int stepSize;
+        float colorSigma;
+        float normalSigma;
+        float depthSigma;
+        DirectX::XMFLOAT2 texelSize;
+        DirectX::XMFLOAT2 padding;
+    };
+
     // 定数バッファ
     struct SceneConstantBuffer {
         XMMATRIX projectionMatrix;
         XMMATRIX viewMatrix;
-        XMFLOAT4 lightPosition;
-        XMFLOAT4 lightColor;
     };
     ComPtr<ID3D12Resource> m_sceneConstantBuffer;
 
@@ -100,6 +135,10 @@ private:
     ComPtr<ID3D12Resource> m_globalVertexBuffer;
     ComPtr<ID3D12Resource> m_globalIndexBuffer;
     ComPtr<ID3D12Resource> m_instanceOffsetBuffer;
+
+    // IMGUI表示用SRVヒープ/共有ヒープ内で自分が使う領域の開始ハンドル
+    CD3DX12_CPU_DESCRIPTOR_HANDLE m_debugSrvHeapStart_CPU;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE m_debugSrvHeapStart_GPU;
 
     UINT m_totalVertexCount = 0;
     UINT m_totalIndexCount = 0;
@@ -112,4 +151,11 @@ private:
     // ディメンション
     UINT m_width = 1920;
     UINT m_height = 1080;
+
+    // デノイザー設定
+    bool m_denoiserEnabled = true;
+    int m_denoiserIterations = 3;
+    float m_colorSigma = 0.125f;
+    float m_normalSigma = 32.0f;
+    float m_depthSigma = 0.1f;
 };

@@ -11,8 +11,8 @@ cbuffer SceneConstantBuffer : register(b0)
 {
     float4x4 projectionMatrix;
     float4x4 viewMatrix;
-    float4 lightPosition;
-    float4 lightColor;
+    //float4 lightPosition;
+    //float4 lightColor;
 };
 
 // グローバルリソース
