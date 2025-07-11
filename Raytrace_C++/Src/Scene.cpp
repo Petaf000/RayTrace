@@ -70,8 +70,8 @@ void Scene::build() {
     world->add(builder.rectXZ(0, 555, 0, 555, 555, white).flip().get());
     world->add(builder.rectXZ(0, 555, 0, 555, 0, white).get());
     world->add(builder.rectXY(0, 555, 0, 555, 555, white).flip().get());
-    world->add(builder.sphere(Vector3(190, 90, 190), 90, aluminum).get());
-    world->add(builder.sphere(Vector3(380, 45, 100), 45, metal).get());
+    world->add(builder.sphere(Vector3(190, 90, 190), 45, aluminum).get());
+    world->add(builder.sphere(Vector3(380, 90, 100), 90, metal).get());
     world->add(builder.box(Vector3(0), Vector3(165, 330, 165), white)
         .rotate(Vector3::yAxis(), 15)
         .translate(Vector3(265, 0, 295))

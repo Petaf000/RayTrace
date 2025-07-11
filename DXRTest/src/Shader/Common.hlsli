@@ -11,8 +11,19 @@ cbuffer SceneConstantBuffer : register(b0)
 {
     float4x4 projectionMatrix;
     float4x4 viewMatrix;
-    //float4 lightPosition;
-    //float4 lightColor;
+    
+    // パックされた形式（アクセスしやすさ重視）
+    float3 cameraRight;
+    float tanHalfFov; // cameraRightと同じfloat4に収める
+    
+    float3 cameraUp;
+    float aspectRatio; // cameraUpと同じfloat4に収める
+    
+    float3 cameraForward;
+    float frameCount; // 将来の拡張用（アニメーション等）
+    
+    // 合計: 128 + 48 = 176 bytes
+    // GPU的には192 bytesにパディングされる
 };
 
 // グローバルリソース

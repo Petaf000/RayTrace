@@ -75,9 +75,12 @@ void Renderer::LoadPipeline() {
     ComPtr<IDXGIFactory4> factory;
     ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
-    // デバイスの作成
+    // 最高性能のアダプターを選択
+    ComPtr<IDXGIAdapter1> bestAdapter = GetBestAdapter(factory.Get());
+
+    // 選択したアダプターでデバイス作成
     ThrowIfFailed(D3D12CreateDevice(
-        nullptr,
+        bestAdapter.Get(),  // 最高性能アダプター使用
         D3D_FEATURE_LEVEL_11_0,
         IID_PPV_ARGS(&m_device)
     ));
@@ -282,6 +285,88 @@ void Renderer::LoadAssets() {
     }
 
     return;
+}
+
+ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
+    ComPtr<IDXGIAdapter1> bestAdapter;
+    ComPtr<IDXGIAdapter1> adapter;
+    SIZE_T maxVideoMemory = 0;
+    char debugMsg[512];
+
+    sprintf_s(debugMsg, "=== DXR GPU Selection ===\n");
+    OutputDebugStringA(debugMsg);
+
+    for ( UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; i++ ) {
+        DXGI_ADAPTER_DESC1 desc;
+        adapter->GetDesc1(&desc);
+
+        if ( desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE ) {
+            continue;
+        }
+
+        // D3D12デバイス作成テスト
+        ComPtr<ID3D12Device5> testDevice;
+        if ( SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&testDevice))) ) {
+
+            char gpuName[256];
+            WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, gpuName, sizeof(gpuName), nullptr, nullptr);
+            SIZE_T vramMB = desc.DedicatedVideoMemory / ( 1024 * 1024 );
+
+            // DXR対応チェック
+            D3D12_FEATURE_DATA_D3D12_OPTIONS5 dxrSupport = {};
+            bool supportsDXR = false;
+            if ( SUCCEEDED(testDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &dxrSupport, sizeof(dxrSupport))) ) {
+                supportsDXR = ( dxrSupport.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0 );
+            }
+
+            sprintf_s(debugMsg, "GPU %d: %s\n", i, gpuName);
+            OutputDebugStringA(debugMsg);
+            sprintf_s(debugMsg, "  VRAM: %zu MB, DXR: %s\n", vramMB, supportsDXR ? "Yes" : "No");
+            OutputDebugStringA(debugMsg);
+
+            // 専用ビデオメモリが最大のものを選択
+            if ( desc.DedicatedVideoMemory > maxVideoMemory ) {
+                maxVideoMemory = desc.DedicatedVideoMemory;
+                bestAdapter = adapter;
+            }
+        }
+    }
+
+    if ( bestAdapter ) {
+        DXGI_ADAPTER_DESC1 selectedDesc;
+        bestAdapter->GetDesc1(&selectedDesc);
+
+        char selectedGpuName[256];
+        WideCharToMultiByte(CP_UTF8, 0, selectedDesc.Description, -1, selectedGpuName, sizeof(selectedGpuName), nullptr, nullptr);
+        SIZE_T selectedVramMB = selectedDesc.DedicatedVideoMemory / ( 1024 * 1024 );
+
+        // 選択されたGPUのDXR情報も取得
+        ComPtr<ID3D12Device5> finalDevice;
+        bool finalDXRSupport = false;
+        if ( SUCCEEDED(D3D12CreateDevice(bestAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&finalDevice))) ) {
+            D3D12_FEATURE_DATA_D3D12_OPTIONS5 dxrSupport = {};
+            if ( SUCCEEDED(finalDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &dxrSupport, sizeof(dxrSupport))) ) {
+                finalDXRSupport = ( dxrSupport.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0 );
+            }
+        }
+
+        sprintf_s(debugMsg, "=== SELECTED GPU ===\n");
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "Name: %s\n", selectedGpuName);
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "VRAM: %zu MB\n", selectedVramMB);
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "DXR Support: %s\n", finalDXRSupport ? "Yes" : "No");
+        OutputDebugStringA(debugMsg);
+        sprintf_s(debugMsg, "===================\n");
+        OutputDebugStringA(debugMsg);
+    }
+    else {
+        sprintf_s(debugMsg, "ERROR: No compatible GPU found!\n");
+        OutputDebugStringA(debugMsg);
+    }
+
+    return bestAdapter;
 }
 
 void Renderer::Update() {

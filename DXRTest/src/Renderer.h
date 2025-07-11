@@ -69,6 +69,9 @@ private:
     void LoadPipeline();
     void LoadAssets();
 
+
+    ComPtr<IDXGIAdapter1> GetBestAdapter(IDXGIFactory4* factory);
+
     static const uint32_t m_frameBufferCount = 2;
 
     // DirectX 12 オブジェクト

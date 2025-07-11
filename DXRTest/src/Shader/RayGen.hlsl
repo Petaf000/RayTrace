@@ -20,7 +20,7 @@ void RayGen()
     uint finalMaterialType = 0;
     float finalRoughness = 0.0f;
     
-    const int SAMPLES = 10; // サンプル数を調整
+    const int SAMPLES = 2; // サンプル数を調整
     
     for (int sampleIndex = 0; sampleIndex < SAMPLES; sampleIndex++)
     {
@@ -37,23 +37,13 @@ void RayGen()
         float2 d = ((crd + 0.5f) / dims) * 2.0f - 1.0f;
         d.y = -d.y; // Y軸反転
         
-        // カメラパラメータ
-        float3 cameraPos = viewMatrix._m03_m13_m23;
-        
-        // カメラの向きベクトル計算
-        float3 forward = viewMatrix._m02_m12_m22;
-        float3 right = normalize(viewMatrix._m00_m10_m20);
-        float3 up = normalize(viewMatrix._m01_m11_m21);
-        
-        // FOV計算
-        float cotHalfFov = projectionMatrix._22;
-        float tanHalfFov = 1.0f / cotHalfFov;
-        float aspect = dims.x / dims.y;
-        
-        // レイ方向計算
-        float3 rayDir = normalize(forward +
-                                d.x * right * tanHalfFov * aspect +
-                                d.y * up * tanHalfFov);
+        // 新しいコード：
+        float3 cameraPos = viewMatrix._m03_m13_m23; // カメラ位置のみビュー行列から取得
+
+        // レイ方向計算（事前計算済み値を使用）
+        float3 rayDir = normalize(cameraForward +
+                        d.x * cameraRight * tanHalfFov * aspectRatio +
+                        d.y * cameraUp * tanHalfFov);
         
         // レイ設定
         RayDesc ray;

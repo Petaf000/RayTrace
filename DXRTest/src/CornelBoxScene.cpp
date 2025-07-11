@@ -23,6 +23,11 @@ void CornelBoxScene::Update() {
     if ( Input::GetKeyPress(VK_DOWN) )
         m_cameraData.position.y -= 5.0f;
 
+    if(Input::GetKeyPress('W') )
+		m_cameraData.position.z += 5.0f; // 前進
+	if ( Input::GetKeyPress('S') )
+		m_cameraData.position.z -= 5.0f; // 後退
+
 }
 
 void CornelBoxScene::CreateMaterials() {
@@ -51,7 +56,7 @@ void CornelBoxScene::CreateMaterials() {
 
     // Material 3: Light
     material.albedo = { 1.0f, 1.0f, 1.0f };
-    material.emission = { 15.0f, 15.0f, 15.0f };
+    material.emission = { 1.0f, 1.0f, 1.0f };
     material.materialType = 3; // DiffuseLight
     m_uniqueMaterials.push_back(material);
 
@@ -102,7 +107,7 @@ void CornelBoxScene::CreateWalls() {
 void CornelBoxScene::CreateObjects() {
     // ガラス球（ID:5）
     auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, 5);
-    glassSphere->SetPosition({ 0.0f, -102.5f, -250.0f });
+    glassSphere->SetPosition({ 0.0f, -142.5f, -250.0f });
 
     // アルミニウム球（ID:4）
     auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, 4);

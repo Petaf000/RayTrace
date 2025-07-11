@@ -712,7 +712,6 @@ UINT DXRRenderer::AlignTo(UINT size, UINT alignment) {
 void DXRRenderer::UpdateCamera() {
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
-
     if ( !dxrScene ) return;
 
     auto cameraData = dxrScene->GetCamera();
@@ -721,18 +720,56 @@ void DXRRenderer::UpdateCamera() {
     XMVECTOR eyePos = XMLoadFloat3(&cameraData.position);
     XMVECTOR targetPos = XMLoadFloat3(&cameraData.target);
     XMVECTOR upVec = XMLoadFloat3(&cameraData.up);
-
     XMMATRIX viewMatrix = XMMatrixInverse(nullptr, XMMatrixLookAtLH(eyePos, targetPos, upVec));
     XMMATRIX projMatrix = XMMatrixPerspectiveFovLH(cameraData.fov, cameraData.aspect, 0.1f, 1000.0f);
 
-    // カメラからオブジェクトまでの距離計算
+    // === 追加：カメラ方向ベクトルの事前計算 ===
+    // ビュー行列から正規化済み方向ベクトルを抽出
+    XMVECTOR rightVec = XMVector3Normalize(XMVectorSet(
+        XMVectorGetX(viewMatrix.r[0]),
+        XMVectorGetY(viewMatrix.r[0]),
+        XMVectorGetZ(viewMatrix.r[0]),
+        0.0f
+    ));
+
+    XMVECTOR upVector = XMVector3Normalize(XMVectorSet(
+        XMVectorGetX(viewMatrix.r[1]),
+        XMVectorGetY(viewMatrix.r[1]),
+        XMVectorGetZ(viewMatrix.r[1]),
+        0.0f
+    ));
+
+    XMVECTOR forwardVec = XMVector3Normalize(XMVectorSet(
+        XMVectorGetX(viewMatrix.r[2]),
+        XMVectorGetY(viewMatrix.r[2]),
+        XMVectorGetZ(viewMatrix.r[2]),
+        0.0f
+    ));
+
+    // FOVとアスペクト比の事前計算
+    float tanHalfFov = tanf(cameraData.fov * 0.5f);
+    float aspectRatio = cameraData.aspect;
+
+    // カメラからオブジェクトまでの距離計算（既存）
     float distToSphere1 = sqrtf(powf(190.0f - cameraData.position.x, 2) +
         powf(90.0f - cameraData.position.y, 2) +
         powf(190.0f - cameraData.position.z, 2));
 
+    // 定数バッファに設定
     SceneConstantBuffer sceneConstants;
     sceneConstants.projectionMatrix = projMatrix;
     sceneConstants.viewMatrix = viewMatrix;
+
+    // === 追加：事前計算されたカメラパラメータを設定 ===
+    XMStoreFloat3(&sceneConstants.cameraRight, rightVec);
+    XMStoreFloat3(&sceneConstants.cameraUp, upVector);
+    XMStoreFloat3(&sceneConstants.cameraForward, forwardVec);
+    sceneConstants.tanHalfFov = tanHalfFov;
+    sceneConstants.aspectRatio = aspectRatio;
+
+    // フレームカウント（アニメーション等で使用可能）
+    static uint32_t frameCounter = 0;
+    sceneConstants.frameCount = static_cast<float>( frameCounter++ );
 
     // 定数バッファ更新
     void* mappedData;
@@ -740,7 +777,11 @@ void DXRRenderer::UpdateCamera() {
     memcpy(mappedData, &sceneConstants, sizeof(SceneConstantBuffer));
     m_sceneConstantBuffer->Unmap(0, nullptr);
 
-    OutputDebugStringA("Camera update completed\n");
+    // === デバッグ出力（詳細版） ===
+    char debugMsg[512];
+    sprintf_s(debugMsg, "Camera update: FOV=%.2f, Aspect=%.2f, TanHalfFOV=%.4f\n",
+        cameraData.fov, aspectRatio, tanHalfFov);
+    OutputDebugStringA(debugMsg);
 }
 
 // DXRRenderer_AccelerationStructure.cpp

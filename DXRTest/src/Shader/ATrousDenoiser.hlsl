@@ -1,68 +1,64 @@
-#include "Common.hlsli"
+ï»¿#include "Common.hlsli"
 
 // A-Trous Wavelet Denoiser Compute Shader
-// Using global root signature - ƒŒƒWƒXƒ^‚ÍŠù‘¶‚ÌG-Buffer—p‚ğg—p
+// Using global root signature
 
-// G-Buffer: t5(Albedo), t6(Normal), t7(Depth) ‚ğg—p
-Texture2D<float4> AlbedoBuffer : register(t5); // G-Buffer‚ÌƒAƒ‹ƒxƒh  
-Texture2D<float4> NormalBuffer : register(t6); // G-Buffer‚Ì–@ü
-Texture2D<float4> DepthBuffer : register(t7); // G-Buffer‚Ì[“x
-RWTexture2D<float4> DenoiserOutput : register(u4); // ƒfƒmƒCƒU[o—Í
+// G-Buffer: t5(Albedo), t6(Normal), t7(Depth)
+Texture2D<float4> AlbedoBuffer : register(t5);
+Texture2D<float4> NormalBuffer : register(t6);
+Texture2D<float4> DepthBuffer : register(t7);
+RWTexture2D<float4> DenoiserOutput : register(u4);
 
-// ƒfƒmƒCƒU[—p’è”ƒoƒbƒtƒ@
+// ãƒ‡ãƒã‚¤ã‚¶ãƒ¼ç”¨å®šæ•°ãƒãƒƒãƒ•ã‚¡
 cbuffer DenoiserConstants : register(b1)
 {
-    int stepSize; // A-TrousƒXƒeƒbƒvƒTƒCƒY (2^iteration)
-    float colorSigma; // ƒJƒ‰[d‚İ’²®
-    float normalSigma; // –@üd‚İ’²® 
-    float depthSigma; // [“xd‚İ’²®
-    float2 texelSize; // ƒeƒNƒZƒ‹ƒTƒCƒY (1.0/resolution)
+    int stepSize;
+    float colorSigma;
+    float normalSigma;
+    float depthSigma;
+    float2 texelSize;
     float2 padding;
 }
 
-// 5x5 A-Trous ƒJ[ƒlƒ‹ (B3-spline interpolation)
-static const float kernel[49] =
+// 5x5 A-Trous ã‚«ãƒ¼ãƒãƒ« (B3-spline interpolation)
+static const float kernel[25] =
 {
-    1.0f / 1024.0f, 3.0f / 1024.0f, 7.0f / 1024.0f, 12.0f / 1024.0f, 7.0f / 1024.0f, 3.0f / 1024.0f, 1.0f / 1024.0f,
-    3.0f / 1024.0f, 9.0f / 1024.0f, 21.0f / 1024.0f, 36.0f / 1024.0f, 21.0f / 1024.0f, 9.0f / 1024.0f, 3.0f / 1024.0f,
-    7.0f / 1024.0f, 21.0f / 1024.0f, 49.0f / 1024.0f, 84.0f / 1024.0f, 49.0f / 1024.0f, 21.0f / 1024.0f, 7.0f / 1024.0f,
-    12.0f / 1024.0f, 36.0f / 1024.0f, 84.0f / 1024.0f, 144.0f / 1024.0f, 84.0f / 1024.0f, 36.0f / 1024.0f, 12.0f / 1024.0f,
-    7.0f / 1024.0f, 21.0f / 1024.0f, 49.0f / 1024.0f, 84.0f / 1024.0f, 49.0f / 1024.0f, 21.0f / 1024.0f, 7.0f / 1024.0f,
-    3.0f / 1024.0f, 9.0f / 1024.0f, 21.0f / 1024.0f, 36.0f / 1024.0f, 21.0f / 1024.0f, 9.0f / 1024.0f, 3.0f / 1024.0f,
-    1.0f / 1024.0f, 3.0f / 1024.0f, 7.0f / 1024.0f, 12.0f / 1024.0f, 7.0f / 1024.0f, 3.0f / 1024.0f, 1.0f / 1024.0f
+    1.0f / 256.0f, 4.0f / 256.0f, 6.0f / 256.0f, 4.0f / 256.0f, 1.0f / 256.0f,
+    4.0f / 256.0f, 16.0f / 256.0f, 24.0f / 256.0f, 16.0f / 256.0f, 4.0f / 256.0f,
+    6.0f / 256.0f, 24.0f / 256.0f, 36.0f / 256.0f, 24.0f / 256.0f, 6.0f / 256.0f,
+    4.0f / 256.0f, 16.0f / 256.0f, 24.0f / 256.0f, 16.0f / 256.0f, 4.0f / 256.0f,
+    1.0f / 256.0f, 4.0f / 256.0f, 6.0f / 256.0f, 4.0f / 256.0f, 1.0f / 256.0f
 };
 
-// 7x7ƒJ[ƒlƒ‹ƒIƒtƒZƒbƒg
-static const int2 offsets[49] =
+// 5x5ã‚«ãƒ¼ãƒãƒ«ã‚ªãƒ•ã‚»ãƒƒãƒˆ
+static const int2 offsets[25] =
 {
-    int2(-3, -3), int2(-2, -3), int2(-1, -3), int2(0, -3), int2(1, -3), int2(2, -3), int2(3, -3),
-    int2(-3, -2), int2(-2, -2), int2(-1, -2), int2(0, -2), int2(1, -2), int2(2, -2), int2(3, -2),
-    int2(-3, -1), int2(-2, -1), int2(-1, -1), int2(0, -1), int2(1, -1), int2(2, -1), int2(3, -1),
-    int2(-3, 0), int2(-2, 0), int2(-1, 0), int2(0, 0), int2(1, 0), int2(2, 0), int2(3, 0),
-    int2(-3, 1), int2(-2, 1), int2(-1, 1), int2(0, 1), int2(1, 1), int2(2, 1), int2(3, 1),
-    int2(-3, 2), int2(-2, 2), int2(-1, 2), int2(0, 2), int2(1, 2), int2(2, 2), int2(3, 2),
-    int2(-3, 3), int2(-2, 3), int2(-1, 3), int2(0, 3), int2(1, 3), int2(2, 3), int2(3, 3)
+    int2(-2, -2), int2(-1, -2), int2(0, -2), int2(1, -2), int2(2, -2),
+    int2(-2, -1), int2(-1, -1), int2(0, -1), int2(1, -1), int2(2, -1),
+    int2(-2, 0), int2(-1, 0), int2(0, 0), int2(1, 0), int2(2, 0),
+    int2(-2, 1), int2(-1, 1), int2(0, 1), int2(1, 1), int2(2, 1),
+    int2(-2, 2), int2(-1, 2), int2(0, 2), int2(1, 2), int2(2, 2)
 };
 
-// === d‚İŒvZ‚Ì‰ü‘P ===
+// === é‡ã¿è¨ˆç®—ã®é–¢æ•° ===
 float ComputeWeight(float3 centerColor, float3 sampleColor,
                    float3 centerNormal, float3 sampleNormal,
                    float centerDepth, float sampleDepth)
 {
-    // ƒJƒ‰[d‚İi‚æ‚è•qŠ´‚Éj
+    // ã‚«ãƒ©ãƒ¼é‡ã¿ï¼ˆã‚ˆã‚Šå¹³æ»‘ã«ï¼‰
     float3 colorDiff = centerColor - sampleColor;
     float colorDistance = length(colorDiff);
-    float colorWeight = exp(-colorDistance / max(colorSigma, 0.001f));
+    float colorWeight = exp(-colorDistance * colorDistance / (2.0f * colorSigma * colorSigma));
     
-    // –@üd‚İi‚æ‚èŒµ‚µ‚­j
+    // æ³•ç·šé‡ã¿ï¼ˆä¿®æ­£ç‰ˆï¼šcosine similarityä½¿ç”¨ï¼‰
     float normalDot = max(0.0f, dot(centerNormal, sampleNormal));
-    float normalWeight = pow(normalDot, max(normalSigma, 0.001f));
+    float normalWeight = pow(normalDot, normalSigma);
     
-    // [“xd‚İi‰ü‘P”Åj
+    // æ·±åº¦é‡ã¿ï¼ˆä¿®æ­£ç‰ˆï¼šã‚ˆã‚Šå³å¯†ã«ï¼‰
     float depthDiff = abs(centerDepth - sampleDepth);
-    float depthWeight = exp(-depthDiff / max(depthSigma, 0.001f));
+    float depthWeight = exp(-depthDiff * depthDiff / (2.0f * depthSigma * depthSigma));
     
-    // ‘g‚İ‡‚í‚¹d‚İiƒoƒ‰ƒ“ƒX’²®j
+    // çµ„ã¿åˆã‚ã›é‡ã¿
     return colorWeight * normalWeight * depthWeight;
 }
 
@@ -70,71 +66,71 @@ float ComputeWeight(float3 centerColor, float3 sampleColor,
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
     uint2 dims;
-    RenderTarget.GetDimensions(dims.x, dims.y); // Common.hlsli‚ÌRenderTarget‚ğg—p
+    RenderTarget.GetDimensions(dims.x, dims.y);
     
-    // ”ÍˆÍƒ`ƒFƒbƒN
+    // ç¯„å›²ãƒã‚§ãƒƒã‚¯
     if (id.x >= dims.x || id.y >= dims.y)
         return;
     
     int2 centerCoord = int2(id.xy);
     
-    // ’†SƒsƒNƒZƒ‹‚Ì’l‚ğæ“¾iRenderTarget‚©‚ç’¼Ú“Ç‚İæ‚èj
+    // ä¸­å¿ƒãƒ”ã‚¯ã‚»ãƒ«ã®å€¤ã‚’å–å¾—ï¼ˆRenderTargetã‹ã‚‰ç›´æ¥èª­ã¿å–ã‚Šï¼‰
     float4 centerColor = RenderTarget[centerCoord];
     float3 centerAlbedo = AlbedoBuffer[centerCoord].rgb;
     float3 centerNormal = normalize(NormalBuffer[centerCoord].xyz);
     float centerDepth = DepthBuffer[centerCoord].r;
     
-    // NaN/–³ŒÀ‘åƒ`ƒFƒbƒN
+    // NaN/ç„¡é™å¤§ãƒã‚§ãƒƒã‚¯
     if (any(isnan(centerColor.rgb)) || any(isinf(centerColor.rgb)) ||
         any(isnan(centerNormal)) || any(isinf(centerNormal)) ||
         isnan(centerDepth) || isinf(centerDepth))
     {
-        DenoiserOutput[id.xy] = float4(1, 0, 1, 1); // ƒ}ƒ[ƒ“ƒ^‚ÅƒGƒ‰[•\¦
+        DenoiserOutput[id.xy] = float4(1, 0, 1, 1); // ãƒã‚¼ãƒ³ã‚¿ã§ã‚¨ãƒ©ãƒ¼è¡¨ç¤º
         return;
     }
     
-    // ƒfƒtƒHƒ‹ƒg’l‚Ìƒ`ƒFƒbƒN (G-Buffer‚ª¶¬‚³‚ê‚Ä‚¢‚È‚¢ê‡)
+    // ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆå€¤ã®ãƒã‚§ãƒƒã‚¯ (G-BufferãŒç”Ÿæˆã•ã‚Œã¦ã„ãªã„å ´åˆ)
     if (length(centerNormal) < 0.1f || centerDepth <= 0.0f)
     {
-        // G-Bufferƒf[ƒ^‚ª‚È‚¢ê‡‚ÍŒ³‚ÌF‚ğ‚»‚Ì‚Ü‚Üo—Í
+        // G-Bufferãƒ‡ãƒ¼ã‚¿ãŒãªã„å ´åˆã¯å…ƒã®è‰²ã‚’ãã®ã¾ã¾å‡ºåŠ›
         DenoiserOutput[id.xy] = centerColor;
         return;
     }
     
-    // A-TrousƒtƒBƒ‹ƒ^ƒŠƒ“ƒO
+    // A-Trousãƒ•ã‚£ãƒ«ã‚¿ãƒªãƒ³ã‚°
     float4 filteredColor = float4(0, 0, 0, 0);
     float totalWeight = 0.0f;
     
-    // 5x5ƒJ[ƒlƒ‹‚ğ“K—p
+    // 5x5ã‚«ãƒ¼ãƒãƒ«ã‚’é©ç”¨
     for (int i = 0; i < 25; ++i)
     {
-        // A-TrousƒXƒ^ƒCƒ‹: ƒXƒeƒbƒvƒTƒCƒY‚ğ“K—p
+        // A-Trousã‚¹ã‚¿ã‚¤ãƒ«: ã‚¹ãƒ†ãƒƒãƒ—ã‚µã‚¤ã‚ºã‚’é©ç”¨
         int2 sampleCoord = centerCoord + offsets[i] * stepSize;
         
-        // ‹«ŠEƒ`ƒFƒbƒN
+        // å¢ƒç•Œãƒã‚§ãƒƒã‚¯
         if (sampleCoord.x < 0 || sampleCoord.x >= (int) dims.x ||
             sampleCoord.y < 0 || sampleCoord.y >= (int) dims.y)
         {
             continue;
         }
         
-        // ƒTƒ“ƒvƒ‹’l‚ğæ“¾
-        float4 sampleColor = RenderTarget[sampleCoord]; // Common.hlsli‚ÌRenderTarget‚ğg—p
+        // ã‚µãƒ³ãƒ—ãƒ«å€¤ã‚’å–å¾—
+        float4 sampleColor = RenderTarget[sampleCoord];
         float3 sampleAlbedo = AlbedoBuffer[sampleCoord].rgb;
         float3 sampleNormal = normalize(NormalBuffer[sampleCoord].xyz);
         float sampleDepth = DepthBuffer[sampleCoord].r;
         
-        // NaN/–³ŒÀ‘åƒ`ƒFƒbƒN
+        // NaN/ç„¡é™å¤§ãƒã‚§ãƒƒã‚¯
         if (any(isnan(sampleColor.rgb)) || any(isinf(sampleColor.rgb)) ||
             any(isnan(sampleNormal)) || any(isinf(sampleNormal)) ||
             isnan(sampleDepth) || isinf(sampleDepth))
             continue;
             
-        // –³Œø‚ÈG-Bufferƒf[ƒ^‚Ìƒ`ƒFƒbƒN
+        // ç„¡åŠ¹ãªG-Bufferãƒ‡ãƒ¼ã‚¿ã®ãƒã‚§ãƒƒã‚¯
         if (length(sampleNormal) < 0.1f || sampleDepth <= 0.0f)
             continue;
         
-        // ƒJ[ƒlƒ‹d‚İ‚ÆƒGƒbƒW•Ûd‚İ‚ğŒvZ
+        // ã‚«ãƒ¼ãƒãƒ«é‡ã¿ã¨ã‚¨ãƒƒã‚¸ä¿è­·é‡ã¿ã‚’è¨ˆç®—
         float kernelWeight = kernel[i];
         float edgeWeight = ComputeWeight(centerColor.rgb, sampleColor.rgb,
                                        centerNormal, sampleNormal,
@@ -146,24 +142,24 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         totalWeight += weight;
     }
     
-    // ³‹K‰»
+    // æ­£è¦åŒ–
     if (totalWeight > 0.001f)
     {
         filteredColor /= totalWeight;
     }
     else
     {
-        // ƒtƒBƒ‹ƒ^ƒŠƒ“ƒO‚É¸”s‚µ‚½ê‡‚ÍŒ³‚ÌF‚ğg—p
+        // ãƒ•ã‚£ãƒ«ã‚¿ãƒªãƒ³ã‚°ã«å¤±æ•—ã—ãŸå ´åˆã¯å…ƒã®è‰²ã‚’ä½¿ç”¨
         filteredColor = centerColor;
     }
     
-    // ÅIƒ`ƒFƒbƒN
+    // æœ€çµ‚ãƒã‚§ãƒƒã‚¯
     if (any(isnan(filteredColor.rgb)) || any(isinf(filteredColor.rgb)))
     {
         filteredColor = centerColor;
     }
     
-    // ƒAƒ‹ƒtƒ@’l‚ğ•Û
+    // ã‚¢ãƒ«ãƒ•ã‚¡å€¤ã‚’ä¿è­·
     filteredColor.a = centerColor.a;
     
     DenoiserOutput[id.xy] = filteredColor;

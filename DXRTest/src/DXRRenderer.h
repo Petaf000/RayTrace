@@ -125,8 +125,17 @@ private:
 
     // 定数バッファ
     struct SceneConstantBuffer {
-        XMMATRIX projectionMatrix;
-        XMMATRIX viewMatrix;
+        XMMATRIX projectionMatrix;  // 64 bytes
+        XMMATRIX viewMatrix;        // 64 bytes
+
+        DirectX::XMFLOAT3 cameraRight;         // 12 bytes
+        float tanHalfFov;                      // 4 bytes
+
+        DirectX::XMFLOAT3 cameraUp;            // 12 bytes
+        float aspectRatio;                     // 4 bytes
+
+        DirectX::XMFLOAT3 cameraForward;       // 12 bytes  
+        float frameCount;                      // 4 bytes
     };
     ComPtr<ID3D12Resource> m_sceneConstantBuffer;
 

@@ -1,73 +1,86 @@
-// ===== ClosestHit_Dielectric.hlsl の修正 =====
+// ===== ClosestHit_Dielectric.hlsl 完全書き直し版 =====
 #include "Common.hlsli"
 
-// Schlick近似（Dielectric用）
-float Schlick(float cosine, float refractiveIndex)
+// CPU版のUtil.hと完全に同じSchlick近似
+float schlick(float cosine, float ri)
 {
-    float r0 = (1.0f - refractiveIndex) / (1.0f + refractiveIndex);
+    float r0 = (1.0f - ri) / (1.0f + ri);
     r0 = r0 * r0;
     return r0 + (1.0f - r0) * pow(1.0f - cosine, 5.0f);
 }
 
-// Dielectric専用サンプリング
-BRDFSample SampleDielectricBRDF(float3 normal, float3 rayDir, MaterialData material, inout uint seed)
+// CPU版のUtil.hと完全に同じreflect関数
+float3 reflect_vec(float3 v, float3 n)
 {
-    BRDFSample sample;
-    
-    float3 outwardNormal;
-    float niOverNt;
+    return v - 2.0f * dot(v, n) * n;
+}
+
+// CPU版のUtil.hと完全に同じrefract関数
+bool refract_vec(float3 v, float3 n, float ni_over_nt, out float3 refracted)
+{
+    float3 uv = normalize(v);
+    float dt = dot(uv, n);
+    float D = 1.0f - (ni_over_nt * ni_over_nt) * (1.0f - dt * dt);
+    if (D > 0.0f)
+    {
+        refracted = -ni_over_nt * (uv - n * dt) - n * sqrt(D);
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+// CPU版のDielectric::scatterと完全に同じロジック
+bool DielectricScatter(float3 rayDir, float3 normal, float refractiveIndex, inout uint seed, out float3 scatteredDir, out float3 attenuation)
+{
+    float3 outward_normal;
+    float3 reflected = reflect_vec(rayDir, normal);
+    float ni_over_nt;
+    float reflect_prob;
     float cosine;
     
-    // 内側から外側への判定
-    if (dot(rayDir, normal) > 0)
+    // CPU版と完全に同じ判定
+    if (dot(rayDir, normal) > 0.0f)
     {
-        // レイが内側から来ている
-        outwardNormal = -normal;
-        niOverNt = material.refractiveIndex;
-        cosine = material.refractiveIndex * dot(rayDir, normal);
+        outward_normal = -normal;
+        ni_over_nt = refractiveIndex;
+        cosine = refractiveIndex * dot(rayDir, normal) / length(rayDir);
     }
     else
     {
-        // レイが外側から来ている
-        outwardNormal = normal;
-        niOverNt = 1.0f / material.refractiveIndex;
-        cosine = -dot(rayDir, normal);
+        outward_normal = normal;
+        ni_over_nt = 1.0f / refractiveIndex;
+        cosine = -dot(rayDir, normal) / length(rayDir);
     }
+    
+    // CPU版と同じアルベド設定
+    attenuation = float3(1.0f, 1.0f, 1.0f);
     
     float3 refracted;
-    float reflectProb;
-    
-    // 屈折計算
-    float discriminant = 1.0f - niOverNt * niOverNt * (1.0f - cosine * cosine);
-    if (discriminant > 0)
+    if (refract_vec(-rayDir, outward_normal, ni_over_nt, refracted))
     {
-        refracted = niOverNt * (rayDir - outwardNormal * cosine) - outwardNormal * sqrt(discriminant);
-        reflectProb = Schlick(cosine, material.refractiveIndex);
+        reflect_prob = schlick(cosine, refractiveIndex);
     }
     else
     {
-        // 全反射
-        reflectProb = 1.0f;
+        reflect_prob = 1.0f;
     }
     
-    // 反射か屈折かを確率的に決定
-    if (RandomFloat(seed) < reflectProb)
+    // CPU版のdrand48()と同じ確率判定
+    if (RandomFloat(seed) < reflect_prob)
     {
-        // 反射
-        sample.direction = reflect(rayDir, outwardNormal);
+        scatteredDir = reflected;
     }
     else
     {
-        // 屈折
-        sample.direction = normalize(refracted);
+        scatteredDir = refracted;
     }
     
-    sample.brdf = material.albedo; // 通常は白（透明）
-    sample.pdf = 1.0f; // スペキュラー
-    sample.valid = true;
-    
-    return sample;
+    return true;
 }
+
 
 [shader("closesthit")]
 void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
@@ -89,23 +102,23 @@ void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
     uint primitiveID = PrimitiveIndex();
     float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
-    float3 rayDir = normalize(WorldRayDirection());
+    // CPU版と同じくWorldRayDirection()をそのまま使用（正規化しない）
+    float3 rayDir = WorldRayDirection();
     
-    // G-Bufferデータを設定（プライマリレイの場合のみ）
+    // G-Bufferデータを設定
     SetGBufferData(payload, worldPos, normal, material.albedo,
-                   MATERIAL_DIELECTRIC, material.roughness, RayTCurrent());
+                   2, material.roughness, RayTCurrent()); // 2 = MATERIAL_DIELECTRIC
     
-    // ガラス：屈折と反射の確率的選択
-    // ガラスは基本的にスペキュラーなので、直接照明の計算は不要
+    // CPU版と完全に同じDielectricの散乱計算
+    float3 scatteredDir;
+    float3 attenuation;
     
-    BRDFSample brdfSample = SampleDielectricBRDF(normal, rayDir, material, payload.seed);
-    
-    if (brdfSample.valid)
+    if (DielectricScatter(rayDir, normal, material.refractiveIndex, payload.seed, scatteredDir, attenuation))
     {
-        // 屈折または反射レイをトレース
+        // 散乱レイをトレース
         RayDesc ray;
-        ray.Origin = OffsetRay(worldPos, normal);
-        ray.Direction = brdfSample.direction;
+        ray.Origin = worldPos; // CPU版と同じく単純な開始点
+        ray.Direction = normalize(scatteredDir); // 方向を正規化
         ray.TMin = 0.001f;
         ray.TMax = 1000.0f;
         
@@ -123,10 +136,11 @@ void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
         newPayload.roughness = 0.0f;
         newPayload.padding = 0;
         
-        TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
+        // CPU版と同じく背面カリングなし
+        TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, newPayload);
         
-        // ガラス色で調光（通常は透明なのでほぼ影響しない）
-        payload.color = brdfSample.brdf * newPayload.color;
+        // CPU版と同じく、attenuation（常に白）を掛ける
+        payload.color = attenuation * newPayload.color;
     }
     else
     {
