@@ -1,41 +1,50 @@
-// ===== ClosestHit_DiffuseLight.hlsl ‚ÌC³ =====
+// ===== ClosestHit_DiffuseLight.hlsl ï¿½ÌCï¿½ï¿½ =====
 #include "Common.hlsli"
 
 [shader("closesthit")]
 void ClosestHit_DiffuseLight(inout RayPayload payload, in VertexAttributes attr)
 {
+    // ãƒ‡ãƒãƒƒã‚°ãƒ¢ãƒ¼ãƒ‰ï¼šDiffuseLightã‚·ã‚§ãƒ¼ãƒ€ãƒ¼å‹•ä½œç¢ºèª
+    bool lightDebugMode = false;
+    if (lightDebugMode && payload.depth == 0) {
+        payload.color = float3(1.0f, 0.5f, 0.0f); // ã‚ªãƒ¬ãƒ³ã‚¸è‰²ï¼šDiffuseLightã‚·ã‚§ãƒ¼ãƒ€ãƒ¼å®Ÿè¡Œ
+        return;
+    }
+    // ã‚»ã‚«ãƒ³ãƒ€ãƒªãƒ¬ã‚¤ã§ã‚‚é€šå¸¸å‡¦ç†ã‚’è¡Œã†ï¼ˆç°¡ç•¥åŒ–ã‚’é™¤å»ï¼‰
+    
     uint instanceID = InstanceID();
     MaterialData material = GetMaterial(instanceID);
     
-    // Œğ“_‚ğŒvZ
+    // ï¿½ï¿½_ï¿½ï¿½ï¿½vï¿½Z
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
-    // –@üƒ`ƒFƒbƒNi•\–Ê‚©‚ç‚ÌƒŒƒC‚Ì‚İ”­Œõj
+    // ï¿½@ï¿½ï¿½ï¿½`ï¿½Fï¿½bï¿½Nï¿½iï¿½\ï¿½Ê‚ï¿½ï¿½ï¿½Ìƒï¿½ï¿½Cï¿½Ì‚İ”ï¿½ï¿½ï¿½ï¿½j
     float3 rayDir = normalize(WorldRayDirection());
     uint primitiveID = PrimitiveIndex();
     float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
-    // G-Bufferƒf[ƒ^‚ğİ’èiƒvƒ‰ƒCƒ}ƒŠƒŒƒC‚Ìê‡‚Ì‚İj
+    // G-Bufferï¿½fï¿½[ï¿½^ï¿½ï¿½İ’ï¿½iï¿½vï¿½ï¿½ï¿½Cï¿½}ï¿½ï¿½ï¿½ï¿½ï¿½Cï¿½Ìê‡ï¿½Ì‚İj
     SetGBufferData(payload, worldPos, normal, material.emission,
                    MATERIAL_LIGHT, 0.0f, RayTCurrent());
     
-    // •\–Ê‚©‚ç‚ÌƒŒƒC‚Ì‚İ”­Œõi— –Ê‚Í”­Œõ‚µ‚È‚¢j
+    // ï¿½\ï¿½Ê‚ï¿½ï¿½ï¿½Ìƒï¿½ï¿½Cï¿½Ì‚İ”ï¿½ï¿½ï¿½ï¿½iï¿½ï¿½ï¿½Ê‚Í”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½j
     if (dot(rayDir, normal) < 0.0f)
     {
-        // ƒvƒ‰ƒCƒ}ƒŠƒŒƒC‚Ìê‡‚Í‹­‚­Œõ‚é
+        // ï¿½vï¿½ï¿½ï¿½Cï¿½}ï¿½ï¿½ï¿½ï¿½ï¿½Cï¿½Ìê‡ï¿½Í‹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         if (payload.depth == 0)
         {
             payload.color = material.emission;
         }
         else
         {
-            // ŠÔÚÆ–¾‚Å‚ÌŒõŒ¹‚ÌŠñ—^i­‚µã‚ß‚éj
-            payload.color = material.emission * 0.8f;
+            // ï¿½ÔÚÆ–ï¿½ï¿½Å‚ÌŒï¿½ï¿½ï¿½ï¿½ÌŠï¿½^ï¿½iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß‚ï¿½j
+            // é–“æ¥ç…§æ˜ã§ã®å…‰æºå¯„ä¸ï¼ˆå…ƒã®å‡¦ç†ã«æˆ»ã™ï¼‰
+            payload.color = material.emission;
         }
     }
     else
     {
-        // — –Ê‚Í”­Œõ‚µ‚È‚¢
+        // ï¿½ï¿½ï¿½Ê‚Í”ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½
         payload.color = float3(0, 0, 0);
     }
 }

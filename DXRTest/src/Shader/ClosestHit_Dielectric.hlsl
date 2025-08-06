@@ -1,7 +1,7 @@
-// ===== ClosestHit_Dielectric.hlsl Š®‘S‘‚«’¼‚µ”Å =====
+// ===== ClosestHit_Dielectric.hlsl NEE+MISå¯¾å¿œç‰ˆ =====
 #include "Common.hlsli"
 
-// CPU”Å‚ÌUtil.h‚ÆŠ®‘S‚É“¯‚¶Schlick‹ß—
+// CPUã§ã®Util.hã¨å®Œå…¨ã«åŒã˜Schlickè¿‘ä¼¼
 float schlick(float cosine, float ri)
 {
     float r0 = (1.0f - ri) / (1.0f + ri);
@@ -9,13 +9,13 @@ float schlick(float cosine, float ri)
     return r0 + (1.0f - r0) * pow(1.0f - cosine, 5.0f);
 }
 
-// CPU”Å‚ÌUtil.h‚ÆŠ®‘S‚É“¯‚¶reflectŠÖ”
+// CPUã§ã®Util.hã¨å®Œå…¨ã«åŒã˜reflecté–¢æ•°
 float3 reflect_vec(float3 v, float3 n)
 {
     return v - 2.0f * dot(v, n) * n;
 }
 
-// CPU”Å‚ÌUtil.h‚ÆŠ®‘S‚É“¯‚¶refractŠÖ”
+// CPUã§ã®Util.hã¨å®Œå…¨ã«åŒã˜refracté–¢æ•°
 bool refract_vec(float3 v, float3 n, float ni_over_nt, out float3 refracted)
 {
     float3 uv = normalize(v);
@@ -32,7 +32,7 @@ bool refract_vec(float3 v, float3 n, float ni_over_nt, out float3 refracted)
     }
 }
 
-// CPU”Å‚ÌDielectric::scatter‚ÆŠ®‘S‚É“¯‚¶ƒƒWƒbƒN
+// CPUã§ã®Dielectric::scatterã¨å®Œå…¨ã«åŒã˜ãƒ­ã‚¸ãƒƒã‚¯
 bool DielectricScatter(float3 rayDir, float3 normal, float refractiveIndex, inout uint seed, out float3 scatteredDir, out float3 attenuation)
 {
     float3 outward_normal;
@@ -41,7 +41,7 @@ bool DielectricScatter(float3 rayDir, float3 normal, float refractiveIndex, inou
     float reflect_prob;
     float cosine;
     
-    // CPU”Å‚ÆŠ®‘S‚É“¯‚¶”»’è
+    // CPUã§ã¨å®Œå…¨ã«åŒã˜å‡¦ç†
     if (dot(rayDir, normal) > 0.0f)
     {
         outward_normal = -normal;
@@ -55,11 +55,8 @@ bool DielectricScatter(float3 rayDir, float3 normal, float refractiveIndex, inou
         cosine = -dot(rayDir, normal) / length(rayDir);
     }
     
-    // CPU”Å‚Æ“¯‚¶ƒAƒ‹ƒxƒhİ’è
-    attenuation = float3(1.0f, 1.0f, 1.0f);
-    
     float3 refracted;
-    if (refract_vec(-rayDir, outward_normal, ni_over_nt, refracted))
+    if (refract_vec(rayDir, outward_normal, ni_over_nt, refracted))
     {
         reflect_prob = schlick(cosine, refractiveIndex);
     }
@@ -68,7 +65,7 @@ bool DielectricScatter(float3 rayDir, float3 normal, float refractiveIndex, inou
         reflect_prob = 1.0f;
     }
     
-    // CPU”Å‚Ìdrand48()‚Æ“¯‚¶Šm—¦”»’è
+    // ãƒ©ãƒ³ãƒ€ãƒ é¸æŠã«ã‚ˆã‚‹åå°„/å±ˆæŠ˜æ±ºå®š
     if (RandomFloat(seed) < reflect_prob)
     {
         scatteredDir = reflected;
@@ -78,72 +75,122 @@ bool DielectricScatter(float3 rayDir, float3 normal, float refractiveIndex, inou
         scatteredDir = refracted;
     }
     
+    attenuation = float3(1.0f, 1.0f, 1.0f); // å®Œå…¨é€æ˜
     return true;
 }
-
 
 [shader("closesthit")]
 void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
 {
-    // Å‘å”½Ë‰ñ”ƒ`ƒFƒbƒN
-    if (payload.depth >= 6)
+    // ãƒ‡ãƒãƒƒã‚°ãƒ¢ãƒ¼ãƒ‰ï¼šDielectricã‚·ã‚§ãƒ¼ãƒ€ãƒ¼å‹•ä½œç¢ºèª
+    bool dielectricDebugMode = false;
+    if (dielectricDebugMode && payload.depth == 0) {
+        payload.color = float3(1.0f, 1.0f, 0.0f); // é»„è‰²ï¼šDielectricã‚·ã‚§ãƒ¼ãƒ€ãƒ¼å®Ÿè¡Œ
+        return;
+    }
+    // æœ€å¤§åå°„å›æ•°ãƒã‚§ãƒƒã‚¯
+    if (payload.depth >= 4) // Dielectricã¯æ·±ã„å†å¸°ãŒå¿…è¦
     {
         payload.color = float3(0, 0, 0);
         return;
     }
     
+    // ã‚»ã‚«ãƒ³ãƒ€ãƒªãƒ¬ã‚¤ã§ã‚‚é€šå¸¸å‡¦ç†ã‚’è¡Œã†ï¼ˆç°¡ç•¥åŒ–ã‚’é™¤å»ï¼‰
+    
     uint instanceID = InstanceID();
     MaterialData material = GetMaterial(instanceID);
     
-    // Œğ“_‚ğŒvZ
+    // è¡çªç‚¹è¨ˆç®—
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
-    // ³Šm‚È–@ü‚ğ’¸“_ƒf[ƒ^‚©‚çæ“¾
+    // æ­£ç¢ºãªæ³•ç·šã‚’é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿ã‹ã‚‰å–å¾—
     uint primitiveID = PrimitiveIndex();
     float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
-    // CPU”Å‚Æ“¯‚¶‚­WorldRayDirection()‚ğ‚»‚Ì‚Ü‚Üg—pi³‹K‰»‚µ‚È‚¢j
-    float3 rayDir = WorldRayDirection();
+    float3 rayDir = normalize(WorldRayDirection());
     
-    // G-Bufferƒf[ƒ^‚ğİ’è
     SetGBufferData(payload, worldPos, normal, material.albedo,
-                   2, material.roughness, RayTCurrent()); // 2 = MATERIAL_DIELECTRIC
+                   MATERIAL_DIELECTRIC, material.roughness, RayTCurrent());
     
-    // CPU”Å‚ÆŠ®‘S‚É“¯‚¶Dielectric‚ÌU—ŒvZ
-    float3 scatteredDir;
-    float3 attenuation;
+    // Dielectricæè³ªã§ã®ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ï¼ˆNEE+MISå¯¾å¿œï¼‰
+    float3 finalColor = 0.0f;
     
-    if (DielectricScatter(rayDir, normal, material.refractiveIndex, payload.seed, scatteredDir, attenuation))
-    {
-        // U—ƒŒƒC‚ğƒgƒŒ[ƒX
-        RayDesc ray;
-        ray.Origin = worldPos; // CPU”Å‚Æ“¯‚¶‚­’Pƒ‚ÈŠJn“_
-        ray.Direction = normalize(scatteredDir); // •ûŒü‚ğ³‹K‰»
-        ray.TMin = 0.001f;
-        ray.TMax = 1000.0f;
+    // Dielectricæè³ªã¯ã»ã¼é€æ˜ãªã®ã§ã€NEEã®å¯„ä¸ã¯éå¸¸ã«å°ã•ã„
+    // å­¦è¡“è«–æ–‡ã§ã¯ã€Œå®Œå…¨é¡é¢åå°„å¾Œã¯MISä¸è¦ã€ã¨ã•ã‚Œã¦ã„ã‚‹ãŸã‚ã€NEEã¯çœç•¥
+    // ã—ã‹ã—å®Œå…¨æ€§ã®ãŸã‚ã€å¾®å°ãªæ‹¡æ•£æˆåˆ†ãŒã‚ã‚‹ã¨ä»®å®šã—ã¦NEEã‚’è¿½åŠ ï¼ˆã‚ªãƒ—ã‚·ãƒ§ãƒ³ï¼‰
+    
+    bool useNEE = false; // Dielectricã§ã¯é€šå¸¸NEEä¸è¦
+    
+    if (useNEE && numLights > 0 && payload.depth > 0) {
+        // éå¸¸ã«å°ã•ãªæ‹¡æ•£æˆåˆ†ãŒã‚ã‚‹ã¨ä»®å®šï¼ˆç¾å®Ÿçš„ã§ã¯ãªã„ãŒç†è«–çš„å®Œå…¨æ€§ã®ãŸã‚ï¼‰
+        uint maxLightsToSample = min(numLights, 1u);
         
-        RayPayload newPayload;
-        newPayload.color = float3(0, 0, 0);
-        newPayload.depth = payload.depth + 1;
-        newPayload.seed = payload.seed;
-        
-        // G-Bufferƒf[ƒ^‚ğ‰Šú‰»iƒZƒJƒ“ƒ_ƒŠƒŒƒC—pj
-        newPayload.albedo = float3(0, 0, 0);
-        newPayload.normal = float3(0, 0, 1);
-        newPayload.worldPos = float3(0, 0, 0);
-        newPayload.hitDistance = 0.0f;
-        newPayload.materialType = 0;
-        newPayload.roughness = 0.0f;
-        newPayload.padding = 0;
-        
-        // CPU”Å‚Æ“¯‚¶‚­”w–ÊƒJƒŠƒ“ƒO‚È‚µ
-        TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, newPayload);
-        
-        // CPU”Å‚Æ“¯‚¶‚­Aattenuationií‚É”’j‚ğŠ|‚¯‚é
-        payload.color = attenuation * newPayload.color;
+        for (uint lightIdx = 0; lightIdx < maxLightsToSample; lightIdx++) {
+            LightSample lightSample = SampleLightByIndex(lightIdx, worldPos, payload.seed);
+            
+            if (lightSample.valid) {
+                float NdotL = max(0.0f, dot(normal, lightSample.direction));
+                
+                if (NdotL > 0.0f) {
+                    // ã‚·ãƒ£ãƒ‰ã‚¦ãƒ¬ã‚¤ã§å¯è¦–æ€§ãƒã‚§ãƒƒã‚¯
+                    RayDesc shadowRay;
+                    shadowRay.Origin = OffsetRay(worldPos, normal);
+                    shadowRay.Direction = lightSample.direction;
+                    shadowRay.TMin = 0.001f;
+                    shadowRay.TMax = lightSample.distance - 0.001f;
+                    
+                    RayPayload shadowPayload;
+                    shadowPayload.color = float3(1, 1, 1);
+                    shadowPayload.depth = 999;
+                    shadowPayload.seed = payload.seed;
+                    
+                    TraceRay(SceneBVH, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+                             0xFF, 0, 1, 0, shadowRay, shadowPayload);
+                    
+                    if (length(shadowPayload.color) > 0.5f) {
+                        // å¾®å°ãªæ‹¡æ•£æˆåˆ†ï¼ˆéç¾å®Ÿçš„ã ãŒç†è«–çš„å®Œå…¨æ€§ã®ãŸã‚ï¼‰
+                        float3 tinyDiffuse = material.albedo * 0.01f; // 1%ã®æ‹¡æ•£æˆåˆ†
+                        float3 directContribution = tinyDiffuse * lightSample.radiance * NdotL / PI;
+                        finalColor += directContribution / lightSample.pdf;
+                    }
+                }
+            }
+        }
     }
-    else
-    {
-        payload.color = float3(0, 0, 0);
+    
+    // Dielectricæè³ªã®ä¸»è¦å‡¦ç†ï¼šåå°„/å±ˆæŠ˜ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚¹
+    if (payload.depth < 8) {
+        float3 scatteredDir;
+        float3 attenuation;
+        
+        if (DielectricScatter(rayDir, normal, material.refractiveIndex, payload.seed, scatteredDir, attenuation)) {
+            // åå°„ã¾ãŸã¯å±ˆæŠ˜ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚¹
+            RayDesc ray;
+            ray.Origin = OffsetRay(worldPos, normal);
+            ray.Direction = scatteredDir;
+            ray.TMin = 0.001f;
+            ray.TMax = 1000.0f;
+            
+            RayPayload newPayload;
+            newPayload.color = float3(0, 0, 0);
+            newPayload.depth = payload.depth + 1;
+            newPayload.seed = payload.seed;
+            
+            // G-Bufferãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
+            newPayload.albedo = float3(0, 0, 0);
+            newPayload.normal = float3(0, 0, 1);
+            newPayload.worldPos = float3(0, 0, 0);
+            newPayload.hitDistance = 0.0f;
+            newPayload.materialType = 0;
+            newPayload.roughness = 0.0f;
+            newPayload.padding = 0;
+            
+            TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
+            
+            // åå°„/å±ˆæŠ˜ã®å¯„ä¸
+            finalColor += attenuation * newPayload.color;
+        }
     }
+    
+    payload.color = finalColor;
 }

@@ -28,15 +28,17 @@ private:
     DXRRenderer() = default;
     ~DXRRenderer() = default;
 
-    // DXR‰Šú‰»
+    // DXRï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     void InitializeDXR(ID3D12Device* device);
     void CreateRootSignature();
     void CreateRaytracingPipelineStateObject();
     void CreateShaderTables();
     void CreateOutputResource();
     void CreateMaterialBuffer(const TLASData& tlasData);
+    void CreateLightBuffer(const TLASData& tlasData);
+    void CollectLightsFromScene(const TLASData& tlasData);
 
-    // ƒŠƒ\[ƒXì¬
+    // ï¿½ï¿½ï¿½\ï¿½[ï¿½Xï¿½ì¬
     void CreateAccelerationStructures();
     void CreateBLAS(BLASData& blasData, ComPtr<ID3D12Resource>& blasBuffer);
     void CreateTLAS(TLASData& tlasData);
@@ -44,76 +46,97 @@ private:
     void CreateVertexIndexBuffers(const TLASData& tlasData);
     void CreateInstanceOffsetBuffer(const TLASData& tlasData, const std::vector<uint32_t>& vertexOffsets, const std::vector<uint32_t>& indexOffsets);
 
-	// IMGUI—pƒfƒBƒXƒNƒŠƒvƒ^ƒq[ƒvì¬
+	// IMGUIï¿½pï¿½fï¿½Bï¿½Xï¿½Nï¿½ï¿½ï¿½vï¿½^ï¿½qï¿½[ï¿½vï¿½ì¬
     void CreateDebugBufferViews();
 
-    // ƒfƒmƒCƒU[ŠÖ˜Aƒƒ\ƒbƒh
+    // ï¿½fï¿½mï¿½Cï¿½Uï¿½[ï¿½Ö˜Aï¿½ï¿½ï¿½\ï¿½bï¿½h
     void CreateDenoiserResources();
     void CreateDenoiserPipeline();
     ID3D12Resource* RunDenoiser();
     void UpdateDenoiserConstants(int stepSize);
+    
+    // **ReSTIRé–¢é€£ãƒ¡ã‚½ãƒƒãƒ‰**
+    void CreateReSTIRResources();
+    void InitializeReSTIRBuffers();
 
     // DXCCompiler
-    // ÀsHLSLƒRƒ“ƒpƒCƒ‹ŠÖ”
+    // ï¿½ï¿½ï¿½sï¿½ï¿½HLSLï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½Öï¿½
     ComPtr<IDxcBlob> CompileShaderFromFile(const std::wstring& hlslPath,
         const std::wstring& entryPoint,
         const std::wstring& target = L"lib_6_5");
 
-    // ƒLƒƒƒbƒVƒ…‹@”\•t‚«ƒ[ƒhŠÖ”
+    // ï¿½Lï¿½ï¿½ï¿½bï¿½Vï¿½ï¿½ï¿½@ï¿½\ï¿½tï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½hï¿½Öï¿½
     ComPtr<IDxcBlob> LoadOrCompileShader(const std::wstring& hlslPath,
         const std::wstring& entryPoint,
         const std::wstring& target = L"lib_6_5");
 
-    // ƒVƒF[ƒ_[ŠÖ˜A
+    // ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½Ö˜A
     ComPtr<IDxcBlob> LoadCSO(const std::wstring& filename);
 
-    // ƒwƒ‹ƒp[ŠÖ”
+    // ï¿½wï¿½ï¿½ï¿½pï¿½[ï¿½Öï¿½
     void UpdateCamera();
     UINT AlignTo(UINT size, UINT alignment);
 
 
 
-    // DXRŠÖ˜AƒIƒuƒWƒFƒNƒg
+    // DXRï¿½Ö˜Aï¿½Iï¿½uï¿½Wï¿½Fï¿½Nï¿½g
     ComPtr<ID3D12Device5> m_device;
     ComPtr<ID3D12GraphicsCommandList4> m_commandList;
     ComPtr<ID3D12CommandQueue> m_commandQueue;
 
-    // ƒ‹[ƒgƒVƒOƒlƒ`ƒƒ‚ÆƒpƒCƒvƒ‰ƒCƒ“
+    // ï¿½ï¿½ï¿½[ï¿½gï¿½Vï¿½Oï¿½lï¿½`ï¿½ï¿½ï¿½Æƒpï¿½Cï¿½vï¿½ï¿½ï¿½Cï¿½ï¿½
     ComPtr<ID3D12RootSignature> m_globalRootSignature;
     ComPtr<ID3D12StateObject> m_rtStateObject;
 
-    // ƒAƒNƒZƒ‰ƒŒ[ƒVƒ‡ƒ“\‘¢
+    // ï¿½Aï¿½Nï¿½Zï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½\ï¿½ï¿½
     ComPtr<ID3D12Resource> m_topLevelAS;
     ComPtr<ID3D12Resource> m_topLevelASScratch;
     std::vector<ComPtr<ID3D12Resource>> m_bottomLevelAS;
     std::vector<ComPtr<ID3D12Resource>> m_bottomLevelASScratch;
 
-    // ƒVƒF[ƒ_[ƒe[ƒuƒ‹
+    // ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½eï¿½[ï¿½uï¿½ï¿½
     ComPtr<ID3D12Resource> m_rayGenShaderTable;
     ComPtr<ID3D12Resource> m_missShaderTable;
     ComPtr<ID3D12Resource> m_hitGroupShaderTable;
 
-    // DXCƒRƒ“ƒpƒCƒ‰[ƒCƒ“ƒXƒ^ƒ“ƒX
+    // DXCï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½[ï¿½Cï¿½ï¿½ï¿½Xï¿½^ï¿½ï¿½ï¿½X
     ComPtr<IDxcUtils> m_dxcUtils;
     ComPtr<IDxcCompiler3> m_dxcCompiler;
     ComPtr<IDxcIncludeHandler> m_includeHandler;
 
-    // o—ÍƒŠƒ\[ƒX
+    // ï¿½oï¿½Íƒï¿½ï¿½\ï¿½[ï¿½X
     ComPtr<ID3D12Resource> m_raytracingOutput;
     ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
 
-    // ƒfƒmƒCƒU[—pƒŠƒ\[ƒX
+    // ï¿½fï¿½mï¿½Cï¿½Uï¿½[ï¿½pï¿½ï¿½ï¿½\ï¿½[ï¿½X
     ComPtr<ID3D12PipelineState> m_denoiserPSO;
     ComPtr<ID3D12RootSignature> m_denoiserRootSignature;
     ComPtr<ID3D12Resource> m_denoiserConstants;
     ComPtr<ID3D12DescriptorHeap> m_denoiserDescriptorHeap;
-    // G-Buffer—pƒeƒNƒXƒ`ƒƒ(ƒfƒmƒCƒU[—p)
+    // G-Bufferï¿½pï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½(ï¿½fï¿½mï¿½Cï¿½Uï¿½[ï¿½p)
     ComPtr<ID3D12Resource> m_albedoBuffer;
     ComPtr<ID3D12Resource> m_normalBuffer;
     ComPtr<ID3D12Resource> m_depthBuffer;
     ComPtr<ID3D12Resource> m_denoisedOutput;
+    
+    // **æ™‚é–“çš„è“„ç©ç”¨ãƒ†ã‚¯ã‚¹ãƒãƒ£**
+    ComPtr<ID3D12Resource> m_accumulationBuffer;   // u1: è“„ç©ãƒãƒƒãƒ•ã‚¡
+    ComPtr<ID3D12Resource> m_prevFrameDataBuffer;  // u2: å‰ãƒ•ãƒ¬ãƒ¼ãƒ ãƒ‡ãƒ¼ã‚¿
+    bool m_temporalAccumulationInitialized = false; // åˆæœŸåŒ–ãƒ•ãƒ©ã‚°
+    
+    // **ReSTIR DIç”¨Reservoirãƒãƒƒãƒ•ã‚¡**
+    ComPtr<ID3D12Resource> m_currentReservoirs;    // u6: ç¾åœ¨ãƒ•ãƒ¬ãƒ¼ãƒ ã®Reservoir
+    ComPtr<ID3D12Resource> m_previousReservoirs;   // u7: å‰ãƒ•ãƒ¬ãƒ¼ãƒ ã®Reservoir
+    ComPtr<ID3D12Resource> m_restirUploadBuffer;   // ReSTIRåˆæœŸåŒ–ç”¨ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ãƒãƒƒãƒ•ã‚¡
+    bool m_restirInitialized = false;              // ReSTIRåˆæœŸåŒ–ãƒ•ãƒ©ã‚°
+    
+    // **ReSTIR GIç”¨Reservoirãƒãƒƒãƒ•ã‚¡ï¼ˆå°†æ¥å®Ÿè£…ç”¨ï¼‰**
+    ComPtr<ID3D12Resource> m_currentGIReservoirs;  // u8: ç¾åœ¨ãƒ•ãƒ¬ãƒ¼ãƒ ã®GI Reservoir
+    ComPtr<ID3D12Resource> m_previousGIReservoirs; // u9: å‰ãƒ•ãƒ¬ãƒ¼ãƒ ã®GI Reservoir
+    ComPtr<ID3D12Resource> m_giUploadBuffer;       // ReSTIR GIåˆæœŸåŒ–ç”¨ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ãƒãƒƒãƒ•ã‚¡
+    bool m_restirGIInitialized = false;            // ReSTIR GIåˆæœŸåŒ–ãƒ•ãƒ©ã‚°
 
-    // ƒfƒmƒCƒU[’è”\‘¢‘Ì
+    // ï¿½fï¿½mï¿½Cï¿½Uï¿½[ï¿½è”ï¿½\ï¿½ï¿½ï¿½ï¿½
     struct DenoiserConstants {
         int stepSize;
         float colorSigma;
@@ -123,7 +146,7 @@ private:
         DirectX::XMFLOAT2 padding;
     };
 
-    // ’è”ƒoƒbƒtƒ@
+    // ï¿½è”ï¿½oï¿½bï¿½tï¿½@
     struct SceneConstantBuffer {
         XMMATRIX projectionMatrix;  // 64 bytes
         XMMATRIX viewMatrix;        // 64 bytes
@@ -136,32 +159,41 @@ private:
 
         DirectX::XMFLOAT3 cameraForward;       // 12 bytes  
         float frameCount;                      // 4 bytes
+        
+        uint32_t numLights;                    // 4 bytes
+        uint32_t cameraMovedFlag;              // 4 bytes (ã‚«ãƒ¡ãƒ©å‹•ãæ¤œå‡ºãƒ•ãƒ©ã‚°)
+        float padding[2];                      // 8 bytes (ã‚¢ãƒ©ã‚¤ãƒ¡ãƒ³ãƒˆç”¨)
     };
     ComPtr<ID3D12Resource> m_sceneConstantBuffer;
 
-    // Šeíƒoƒbƒtƒ@
+    // ï¿½eï¿½ï¿½oï¿½bï¿½tï¿½@
     ComPtr<ID3D12Resource> m_materialBuffer;
     ComPtr<ID3D12Resource> m_globalVertexBuffer;
     ComPtr<ID3D12Resource> m_globalIndexBuffer;
     ComPtr<ID3D12Resource> m_instanceOffsetBuffer;
+    
+    // ãƒ©ã‚¤ãƒˆé–¢é€£ãƒãƒƒãƒ•ã‚¡ãƒ¼
+    ComPtr<ID3D12Resource> m_lightBuffer;
+    std::vector<DXRLightData> m_lightData;
+    uint32_t m_numLights = 0;
 
-    // IMGUI•\¦—pSRVƒq[ƒv/‹¤—Lƒq[ƒv“à‚Å©•ª‚ªg‚¤—Ìˆæ‚ÌŠJnƒnƒ“ƒhƒ‹
+    // IMGUIï¿½\ï¿½ï¿½ï¿½pSRVï¿½qï¿½[ï¿½v/ï¿½ï¿½ï¿½Lï¿½qï¿½[ï¿½vï¿½ï¿½ï¿½Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ìˆï¿½ÌŠJï¿½nï¿½nï¿½ï¿½ï¿½hï¿½ï¿½
     CD3DX12_CPU_DESCRIPTOR_HANDLE m_debugSrvHeapStart_CPU;
     CD3DX12_GPU_DESCRIPTOR_HANDLE m_debugSrvHeapStart_GPU;
 
     UINT m_totalVertexCount = 0;
     UINT m_totalIndexCount = 0;
 
-    // ƒVƒF[ƒ_[¯•Êq
+    // ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ï¿½ï¿½Êq
     static const UINT s_shaderIdentifierSize = 32;
     static const UINT s_shaderTableEntrySize = 32;
-    UINT s_hitGroupEntrySize = 32; // “®“I‚Éİ’è
+    UINT s_hitGroupEntrySize = 32; // ï¿½ï¿½ï¿½Iï¿½Éİ’ï¿½
 
-    // ƒfƒBƒƒ“ƒVƒ‡ƒ“
+    // ï¿½fï¿½Bï¿½ï¿½ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½ï¿½
     UINT m_width = 1920;
     UINT m_height = 1080;
 
-    // ƒfƒmƒCƒU[İ’è
+    // ï¿½fï¿½mï¿½Cï¿½Uï¿½[ï¿½İ’ï¿½
     bool m_denoiserEnabled = true;
     int m_denoiserIterations = 3;
     float m_colorSigma = 0.125f;

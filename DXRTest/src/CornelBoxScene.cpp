@@ -5,6 +5,8 @@
 #include "DXRSphere.h"
 #include "Input.h"
 
+#define CAMERA_SPEED 0.01f
+
 void CornelBoxScene::Init() {
     CreateMaterials();
     CreateWalls();
@@ -15,23 +17,23 @@ void CornelBoxScene::Init() {
 void CornelBoxScene::Update() {
     DXRScene::Update();
     if( Input::GetKeyPress(VK_LEFT) )
-        m_cameraData.position.x -= 5.0f;
+        m_cameraData.position.x -= CAMERA_SPEED;
     if ( Input::GetKeyPress(VK_RIGHT) )
-        m_cameraData.position.x += 5.0f;
+        m_cameraData.position.x += CAMERA_SPEED;
     if ( Input::GetKeyPress(VK_UP) )
-        m_cameraData.position.y += 5.0f;
+        m_cameraData.position.y += CAMERA_SPEED;
     if ( Input::GetKeyPress(VK_DOWN) )
-        m_cameraData.position.y -= 5.0f;
+        m_cameraData.position.y -= CAMERA_SPEED;
 
     if(Input::GetKeyPress('W') )
-		m_cameraData.position.z += 5.0f; // ‘Oi
+		m_cameraData.position.z += CAMERA_SPEED; // ï¿½Oï¿½i
 	if ( Input::GetKeyPress('S') )
-		m_cameraData.position.z -= 5.0f; // Œã‘Ş
+		m_cameraData.position.z -= CAMERA_SPEED; // ï¿½ï¿½ï¿½
 
 }
 
 void CornelBoxScene::CreateMaterials() {
-    // ƒV[ƒ“‚ª‚Âƒ†ƒj[ƒN‚Èƒ}ƒeƒŠƒAƒ‹‚ÌƒŠƒXƒg‚ğƒNƒŠƒA
+    // ï¿½Vï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Âƒï¿½ï¿½jï¿½[ï¿½Nï¿½Èƒ}ï¿½eï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Ìƒï¿½ï¿½Xï¿½gï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½A
     m_uniqueMaterials.clear();
 
     DXRMaterialData material;
@@ -53,10 +55,10 @@ void CornelBoxScene::CreateMaterials() {
     material.albedo = { 0.73f, 0.73f, 0.73f };
     material.materialType = 0; // Lambertian
     m_uniqueMaterials.push_back(material);
-
+    
     // Material 3: Light
     material.albedo = { 1.0f, 1.0f, 1.0f };
-    material.emission = { 1.0f, 1.0f, 1.0f };
+    material.emission = { 18.4f, 15.6f, 11.2f }; // ç‰©ç†çš„ã«é©åˆ‡ãªç™ºå…‰å¼·åº¦ï¼ˆW/mÂ²srï¼‰
     material.materialType = 3; // DiffuseLight
     m_uniqueMaterials.push_back(material);
 
@@ -76,57 +78,78 @@ void CornelBoxScene::CreateMaterials() {
 }
 
 void CornelBoxScene::CreateWalls() {
-    // ŠeƒIƒuƒWƒFƒNƒg‚Éƒ}ƒeƒŠƒAƒ‹ƒf[ƒ^‚ğ’¼Ú“n‚·‘ã‚í‚è‚ÉAƒ}ƒeƒŠƒAƒ‹IDiƒŠƒXƒg‚ÌƒCƒ“ƒfƒbƒNƒXj‚ğ“n‚·
-    // ¦AddGameObject‚âDXRBox/Sphere‚ÌƒRƒ“ƒXƒgƒ‰ƒNƒ^‚ªƒ}ƒeƒŠƒAƒ‹ID‚ğó‚¯æ‚ê‚é‚æ‚¤‚ÉC³‚ª•K—v‚Å‚·
+    // ï¿½eï¿½Iï¿½uï¿½Wï¿½Fï¿½Nï¿½gï¿½Éƒ}ï¿½eï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½fï¿½[ï¿½^ï¿½ğ’¼Ú“nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÉAï¿½}ï¿½eï¿½ï¿½ï¿½Aï¿½ï¿½IDï¿½iï¿½ï¿½ï¿½Xï¿½gï¿½ÌƒCï¿½ï¿½ï¿½fï¿½bï¿½Nï¿½Xï¿½jï¿½ï¿½nï¿½ï¿½
+    // ï¿½ï¿½AddGameObjectï¿½ï¿½DXRBox/Sphereï¿½ÌƒRï¿½ï¿½ï¿½Xï¿½gï¿½ï¿½ï¿½Nï¿½^ï¿½ï¿½ï¿½}ï¿½eï¿½ï¿½ï¿½Aï¿½ï¿½IDï¿½ï¿½ï¿½ó‚¯ï¿½ï¿½ï¿½æ‚¤ï¿½ÉCï¿½ï¿½ï¿½ï¿½ï¿½Kï¿½vï¿½Å‚ï¿½
 
-    // ‰E•Çi—ÎAID:1j
-    auto* rightWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), 1);
-    rightWall->SetPosition({ 277.5f, 0.0f, 0.0f });
+    // **ç‰©ç†çš„ã«æ­£ç¢ºãª2mÃ—2m Cornell Boxï¼ˆåºŠã‚’åŸç‚¹åŸºæº–ï¼‰**
+    
+    // å³å£ï¼ˆç·‘ã€ID:1ï¼‰- åšã•0.02m
+    auto* rightWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(0.02f, 2.0f, 2.0f), 1);
+    rightWall->SetPosition({ 0.99f, 1.0f, 0.0f });
 
-    // ¶•ÇiÔAID:0j
-    auto* leftWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(10.0f, 555.0f, 555.0f), 0);
-    leftWall->SetPosition({ -277.5f, 0.0f, 0.0f });
+    // å·¦å£ï¼ˆèµ¤ã€ID:0ï¼‰- åšã•0.02m
+    auto* leftWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(0.02f, 2.0f, 2.0f), 0);
+    leftWall->SetPosition({ -0.99f, 1.0f, 0.0f });
 
-    // ‰œ•Çi”’AID:2j
-    auto* backWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 555.0f, 10.0f), 2);
-    backWall->SetPosition({ 0.0f, 0.0f, 0.0f });
+    // å¥¥å£ï¼ˆç™½ã€ID:2ï¼‰- åšã•0.02m
+    auto* backWall = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(2.0f, 2.0f, 0.02f), 2);
+    backWall->SetPosition({ 0.0f, 1.0f, 1.0f });
 
-    // °i”’AID:2j
-    auto* floor = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), 2);
-    floor->SetPosition({ 0.0f, -277.5f, 0.0f });
+    // åºŠï¼ˆç™½ã€ID:2ï¼‰- åšã•0.02mã€Y=0ãŒåºŠé¢
+    auto* floor = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(2.0f, 0.02f, 2.0f), 2);
+    floor->SetPosition({ 0.0f, 0.0f, 0.0f });
 
-    // “Vˆäi”’AID:2j
-    auto* ceiling = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(555.0f, 10.0f, 555.0f), 2);
-    ceiling->SetPosition({ 0.0f, 277.5f, 0.0f });
+    // å¤©äº•ï¼ˆç™½ã€ID:2ï¼‰- åšã•0.02m
+    auto* ceiling = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(2.0f, 0.02f, 2.0f), 2);
+    ceiling->SetPosition({ 0.0f, 2.0f, 0.0f });
 
-    // “Vˆäƒ‰ƒCƒgiID:3j
-    auto* light = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(130.0f, 5.0f, 105.0f), 3);
-    light->SetPosition({ 0.0f, 267.5f, -100.0f });
+    // å¤©äº•ãƒ©ã‚¤ãƒˆï¼ˆID:3ï¼‰- ç‰©ç†çš„ã«é©åˆ‡ãªã‚µã‚¤ã‚º 0.3mÃ—0.25m
+    auto* light = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(0.47f, 0.01f, 0.38f), 3);
+    light->SetPosition({ 0.0f, 1.98f, 0.0f });
 }
 
 void CornelBoxScene::CreateObjects() {
-    // ƒKƒ‰ƒX‹…iID:5j
+    /*
+    // ï¿½ï¿½ï¿½ï¿½ï¿½{ï¿½bï¿½Nï¿½Xï¿½iID:2ï¿½j
+    auto* shortBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(166.5, 166.5, 166.5), 2);
+    shortBox->SetPosition({ 88.8, 83.25, 102.675 });
+    shortBox->SetRotation({ 0.0f, XMConvertToRadians(-18.0f), 0.0f });
+
+    auto* tallBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(166.5, 333.0, 166.5), 2);
+    tallBox->SetPosition({ -91.575, 166.5, -80.475 });
+    tallBox->SetRotation({ 0.0f, XMConvertToRadians(15.0f), 0.0f });
+    */
+    // **ç‰©ç†çš„ã‚¹ã‚±ãƒ¼ãƒ«ï¼ˆãƒ¡ãƒ¼ãƒˆãƒ«å˜ä½ï¼‰ã®ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ**
+    
+    // çŸ­ã„ãƒœãƒƒã‚¯ã‚¹ - 30cmÃ—30cmÃ—30cm
+    auto* shortBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(0.6f, 0.6f, 0.6f), 2);
+    shortBox->SetPosition({ 0.32f, 0.3f, -0.37f }); // åºŠã‹ã‚‰15cmä¸Š
+    shortBox->SetRotation({ 0.0f, XMConvertToRadians(17.0f), 0.0f });
+
+    // é«˜ã„ãƒœãƒƒã‚¯ã‚¹ - 30cmÃ—60cmÃ—30cm  
+    auto* tallBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(0.6f, 1.2f, 0.6f), 2);
+    tallBox->SetPosition({ -0.3f, 0.6f, 0.3f }); // åºŠã‹ã‚‰30cmä¸Š
+    tallBox->SetRotation({ 0.0f, XMConvertToRadians(-18.0f), 0.0f });
+
+/*
+    // ï¿½Kï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½iID:5ï¿½j
     auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, 5);
     glassSphere->SetPosition({ 0.0f, -142.5f, -250.0f });
 
-    // ƒAƒ‹ƒ~ƒjƒEƒ€‹…iID:4j
+    // ï¿½Aï¿½ï¿½ï¿½~ï¿½jï¿½Eï¿½ï¿½ï¿½ï¿½ï¿½iID:4ï¿½j
     auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, 4);
     aluminumSphere->SetPosition({ 150.0f, -107.5f, -125.0f });
-
-    // ”’‚¢ƒ{ƒbƒNƒXiID:2j
-    auto* whiteBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(165.0f, 330.5f, 165.0f), 2);
-    whiteBox->SetPosition({ -130.0f, -107.5f, -100.0f });
-    whiteBox->SetRotation({ 0.0f, XMConvertToRadians(-15.0f), 0.0f });
+    */
 }
 
 void CornelBoxScene::SetupCamera() {
     CameraData camera;
 
-    // š ƒJƒƒ‰‚ğ’²®F‚à‚¤­‚µ‹ß‚­A‹–ì‚ğL‚­ š
-    camera.position = { 0.0f, 0.0f, -1000.0f };  // Z²‚Å‚à‚¤­‚µ‹ß‚­
-    camera.target = { 0.0f, 0.0f, 0.0f };     // ƒV[ƒ“‚Ì’†S‚ğŒ©‚é
+    // **ç‰©ç†çš„ã‚¹ã‚±ãƒ¼ãƒ«ç”¨ã‚«ãƒ¡ãƒ©è¨­å®šï¼ˆ2m Cornell Boxï¼‰**
+    camera.position = { 0.0f, 1.0f, -3.0f };  // åºŠã‹ã‚‰1mã€æ‰‹å‰0.8m
+    camera.target = { 0.0f, 1.0f, 1.0f };     // éƒ¨å±‹ã®ä¸­å¤®ã‚’æ³¨è¦–
     camera.up = { 0.0f, 1.0f, 0.0f };
-    camera.fov = XMConvertToRadians(60.0f);          // FOV‚ğ60“x‚ÉŠg‘å
+    camera.fov = XMConvertToRadians(60.0f);    // 60åº¦FOVï¼ˆæ¨™æº–ï¼‰
     camera.aspect = static_cast<float>( 1920 ) /
         static_cast<float>( 1080 );
 

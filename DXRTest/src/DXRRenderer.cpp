@@ -41,6 +41,9 @@ void DXRRenderer::Init(Renderer* renderer) {
 
     // 2. 作成されたバッファを使って、ディスクリプタを作成する
     CreateOutputResource();
+    
+    // 2.5. ReSTIRリソースを作成する
+    CreateReSTIRResources();
 
     // 3. シェーダーテーブルを作成する
     CreateShaderTables();
@@ -51,8 +54,8 @@ void DXRRenderer::Init(Renderer* renderer) {
 
     // ★★★ 追加：ImGui用ディスクリプタヒープの作成 ★★★
     D3D12_DESCRIPTOR_HEAP_DESC imguiHeapDesc = {};
-    // 表示したいバッファの数 (u0, u4, G-Buffer(3)) = 5
-    imguiHeapDesc.NumDescriptors = 5;
+    // 表示したいバッファの数 (RenderTarget, AccumulationBuffer, PrevFrameData, G-Buffer(3), DenoiserOutput) = 7
+    imguiHeapDesc.NumDescriptors = 7;
     imguiHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     imguiHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -72,8 +75,8 @@ void DXRRenderer::Init(Renderer* renderer) {
     // ★★★ 追加：デバッグ用ビューの作成 ★★★
     CreateDebugBufferViews();
 
-    // デノイザー設定
-    SetDenoiserEnabled(true);
+    // デノイザー設定（一時的に無効化）
+    SetDenoiserEnabled(false);
     SetDenoiserIterations(3);  // 通常3回で十分
     SetDenoiserParameters(
         0.15f,   // colorSigma: より低い値でエッジを保持
@@ -98,6 +101,11 @@ void DXRRenderer::UnInit() {
     m_rtStateObject.Reset();
     m_globalRootSignature.Reset();
     m_sceneConstantBuffer.Reset();
+    
+    // ライト関連リソースクリーンアップ
+    m_lightBuffer.Reset();
+    m_lightData.clear();
+    m_numLights = 0;
 
     // デノイザーリソースクリーンアップ
     m_denoiserPSO.Reset();
@@ -124,6 +132,35 @@ void DXRRenderer::Render() {
     }
 
     UpdateCamera();
+
+    // **時間的蓄積用テクスチャの初期化（初回のみ）**
+    if (!m_temporalAccumulationInitialized) {
+        // **より安全で効率的な初期化：コンピュートシェーダーを使ってクリア**
+        // ClearUnorderedAccessViewFloatは制約が多いため、代わりに初期状態のままとする
+        // 時間的蓄積の初期フレーム（frameCount=0）で自動的に正しい状態になる
+        
+        // UAVバリアを追加（メモリ同期のため）
+        CD3DX12_RESOURCE_BARRIER barriers[] = {
+            CD3DX12_RESOURCE_BARRIER::UAV(m_accumulationBuffer.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(m_prevFrameDataBuffer.Get())
+        };
+        m_commandList->ResourceBarrier(2, barriers);
+        
+        m_temporalAccumulationInitialized = true;
+        
+        char debugMsg[256];
+        sprintf_s(debugMsg, "Temporal Accumulation buffers initialized (auto-clear on first frame)\n");
+        OutputDebugStringA(debugMsg);
+    }
+    
+    // **ReSTIR DI用バッファの初期化（初回のみ）**
+    if (!m_restirInitialized) {
+        InitializeReSTIRBuffers();
+        
+        char debugMsg[256];
+        sprintf_s(debugMsg, "ReSTIR DI buffers initialized\n");
+        OutputDebugStringA(debugMsg);
+    }
 
     // バックバッファ取得
     auto& renderer = Singleton<Renderer>::getInstance();
@@ -165,7 +202,7 @@ void DXRRenderer::Render() {
     // ★★★ ヒープの先頭を指すベースハンドルを準備 ★★★
     CD3DX12_GPU_DESCRIPTOR_HANDLE tableBaseHandle(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
-    // パラメータ 0: UAVテーブル (u0-u3)
+    // パラメータ 0: UAVテーブル (u0-u8) 
     // ヒープの先頭 (Index 0) から始まるので、オフセットは不要
     m_commandList->SetComputeRootDescriptorTable(0, tableBaseHandle);
 
@@ -175,11 +212,11 @@ void DXRRenderer::Render() {
     // パラメータ 2: 定数バッファ
     m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());
 
-    // パラメータ 3: SRVテーブル (t1-t8)
-    // ★★★ これが正しい設定です ★★★
+    // パラメータ 3: SRVテーブル (t1-t9) ライトバッファー追加
+    // ★★★ 9個のUAV後からSRVが開始 ★★★
     CD3DX12_GPU_DESCRIPTOR_HANDLE srvTableHandle = tableBaseHandle;
-    // t1 のディスクリプタまで4つ分 (u0, u1, u2, u3) 進める
-    srvTableHandle.Offset(5, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    // t1 のディスクリプタまで9つ分 (u0-u8) 進める
+    srvTableHandle.Offset(9, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
     m_commandList->SetComputeRootDescriptorTable(3, srvTableHandle);
     // レイトレーシング実行
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
@@ -190,9 +227,45 @@ void DXRRenderer::Render() {
         CD3DX12_RESOURCE_BARRIER::UAV(m_raytracingOutput.Get()),
         CD3DX12_RESOURCE_BARRIER::UAV(m_albedoBuffer.Get()),
         CD3DX12_RESOURCE_BARRIER::UAV(m_normalBuffer.Get()),
-        CD3DX12_RESOURCE_BARRIER::UAV(m_depthBuffer.Get())
+        CD3DX12_RESOURCE_BARRIER::UAV(m_depthBuffer.Get()),
+        CD3DX12_RESOURCE_BARRIER::UAV(m_currentReservoirs.Get()),
+        CD3DX12_RESOURCE_BARRIER::UAV(m_previousReservoirs.Get())
     };
     m_commandList->ResourceBarrier(static_cast<UINT>( uavBarriers.size() ), uavBarriers.data());
+    
+    // **ReSTIR Reservoirバッファのスワップ（時間的再利用準備）**
+    // コピー用のリソースバリア
+    std::vector<CD3DX12_RESOURCE_BARRIER> copyBarriers = {
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_currentReservoirs.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_SOURCE
+        ),
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_previousReservoirs.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_DEST
+        )
+    };
+    m_commandList->ResourceBarrier(static_cast<UINT>(copyBarriers.size()), copyBarriers.data());
+    
+    // 現在フレームのReservoirを次フレームの前フレームReservoirにコピー
+    m_commandList->CopyResource(m_previousReservoirs.Get(), m_currentReservoirs.Get());
+    
+    // UAVに戻すリソースバリア
+    std::vector<CD3DX12_RESOURCE_BARRIER> restoreBarriers = {
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_currentReservoirs.Get(),
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+        ),
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_previousReservoirs.Get(),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+        )
+    };
+    m_commandList->ResourceBarrier(static_cast<UINT>(restoreBarriers.size()), restoreBarriers.data());
 
     if ( m_denoiserEnabled ) {
         // --- デノイザーが有効な場合の処理 ---
@@ -250,11 +323,13 @@ void DXRRenderer::Render() {
 
 void DXRRenderer::RenderDXRIMGUI() {
 
-    // === 1. ImGuiで表示するリソースをSRV状態へ遷移 (この部分は変更なし) ===
+    // === 1. ImGuiで表示するリソースをSRV状態へ遷移 ===
     std::vector<CD3DX12_RESOURCE_BARRIER> barriers;
 
-    // 表示するリソースは「常に」遷移させる
+    // 表示するリソースを遷移させる（時間的蓄積バッファを追加）
     barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+    barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_accumulationBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+    barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_prevFrameDataBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
     barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_albedoBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
     barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
     barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_depthBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
@@ -390,67 +465,88 @@ void DXRRenderer::RenderDXRIMGUI() {
 
     ImGui::End();
 
-    // === ★★★ 2. ImGuiウィンドウの描画 (ここから表示順を修正) ★★★ ===
-    ImGui::Begin("DXR Debug Buffers");
+    // === ★★★ 2. 時間的蓄積デバッグウィンドウ ★★★ ===
+    ImGui::Begin("Temporal Accumulation Debug");
 
     UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     CD3DX12_GPU_DESCRIPTOR_HANDLE baseGpuHandle = m_debugSrvHeapStart_GPU;
-    ImVec2 imageSize(m_width / 2.0f, m_height / 2.0f);
-    const int padding = 15;
+    ImVec2 imageSize(m_width / 3.0f, m_height / 3.0f);
 
-    // --- デノイズ前後の比較 ---
-    ImGui::Text("--- Denoise Comparison ---");
+    // --- 時間的蓄積関連バッファ ---
+    ImGui::Text("--- Temporal Accumulation ---");
 
-    // 1. ノイズあり画像 (u0) を表示
-    CD3DX12_GPU_DESCRIPTOR_HANDLE noisyHandle = baseGpuHandle;
-    ImGui::Text("Noisy Input (u0)");
-    ImGui::SameLine(imageSize.x + padding); // 横に並べる
-    ImGui::Text("Denoised Output (u4)");
+    // 1. 最終レンダー結果 (u0) - 時間的蓄積済み
+    CD3DX12_GPU_DESCRIPTOR_HANDLE renderTargetHandle = baseGpuHandle;
+    ImGui::Text("Final Output (u0) - Temporal Accumulated");
+    ImGui::Image((ImTextureID)renderTargetHandle.ptr, imageSize);
 
-    ImGui::Image((ImTextureID)noisyHandle.ptr, imageSize);
+    ImGui::Separator();
 
-    ImGui::SameLine(); // 横に並べる
+    // 2. 内部蓄積バッファ (u1)
+    CD3DX12_GPU_DESCRIPTOR_HANDLE accumulationHandle = baseGpuHandle;
+    accumulationHandle.Offset(1, descriptorSize);
+    ImGui::Text("Accumulation Buffer (u1)");
+    ImGui::Image((ImTextureID)accumulationHandle.ptr, imageSize);
 
-    // 2. デノイズ済み画像 (u4) を表示
-    CD3DX12_GPU_DESCRIPTOR_HANDLE denoisedHandle = baseGpuHandle;
-    denoisedHandle.Offset(4, descriptorSize); // u4は5番目なのでオフセットは4
+    ImGui::Separator();
 
-    if ( m_denoiserEnabled ) {
-        ImGui::Image((ImTextureID)denoisedHandle.ptr, imageSize);
-    }
-    else {
-        ImGui::Text("Disabled");
-    }
+    // 3. 前フレームデータ (u2) - 動き検出用
+    CD3DX12_GPU_DESCRIPTOR_HANDLE prevFrameHandle = baseGpuHandle;
+    prevFrameHandle.Offset(2, descriptorSize);
+    ImGui::Text("Prev Frame Data (u2)");
+    ImGui::Image((ImTextureID)prevFrameHandle.ptr, imageSize);
 
-    ImGui::Separator(); // 区切り線
+    ImGui::Separator();
 
-    // --- その他のG-Buffer ---
+    // --- G-Buffer ---
     ImGui::Text("--- G-Buffers ---");
 
-    // 3. Albedo G-Buffer (t5) を表示
+    // 4. Albedo G-Buffer (u3)
     CD3DX12_GPU_DESCRIPTOR_HANDLE albedoHandle = baseGpuHandle;
-    albedoHandle.Offset(1, descriptorSize); // t5は2番目なのでオフセットは1
-    ImGui::Text("Albedo (t5)");
+    albedoHandle.Offset(3, descriptorSize);
+    ImGui::Text("Albedo (u3)");
     ImGui::Image((ImTextureID)albedoHandle.ptr, imageSize);
 
-    // 4. Normal G-Buffer (t6) を表示
+    ImGui::Separator();
+
+    // 5. Normal G-Buffer (u4)
     CD3DX12_GPU_DESCRIPTOR_HANDLE normalHandle = baseGpuHandle;
-    normalHandle.Offset(2, descriptorSize); // t6は3番目なのでオフセットは2
-    ImGui::Text("Normal (t6)");
+    normalHandle.Offset(4, descriptorSize);
+    ImGui::Text("Normal (u4)");
     ImGui::Image((ImTextureID)normalHandle.ptr, imageSize);
 
-    // 5. Depth G-Buffer (t7) を表示
+    ImGui::Separator();
+
+    // 6. Depth G-Buffer (u5)
     CD3DX12_GPU_DESCRIPTOR_HANDLE depthHandle = baseGpuHandle;
-    depthHandle.Offset(3, descriptorSize); // t7は4番目なのでオフセットは3
-    ImGui::Text("Depth (t7)");
+    depthHandle.Offset(5, descriptorSize);
+    ImGui::Text("Depth (u5)");
     ImGui::Image((ImTextureID)depthHandle.ptr, imageSize);
+
+    ImGui::Separator();
+
+    // --- デノイザー出力 ---
+    ImGui::Text("--- Denoiser ---");
+
+    // 7. デノイズ済み出力 (u6)
+    CD3DX12_GPU_DESCRIPTOR_HANDLE denoisedHandle = baseGpuHandle;
+    denoisedHandle.Offset(6, descriptorSize);
+    if ( m_denoiserEnabled ) {
+        ImGui::Text("Denoised Output (u6)");
+        ImGui::Image((ImTextureID)denoisedHandle.ptr, imageSize);
+    } else {
+        ImGui::Text("Denoiser Disabled");
+    }
 
     ImGui::End();
 
-    // === 3. 状態を元に戻す (この部分は変更なし) ===
+    // === 3. 状態を元に戻す ===
     std::vector<CD3DX12_RESOURCE_BARRIER> restoreBarriers;
 
+    // 時間的蓄積バッファを含むすべてのリソースを元に戻す
     restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+    restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_accumulationBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+    restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_prevFrameDataBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
     restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_albedoBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
     restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_normalBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
     restoreBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(m_depthBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
@@ -478,11 +574,11 @@ void DXRRenderer::CreateRootSignature() {
     // グローバルルートシグネチャ作成（G-Buffer + Denoiser対応）
     CD3DX12_DESCRIPTOR_RANGE descriptorRanges[2];
 
-    // UAV レンジ（出力テクスチャ + G-Buffer）
-    descriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 5, 0);  // u0-u3: RenderTarget, Albedo, Normal, Depth
+    // UAV レンジ（出力テクスチャ + 時間的蓄積 + G-Buffer + ダミー + ReSTIR DI）
+    descriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 9, 0);  // u0-u8: RenderTarget, AccumulationBuffer, PrevFrameData, Albedo, Normal, Depth, Dummy, CurrentReservoirs, PreviousReservoirs
 
-    // SRV レンジ（マテリアル、頂点、インデックス、オフセットバッファ + G-Buffer読み取り用）
-    descriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8, 1);  // t1-t8: Materials, Vertex, Index, Offset + G-Buffer
+    // SRV レンジ（マテリアル、頂点、インデックス、オフセット、ライトバッファ + G-Buffer読み取り用）
+    descriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 9, 1);  // t1-t9: Materials, Vertex, Index, Offset, Lights + G-Buffer
 
     CD3DX12_ROOT_PARAMETER rootParameters[5];  // 4 → 5に拡張
     rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0]);  // 出力UAV + G-Buffer UAV
@@ -511,7 +607,7 @@ void DXRRenderer::CreateRootSignature() {
     }
 
     char debugMsg[256];
-    sprintf_s(debugMsg, "Global root signature created with denoiser support (5 parameters)\n");
+    sprintf_s(debugMsg, "Global root signature created with temporal accumulation + denoiser support (5 parameters, 7 UAVs)\n");
     OutputDebugStringA(debugMsg);
 }
 
@@ -770,6 +866,47 @@ void DXRRenderer::UpdateCamera() {
     // フレームカウント（アニメーション等で使用可能）
     static uint32_t frameCounter = 0;
     sceneConstants.frameCount = static_cast<float>( frameCounter++ );
+    
+    // **カメラ動き検出システム**
+    static XMFLOAT3 prevCameraPos = { 0.0f, 0.0f, 0.0f };
+    static XMFLOAT4X4 prevViewMatrix = {};
+    static bool firstFrame = true;
+    
+    bool cameraMoved = false;
+    if (!firstFrame) {
+        // 位置の変化をチェック
+        float positionDelta = sqrtf(
+            powf(cameraData.position.x - prevCameraPos.x, 2) +
+            powf(cameraData.position.y - prevCameraPos.y, 2) +
+            powf(cameraData.position.z - prevCameraPos.z, 2)
+        );
+        
+        // 姿勢の変化をチェック（ビュー行列の比較）
+        XMFLOAT4X4 currentViewMatrix;
+        XMStoreFloat4x4(&currentViewMatrix, viewMatrix);
+        
+        float matrixDelta = 0.0f;
+        for (int i = 0; i < 16; i++) {
+            float diff = reinterpret_cast<float*>(&currentViewMatrix)[i] - reinterpret_cast<float*>(&prevViewMatrix)[i];
+            matrixDelta += diff * diff;
+        }
+        matrixDelta = sqrtf(matrixDelta);
+        
+        // しきい値を超えた場合は動きありと判定
+        const float POSITION_THRESHOLD = 0.01f; // 1cm
+        const float MATRIX_THRESHOLD = 0.001f;   // 微細な姿勢変化
+        
+        cameraMoved = (positionDelta > POSITION_THRESHOLD) || (matrixDelta > MATRIX_THRESHOLD);
+    }
+    
+    // 前フレーム情報を保存
+    prevCameraPos = cameraData.position;
+    XMStoreFloat4x4(&prevViewMatrix, viewMatrix);  // XMMATRIX → XMFLOAT4X4 変換
+    firstFrame = false;
+    
+    // ライト数を設定
+    sceneConstants.numLights = m_numLights;
+    sceneConstants.cameraMovedFlag = cameraMoved ? 1u : 0u;
 
     // 定数バッファ更新
     void* mappedData;
@@ -1116,6 +1253,9 @@ void DXRRenderer::CreateTLAS(TLASData& tlasData) {
 
     // ∴∴∴ マテリアルバッファ作成 ∴∴∴
     CreateMaterialBuffer(tlasData);
+    
+    // ∴∴∴ ライトバッファ作成 ∴∴∴
+    CreateLightBuffer(tlasData);
 
     // ∴∴∴ 頂点・インデックスバッファ作成 ∴∴∴
     CreateVertexIndexBuffers(tlasData);
@@ -1495,31 +1635,42 @@ void DXRRenderer::CreateDebugBufferViews() {
     // ★★★ 修正：確保した開始ハンドルを使う ★★★
     CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_debugSrvHeapStart_CPU;
 
-    // 1. レイトレ出力 (ノイズあり) (u0)
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
+
+    // 1. レイトレ出力 (時間的蓄積済み) (u0)
     srvDesc.Format = m_raytracingOutput->GetDesc().Format;
     m_device->CreateShaderResourceView(m_raytracingOutput.Get(), &srvDesc, cpuHandle);
     cpuHandle.Offset(1, descriptorSize);
 
-    // 2. アルベド G-Buffer (t5)
+    // 2. 蓄積バッファ (u1) - 内部蓄積状態
+    srvDesc.Format = m_accumulationBuffer->GetDesc().Format;
+    m_device->CreateShaderResourceView(m_accumulationBuffer.Get(), &srvDesc, cpuHandle);
+    cpuHandle.Offset(1, descriptorSize);
+
+    // 3. 前フレームデータ (u2) - 動き検出用
+    srvDesc.Format = m_prevFrameDataBuffer->GetDesc().Format;
+    m_device->CreateShaderResourceView(m_prevFrameDataBuffer.Get(), &srvDesc, cpuHandle);
+    cpuHandle.Offset(1, descriptorSize);
+
+    // 4. アルベド G-Buffer (u3)
     srvDesc.Format = m_albedoBuffer->GetDesc().Format;
     m_device->CreateShaderResourceView(m_albedoBuffer.Get(), &srvDesc, cpuHandle);
     cpuHandle.Offset(1, descriptorSize);
 
-    // 3. 法線 G-Buffer (t6)
+    // 5. 法線 G-Buffer (u4)
     srvDesc.Format = m_normalBuffer->GetDesc().Format;
     m_device->CreateShaderResourceView(m_normalBuffer.Get(), &srvDesc, cpuHandle);
     cpuHandle.Offset(1, descriptorSize);
 
-    // 4. 深度 G-Buffer (t7)
+    // 6. 深度 G-Buffer (u5)
     srvDesc.Format = m_depthBuffer->GetDesc().Format;
     m_device->CreateShaderResourceView(m_depthBuffer.Get(), &srvDesc, cpuHandle);
     cpuHandle.Offset(1, descriptorSize);
 
-    // 5. デノイズ済み出力 (u4)
+    // 7. デノイズ済み出力 (u6)
     srvDesc.Format = m_denoisedOutput->GetDesc().Format;
     m_device->CreateShaderResourceView(m_denoisedOutput.Get(), &srvDesc, cpuHandle);
 }
@@ -1579,7 +1730,7 @@ ID3D12Resource* DXRRenderer::RunDenoiser() {
     m_commandList->SetComputeRootShaderResourceView(1, m_topLevelAS->GetGPUVirtualAddress());
     m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());
     CD3DX12_GPU_DESCRIPTOR_HANDLE srvTableHandle = tableBaseHandle;
-    srvTableHandle.Offset(5, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    srvTableHandle.Offset(9, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
     m_commandList->SetComputeRootDescriptorTable(3, srvTableHandle);
 
     // --- ★★★ ここからが新しい状態管理ロジック ★★★ ---
@@ -1824,6 +1975,17 @@ void DXRRenderer::CreateOutputResource() {
         IID_PPV_ARGS(&m_raytracingOutput));
     if ( FAILED(hr) ) throw std::runtime_error("Failed to create raytracing output resource");
 
+    // **時間的蓄積用テクスチャ作成**
+    CD3DX12_RESOURCE_DESC accumulationDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+        DXGI_FORMAT_R32G32B32A32_FLOAT, m_width, m_height, 1, 1, 1, 0,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+    hr = m_device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &accumulationDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&m_accumulationBuffer));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create accumulation buffer");
+    
+    hr = m_device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &accumulationDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&m_prevFrameDataBuffer));
+    if ( FAILED(hr) ) throw std::runtime_error("Failed to create prev frame data buffer");
+
     // G-Buffer用テクスチャ作成
     CD3DX12_RESOURCE_DESC gbufferDesc = CD3DX12_RESOURCE_DESC::Tex2D(
         DXGI_FORMAT_R32G32B32A32_FLOAT, m_width, m_height, 1, 1, 1, 0,
@@ -1840,9 +2002,9 @@ void DXRRenderer::CreateOutputResource() {
     hr = m_device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &outputResourceDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&m_denoisedOutput));
     if ( FAILED(hr) ) throw std::runtime_error("Failed to create denoised output");
 
-    // === ディスクリプタヒープ作成 (ここは変更なし) ===
+    // === ディスクリプタヒープ作成 (ReSTIR DI用バッファ追加で18に増加) ===
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    descriptorHeapDesc.NumDescriptors = 13;  // UAV(4) + SRV(8)
+    descriptorHeapDesc.NumDescriptors = 18;  // UAV(9) + SRV(9) ReSTIR DI用バッファ追加（ダミーu6含む）
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     hr = m_device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&m_descriptorHeap));
@@ -1852,7 +2014,7 @@ void DXRRenderer::CreateOutputResource() {
     UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     CD3DX12_CPU_DESCRIPTOR_HANDLE handle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-    // --- UAV ディスクリプタ作成 (Index 0-3) ---
+    // --- UAV ディスクリプタ作成 (Index 0-5) ---
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 
@@ -1861,26 +2023,39 @@ void DXRRenderer::CreateOutputResource() {
     m_device->CreateUnorderedAccessView(m_raytracingOutput.Get(), nullptr, &uavDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 1: u1 (Albedo)
+    // Index 1: u1 (AccumulationBuffer) - 時間的蓄積用
     uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    m_device->CreateUnorderedAccessView(m_accumulationBuffer.Get(), nullptr, &uavDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 2: u2 (PrevFrameData) - 前フレームデータ
+    m_device->CreateUnorderedAccessView(m_prevFrameDataBuffer.Get(), nullptr, &uavDesc, handle);
+    handle.Offset(1, descriptorSize);
+
+    // Index 3: u3 (Albedo) - G-Buffer (旧u1から移動)
     m_device->CreateUnorderedAccessView(m_albedoBuffer.Get(), nullptr, &uavDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 2: u2 (Normal)
+    // Index 4: u4 (Normal) - G-Buffer (旧u2から移動)
     m_device->CreateUnorderedAccessView(m_normalBuffer.Get(), nullptr, &uavDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 3: u3 (Depth)
+    // Index 5: u5 (Depth) - G-Buffer (旧u3から移動)
     m_device->CreateUnorderedAccessView(m_depthBuffer.Get(), nullptr, &uavDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 4: u4 (DenoiserOutput)
-    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // m_denoisedOutputのフォーマット
-    m_device->CreateUnorderedAccessView(m_denoisedOutput.Get(), nullptr, &uavDesc, handle);
-    handle.Offset(1, descriptorSize); // これで handle は Index 5 (t1の場所) を指す
+    // Index 6: u6 (ダミーUAV) - 連続レンジのため必須
+    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    m_device->CreateUnorderedAccessView(m_raytracingOutput.Get(), nullptr, &uavDesc, handle); // ダミーとしてRenderTargetを再利用
+    handle.Offset(1, descriptorSize);
 
-    // --- SRV ディスクリプタ作成 (Index 4-11) ---
-    // この時点で handle は Index 4 を指している
+    // Index 7: u7 (CurrentReservoirs) - ReSTIR DI用 (CreateReSTIRResourcesで作成)
+    // Index 8: u8 (PreviousReservoirs) - ReSTIR DI用 (CreateReSTIRResourcesで作成)  
+    // これらはCreateReSTIRResources()で個別に作成される（但しu6の後ろにずれる）
+    handle.Offset(2, descriptorSize); // ReSTIR DIバッファ分をスキップ
+
+    // --- SRV ディスクリプタ作成 (Index 9-17) ---
+    // この時点で handle は Index 9 を指している
 
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
@@ -1888,7 +2063,7 @@ void DXRRenderer::CreateOutputResource() {
     const auto& materials = dxrScene->GetUniqueMaterials();
     TLASData tlasData = dxrScene->GetTLASData();
 
-    // Index 4: t1 (Materials)
+    // Index 9: t1 (Materials)
     if ( m_materialBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -1901,7 +2076,7 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 5: t2 (Vertex)
+    // Index 10: t2 (Vertex)
     if ( m_globalVertexBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -1914,7 +2089,7 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 6: t3 (Index)
+    // Index 11: t3 (Index)
     if ( m_globalIndexBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_R32_UINT;
@@ -1926,7 +2101,7 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 7: t4 (InstanceOffset)
+    // Index 12: t4 (InstanceOffset)
     if ( m_instanceOffsetBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -1939,7 +2114,20 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 8: t5 (G-Buffer Albedo)
+    // Index 13: t5 (LightBuffer) - ライトバッファー追加
+    if (m_lightBuffer && m_numLights > 0) {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements = m_numLights;
+        srvDesc.Buffer.StructureByteStride = sizeof(DXRLightData);
+        m_device->CreateShaderResourceView(m_lightBuffer.Get(), &srvDesc, handle);
+    }
+    handle.Offset(1, descriptorSize);
+
+    // Index 14: t6 (G-Buffer Albedo)
     D3D12_SHADER_RESOURCE_VIEW_DESC gbufferSrvDesc = {};
     gbufferSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     gbufferSrvDesc.Texture2D.MipLevels = 1;
@@ -1948,15 +2136,15 @@ void DXRRenderer::CreateOutputResource() {
     m_device->CreateShaderResourceView(m_albedoBuffer.Get(), &gbufferSrvDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 9: t6 (G-Buffer Normal)
+    // Index 15: t7 (G-Buffer Normal)
     m_device->CreateShaderResourceView(m_normalBuffer.Get(), &gbufferSrvDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 10: t7 (G-Buffer Depth)
+    // Index 16: t8 (G-Buffer Depth)
     m_device->CreateShaderResourceView(m_depthBuffer.Get(), &gbufferSrvDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 11: t8 (予約) - 何も作成しない (空き)
+    // Index 17: t9 (予約) - 何も作成しない (空き)
     // handle.Offset(1, descriptorSize);
 
     // === シーン定数バッファ作成 (ここは変更なし) ===
@@ -2007,6 +2195,131 @@ void DXRRenderer::CreateMaterialBuffer(const TLASData& tlasData) {
         sprintf_s(debugMsg, "Material buffer created: %zu materials, size: %u bytes\n",
             materials.size(), materialBufferSize);
         OutputDebugStringA(debugMsg);
+    }
+}
+
+void DXRRenderer::CollectLightsFromScene(const TLASData& tlasData) {
+    if (tlasData.blasDataList.empty()) return;
+
+    // シーンからユニークマテリアルのリストを取得
+    auto& gameManager = Singleton<GameManager>::getInstance();
+    DXRScene* dxrScene = dynamic_cast<DXRScene*>(gameManager.GetScene().get());
+    if (!dxrScene) return;
+
+    const auto& materials = dxrScene->GetUniqueMaterials();
+    if (materials.empty()) return;
+
+    m_lightData.clear();
+    
+    // 各BLASDataをチェックしてライトマテリアル（タイプ3）を探す
+    for (size_t instanceIdx = 0; instanceIdx < tlasData.blasDataList.size(); ++instanceIdx) {
+        const auto& blasData = tlasData.blasDataList[instanceIdx];
+        
+        // マテリアルIDが有効範囲内かチェック
+        if (blasData.materialID < materials.size()) {
+            const auto& material = materials[blasData.materialID];
+            
+            // DiffuseLight（タイプ3）の場合のみライトとして登録
+            if (material.materialType == 3) {
+                DXRLightData lightData = {};
+                
+                // 変換行列から位置を取得
+                XMFLOAT3 position;
+                XMStoreFloat3(&position, blasData.transform.r[3]);
+                lightData.position = position;
+                
+                // 放射輝度を設定
+                lightData.emission = material.emission;
+                
+                // BLASの頂点データからサイズを計算（簡易版：AABBベース）
+                if (!blasData.vertices.empty()) {
+                    XMFLOAT3 minPos = blasData.vertices[0].position;
+                    XMFLOAT3 maxPos = blasData.vertices[0].position;
+                    
+                    for (const auto& vertex : blasData.vertices) {
+                        minPos.x = min(minPos.x, vertex.position.x);
+                        minPos.y = min(minPos.y, vertex.position.y);
+                        minPos.z = min(minPos.z, vertex.position.z);
+                        maxPos.x = max(maxPos.x, vertex.position.x);
+                        maxPos.y = max(maxPos.y, vertex.position.y);
+                        maxPos.z = max(maxPos.z, vertex.position.z);
+                    }
+                    
+                    lightData.size = XMFLOAT3(
+                        maxPos.x - minPos.x,
+                        maxPos.y - minPos.y,
+                        maxPos.z - minPos.z
+                    );
+                    
+                    // エリアライトの面積を計算（XZ平面を仮定）
+                    lightData.area = lightData.size.x * lightData.size.z;
+                    
+                    // 法線はY軸下向きを仮定（Cornell Boxライト）
+                    lightData.normal = XMFLOAT3(0.0f, -1.0f, 0.0f);
+                } else {
+                    // デフォルト値を設定
+                    lightData.size = XMFLOAT3(1.0f, 1.0f, 1.0f);
+                    lightData.area = 1.0f;
+                    lightData.normal = XMFLOAT3(0.0f, -1.0f, 0.0f);
+                }
+                
+                lightData.lightType = 0; // エリアライト
+                lightData.instanceID = static_cast<uint32_t>(instanceIdx);
+                
+                m_lightData.push_back(lightData);
+                
+                char debugMsg[256];
+                sprintf_s(debugMsg, "Light found: Instance %zu, Position(%.2f, %.2f, %.2f), Emission(%.2f, %.2f, %.2f)\n",
+                    instanceIdx, position.x, position.y, position.z,
+                    material.emission.x, material.emission.y, material.emission.z);
+                OutputDebugStringA(debugMsg);
+            }
+        }
+    }
+    
+    m_numLights = static_cast<uint32_t>(m_lightData.size());
+    
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Total lights collected: %u\n", m_numLights);
+    OutputDebugStringA(debugMsg);
+}
+
+void DXRRenderer::CreateLightBuffer(const TLASData& tlasData) {
+    // まずライトを収集
+    CollectLightsFromScene(tlasData);
+    
+    if (m_lightData.empty()) {
+        OutputDebugStringA("No lights found in scene\n");
+        return;
+    }
+
+    // ライトバッファ作成
+    UINT lightBufferSize = static_cast<UINT>(m_lightData.size() * sizeof(DXRLightData));
+
+    CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC lightBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(lightBufferSize);
+
+    HRESULT hr = m_device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &lightBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&m_lightBuffer)
+    );
+
+    if (SUCCEEDED(hr)) {
+        void* mappedData;
+        m_lightBuffer->Map(0, nullptr, &mappedData);
+        memcpy(mappedData, m_lightData.data(), lightBufferSize);
+        m_lightBuffer->Unmap(0, nullptr);
+
+        char debugMsg[256];
+        sprintf_s(debugMsg, "Light buffer created: %zu lights, size: %u bytes\n",
+            m_lightData.size(), lightBufferSize);
+        OutputDebugStringA(debugMsg);
+    } else {
+        OutputDebugStringA("Failed to create light buffer\n");
     }
 }
 
@@ -2147,7 +2460,22 @@ void DXRRenderer::CreateShaderTables() {
 
         // ★ マテリアルタイプに応じてシェーダーIDを選択
         void* shaderID = nullptr;
-        switch ( tlasData.blasDataList[i].material.materialType ) {
+        
+        // マテリアルIDからマテリアルタイプを取得
+        uint32_t materialID = tlasData.blasDataList[i].materialID;
+        int materialType = 0; // デフォルト：Lambertian
+        
+        // シーンからマテリアル情報を取得
+        auto& gameManager = Singleton<GameManager>::getInstance();
+        DXRScene* dxrScene = dynamic_cast<DXRScene*>(gameManager.GetScene().get());
+        if (dxrScene) {
+            const auto& materials = dxrScene->GetUniqueMaterials();
+            if (materialID < materials.size()) {
+                materialType = materials[materialID].materialType;
+            }
+        }
+        
+        switch ( materialType ) {
             case 0: shaderID = lambertianHitGroupID; break;   // Lambertian
             case 1: shaderID = metalHitGroupID; break;        // Metal
             case 2: shaderID = dielectricHitGroupID; break;   // Dielectric
@@ -2161,4 +2489,171 @@ void DXRRenderer::CreateShaderTables() {
     m_hitGroupShaderTable->Unmap(0, nullptr);
     s_hitGroupEntrySize = hitGroupEntrySize;
     */
+}
+
+// **ReSTIR DI関連実装**
+
+void DXRRenderer::CreateReSTIRResources() {
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Creating ReSTIR resources for resolution %ux%u\n", m_width, m_height);
+    OutputDebugStringA(debugMsg);
+
+    // Reservoirバッファのサイズ計算（各ピクセルに1つのReservoir）
+    UINT reservoirCount = m_width * m_height;
+    UINT reservoirBufferSize = reservoirCount * sizeof(LightReservoir);
+
+    // LightReservoir構造体のサイズ確認（DXRData.hの定義と一致）
+    static_assert(sizeof(::LightReservoir) == 52, "LightReservoir size must be 52 bytes");
+
+    sprintf_s(debugMsg, "Reservoir buffer size: %u bytes (%u reservoirs)\n", reservoirBufferSize, reservoirCount);
+    OutputDebugStringA(debugMsg);
+
+    // ヒーププロパティ設定
+    CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+    // Current Reservoirバッファ作成
+    CD3DX12_RESOURCE_DESC currentReservoirDesc = CD3DX12_RESOURCE_DESC::Buffer(
+        reservoirBufferSize,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+    );
+
+    HRESULT hr = m_device->CreateCommittedResource(
+        &defaultHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &currentReservoirDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nullptr,
+        IID_PPV_ARGS(&m_currentReservoirs)
+    );
+
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Current Reservoir buffer");
+    }
+
+    m_currentReservoirs->SetName(L"Current ReSTIR Reservoirs");
+
+    // Previous Reservoirバッファ作成
+    hr = m_device->CreateCommittedResource(
+        &defaultHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &currentReservoirDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nullptr,
+        IID_PPV_ARGS(&m_previousReservoirs)
+    );
+
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Previous Reservoir buffer");
+    }
+
+    m_previousReservoirs->SetName(L"Previous ReSTIR Reservoirs");
+
+    // ディスクリプタヒープに追加（既存のm_descriptorHeapを使用）
+    CD3DX12_CPU_DESCRIPTOR_HANDLE currentHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+        m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+        7, // u7 slot (ReSTIR Current Reservoirs) - u6はダミー
+        m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+    );
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE previousHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+        m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+        8, // u8 slot (ReSTIR Previous Reservoirs)
+        m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+    );
+
+    // UAVディスクリプタ作成
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    uavDesc.Buffer.FirstElement = 0;
+    uavDesc.Buffer.NumElements = reservoirCount;
+    uavDesc.Buffer.StructureByteStride = sizeof(::LightReservoir);
+
+    m_device->CreateUnorderedAccessView(
+        m_currentReservoirs.Get(),
+        nullptr,
+        &uavDesc,
+        currentHandle
+    );
+
+    m_device->CreateUnorderedAccessView(
+        m_previousReservoirs.Get(),
+        nullptr,
+        &uavDesc,
+        previousHandle
+    );
+
+    OutputDebugStringA("ReSTIR resources created successfully\n");
+}
+
+void DXRRenderer::InitializeReSTIRBuffers() {
+    if (m_restirInitialized) return;
+
+    // バッファを0で初期化
+    UINT reservoirCount = m_width * m_height;
+    UINT bufferSize = reservoirCount * sizeof(::LightReservoir);
+
+    // 初期化用のアップロードリソース作成
+    CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC uploadDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+
+    HRESULT hr = m_device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &uploadDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&m_restirUploadBuffer)
+    );
+
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create ReSTIR upload buffer");
+    }
+
+    // バッファを0で初期化
+    void* mappedData;
+    hr = m_restirUploadBuffer->Map(0, nullptr, &mappedData);
+    if (SUCCEEDED(hr)) {
+        memset(mappedData, 0, bufferSize);
+        m_restirUploadBuffer->Unmap(0, nullptr);
+    }
+
+    // リソースバリア（コピー先準備）
+    CD3DX12_RESOURCE_BARRIER copyBarriers[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_currentReservoirs.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_DEST
+        ),
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_previousReservoirs.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_DEST
+        )
+    };
+
+    m_commandList->ResourceBarrier(2, copyBarriers);
+
+    // コピー実行
+    m_commandList->CopyResource(m_currentReservoirs.Get(), m_restirUploadBuffer.Get());
+    m_commandList->CopyResource(m_previousReservoirs.Get(), m_restirUploadBuffer.Get());
+
+    // リソースバリア（UAVに戻す）
+    CD3DX12_RESOURCE_BARRIER uavBarriers[] = {
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_currentReservoirs.Get(),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+        ),
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_previousReservoirs.Get(),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+        )
+    };
+
+    m_commandList->ResourceBarrier(2, uavBarriers);
+
+    m_restirInitialized = true;
+    OutputDebugStringA("ReSTIR buffers initialized\n");
 }

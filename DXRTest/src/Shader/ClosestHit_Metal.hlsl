@@ -1,24 +1,24 @@
-// ===== ClosestHit_Metal.hlsl ‚ÌC³ =====
+// ===== ClosestHit_Metal.hlsl NEE+MISå¯¾å¿œç‰ˆ =====
 #include "Common.hlsli"
 
-// MetalŞ¿—pBRDFƒTƒ“ƒvƒŠƒ“ƒO
+// Metalåå°„ç”¨BRDF ã‚µãƒ³ãƒ—ãƒªãƒ³ã‚°
 BRDFSample SampleMetalBRDF(float3 normal, float3 rayDir, MaterialData material, inout uint seed)
 {
     BRDFSample sample;
     
-    // ‹¾–Ê”½Ë•ûŒü
+    // é¡é¢åå°„æ–¹å‘
     float3 reflected = reflect(rayDir, normal);
     
-    // ƒ‰ƒtƒlƒX‚É‚æ‚éƒ‰ƒ“ƒ_ƒ€«‚ğ’Ç‰Á
+    // ãƒ©ãƒ•ãƒã‚¹ã«ã‚ˆã‚‹ãƒ©ãƒ³ãƒ€ãƒ æ‘‚å‹•è¿½åŠ 
     float3 perturbation = material.roughness * RandomUnitVector(seed);
     sample.direction = normalize(reflected + perturbation);
     
-    // –@ü‚Æ‚ÌŠp“xƒ`ƒFƒbƒN
+    // æ³•ç·šã¨ã®è§’åº¦ãƒã‚§ãƒƒã‚¯
     float NdotL = dot(sample.direction, normal);
     if (NdotL > 0.0f)
     {
-        sample.brdf = material.albedo; // ‹à‘®‚ÌBRDF
-        sample.pdf = 1.0f; // ƒfƒ‹ƒ^ŠÖ”“IiƒXƒyƒLƒ…ƒ‰[j
+        sample.brdf = material.albedo; // ç°¡æ˜“BRDF
+        sample.pdf = 1.0f; // ãƒ‡ãƒ«ã‚¿é–¢æ•°çš„ï¼ˆã‚¹ãƒšã‚­ãƒ¥ãƒ©ãƒ¼ï¼‰
         sample.valid = true;
     }
     else
@@ -32,70 +32,136 @@ BRDFSample SampleMetalBRDF(float3 normal, float3 rayDir, MaterialData material, 
 [shader("closesthit")]
 void ClosestHit_Metal(inout RayPayload payload, in VertexAttributes attr)
 {
-    // Å‘å”½Ë‰ñ”ƒ`ƒFƒbƒN
-    if (payload.depth >= 6)
+    // ãƒ‡ãƒãƒƒã‚°ãƒ¢ãƒ¼ãƒ‰ï¼šMetalã‚·ã‚§ãƒ¼ãƒ€ãƒ¼å‹•ä½œç¢ºèª
+    bool metalDebugMode = false;
+    if (metalDebugMode && payload.depth == 0) {
+        payload.color = float3(0.0f, 0.0f, 1.0f); // é’è‰²ï¼šMetalã‚·ã‚§ãƒ¼ãƒ€ãƒ¼å®Ÿè¡Œ
+        return;
+    }
+    // æœ€å¤§åå°„å›æ•°ãƒã‚§ãƒƒã‚¯
+    if (payload.depth >= 3)
     {
         payload.color = float3(0, 0, 0);
         return;
     }
     
+    // ã‚»ã‚«ãƒ³ãƒ€ãƒªãƒ¬ã‚¤ã§ã‚‚é€šå¸¸å‡¦ç†ã‚’è¡Œã†ï¼ˆç°¡ç•¥åŒ–ã‚’é™¤å»ï¼‰
+    
     uint instanceID = InstanceID();
     MaterialData material = GetMaterial(instanceID);
     
-    // Œğ“_‚ğŒvZ
+    // è¡çªç‚¹è¨ˆç®—
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
-    // ³Šm‚È–@ü‚ğ’¸“_ƒf[ƒ^‚©‚çæ“¾
+    // æ­£ç¢ºãªæ³•ç·šã‚’é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿ã‹ã‚‰å–å¾—
     uint primitiveID = PrimitiveIndex();
     float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
-    // ƒŒƒC•ûŒü‚Æ–@ü‚ÌŒü‚«‚ğŠm”F
+    // ãƒ¬ã‚¤æ–¹å‘ã¨æ³•ç·šã®å‘ãç¢ºèª
     float3 rayDir = normalize(WorldRayDirection());
     if (dot(normal, rayDir) > 0.0f)
     {
         normal = -normal;
     }
     
-    // G-Bufferƒf[ƒ^‚ğİ’èiƒvƒ‰ƒCƒ}ƒŠƒŒƒC‚Ìê‡‚Ì‚İj
     SetGBufferData(payload, worldPos, normal, material.albedo,
                    MATERIAL_METAL, material.roughness, RayTCurrent());
     
-    // ”­Œõ¬•ª
-    float3 emitted = material.emission;
+    // Metalæè³ªã§ã®ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ï¼ˆNEE+MISå¯¾å¿œï¼‰
+    float3 finalColor = 0.0f;
     
-    // ƒXƒyƒLƒ…ƒ‰[ŠgUFCPUƒŒƒCƒgƒŒ‚Æ“¯‚¶ˆ—
-    BRDFSample brdfSample = SampleMetalBRDF(normal, rayDir, material, payload.seed);
+    // Metalãƒãƒ†ãƒªã‚¢ãƒ«ã¯ä¸»ã«åå°„ã ãŒã€ãƒ©ãƒ•ãƒã‚¹ãŒé«˜ã„å ´åˆã¯NEEã‚‚æœ‰åŠ¹
+    bool useDirectLighting = (material.roughness > 0.1f);
+    bool useMIS = (payload.depth > 0 && useDirectLighting);
     
-    if (brdfSample.valid)
-    {
-        // ”½ËƒŒƒC‚ğƒgƒŒ[ƒX
-        RayDesc ray;
-        ray.Origin = OffsetRay(worldPos, normal);
-        ray.Direction = brdfSample.direction;
-        ray.TMin = 0.001f;
-        ray.TMax = 1000.0f;
+    // 1. Next Event Estimationï¼ˆãƒ©ãƒ•ãƒã‚¹ãŒã‚ã‚‹å ´åˆã®ã¿ï¼‰
+    if (useDirectLighting && numLights > 0) {
+        uint maxLightsToSample = min(numLights, 2u); // Metalã¯åå°„ä¸»ä½“ãªã®ã§ãƒ©ã‚¤ãƒˆæ•°åˆ¶é™
         
-        RayPayload newPayload;
-        newPayload.color = float3(0, 0, 0);
-        newPayload.depth = payload.depth + 1;
-        newPayload.seed = payload.seed;
+        for (uint lightIdx = 0; lightIdx < maxLightsToSample; lightIdx++) {
+            LightSample lightSample = SampleLightByIndex(lightIdx, worldPos, payload.seed);
+            
+            if (lightSample.valid) {
+                float NdotL = max(0.0f, dot(normal, lightSample.direction));
+                
+                if (NdotL > 0.0f) {
+                    // ã‚·ãƒ£ãƒ‰ã‚¦ãƒ¬ã‚¤ã§å¯è¦–æ€§ãƒã‚§ãƒƒã‚¯
+                    RayDesc shadowRay;
+                    shadowRay.Origin = OffsetRay(worldPos, normal);
+                    shadowRay.Direction = lightSample.direction;
+                    shadowRay.TMin = 0.001f;
+                    shadowRay.TMax = lightSample.distance - 0.001f;
+                    
+                    RayPayload shadowPayload;
+                    shadowPayload.color = float3(1, 1, 1);
+                    shadowPayload.depth = 999;
+                    shadowPayload.seed = payload.seed;
+                    
+                    TraceRay(SceneBVH, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+                             0xFF, 0, 1, 0, shadowRay, shadowPayload);
+                    
+                    if (length(shadowPayload.color) > 0.5f) {
+                        // Metal BRDFï¼ˆç°¡æ˜“ç‰ˆï¼šãƒ•ãƒ¬ãƒãƒ«é …ã¯çœç•¥ï¼‰
+                        float3 brdf = material.albedo * material.roughness; // ãƒ©ãƒ•ãƒã‚¹ã§èª¿æ•´
+                        float3 directContribution = brdf * lightSample.radiance * NdotL;
+                        
+                        if (useMIS) {
+                            // Metalç”¨ã®BRDF PDFï¼ˆç°¡æ˜“ç‰ˆï¼‰
+                            float3 reflected = reflect(-lightSample.direction, normal);
+                            float brdfPdf = max(0.0f, dot(reflected, normal)) / PI;
+                            
+                            float misWeight = MISWeightLight(lightSample.pdf, brdfPdf);
+                            finalColor += directContribution * misWeight / lightSample.pdf;
+                        } else {
+                            finalColor += directContribution / lightSample.pdf;
+                        }
+                    }
+                }
+            }
+        }
         
-        // G-Bufferƒf[ƒ^‚ğ‰Šú‰»iƒZƒJƒ“ƒ_ƒŠƒŒƒC—pj
-        newPayload.albedo = float3(0, 0, 0);
-        newPayload.normal = float3(0, 0, 1);
-        newPayload.worldPos = float3(0, 0, 0);
-        newPayload.hitDistance = 0.0f;
-        newPayload.materialType = 0;
-        newPayload.roughness = 0.0f;
-        newPayload.padding = 0;
-        
-        TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
-        
-        // CPUƒŒƒCƒgƒŒ‚Æ“¯‚¶Femitted + mulPerElem(albedo, color)
-        payload.color = emitted + brdfSample.brdf * newPayload.color;
+        if (maxLightsToSample > 1) {
+            finalColor /= float(maxLightsToSample);
+        }
     }
-    else
-    {
-        payload.color = emitted;
+    
+    // 2. åå°„ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚¹ï¼ˆMetalæè³ªã®ä¸»è¦ã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆï¼‰
+    if (payload.depth < 5) {
+        BRDFSample brdfSample = SampleMetalBRDF(normal, rayDir, material, payload.seed);
+        
+        if (brdfSample.valid) {
+            // åå°„ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚¹
+            RayDesc ray;
+            ray.Origin = OffsetRay(worldPos, normal);
+            ray.Direction = brdfSample.direction;
+            ray.TMin = 0.001f;
+            ray.TMax = 1000.0f;
+            
+            RayPayload newPayload;
+            newPayload.color = float3(0, 0, 0);
+            newPayload.depth = payload.depth + 1;
+            newPayload.seed = payload.seed;
+            
+            // G-Bufferãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
+            newPayload.albedo = float3(0, 0, 0);
+            newPayload.normal = float3(0, 0, 1);
+            newPayload.worldPos = float3(0, 0, 0);
+            newPayload.hitDistance = 0.0f;
+            newPayload.materialType = 0;
+            newPayload.roughness = 0.0f;
+            newPayload.padding = 0;
+            
+            TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
+            
+            // åå°„ã®å¯„ä¸
+            if (length(newPayload.color) > 0.0f) {
+                float3 reflectionContribution = brdfSample.brdf * newPayload.color * max(0.0f, dot(normal, brdfSample.direction));
+                
+                // Metalã®åå°„ã¯ã»ã¼å®Œå…¨ãªã®ã§MISé‡ã¿1.0ã‚’ä½¿ç”¨
+                finalColor += reflectionContribution / brdfSample.pdf;
+            }
+        }
     }
+    
+    payload.color = finalColor;
 }

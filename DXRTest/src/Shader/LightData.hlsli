@@ -1,49 +1,7 @@
 #ifndef LIGHTDATA_HLSLI
 #define LIGHTDATA_HLSLI
 
-// ššš ƒ‰ƒCƒgî•ñ\‘¢‘Ì ššš
-struct LightInfo
-{
-    float3 position;
-    float3 size;
-    float3 emission;
-    float area;
-    uint instanceID;
-    float3 normal;
-    float2 padding;
-};
-
-// ššš PDF\‘¢‘Ì‚ÆƒTƒ“ƒvƒŠƒ“ƒOŠÖ” ššš
-
-struct LightSample
-{
-    float3 position;
-    float3 direction;
-    float3 radiance;
-    float distance;
-    float pdf;
-    bool valid;
-};
-
-// Cornell Boxƒ‰ƒCƒgî•ñiŒÅ’èj
-LightInfo GetLightInfo()
-{
-    LightInfo light;
-    light.position = float3(0.0f, 267.5f, -227.0f);
-    light.size = float3(130.0f, 5.0f, 105.0f);
-    light.emission = float3(15.0f, 15.0f, 15.0f);
-    light.area = light.size.x * light.size.z;
-    light.instanceID = 5; // ƒ‰ƒCƒg‚ÌƒCƒ“ƒXƒ^ƒ“ƒXID
-    light.normal = float3(0, -1, 0); // ‰ºŒü‚«
-    return light;
-}
-
-struct BRDFSample
-{
-    float3 direction;
-    float3 brdf;
-    float pdf;
-    bool valid;
-};
+// ã“ã®ãƒ•ã‚¡ã‚¤ãƒ«ã¯ç¾åœ¨ä½¿ç”¨ã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚
+// å…¨ã¦ã®å®šç¾©ã¯Common.hlsliã«ç§»å‹•ã•ã‚Œã¾ã—ãŸã€‚
 
 #endif

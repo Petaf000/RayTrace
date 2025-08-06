@@ -3,21 +3,21 @@
 // A-Trous Wavelet Denoiser Compute Shader
 // Using global root signature
 
-// G-Buffer: t5(Albedo), t6(Normal), t7(Depth)
-Texture2D<float4> AlbedoBuffer : register(t5);
-Texture2D<float4> NormalBuffer : register(t6);
-Texture2D<float4> DepthBuffer : register(t7);
-RWTexture2D<float4> DenoiserOutput : register(u4);
+// G-Buffer: t6(Albedo), t7(Normal), t8(Depth) - 現在のバインド構成に合わせて修正
+Texture2D<float4> AlbedoBuffer : register(t6);
+Texture2D<float4> NormalBuffer : register(t7);
+Texture2D<float4> DepthBuffer : register(t8);
+RWTexture2D<float4> DenoiserOutput : register(u6);
 
 // デノイザー用定数バッファ
 cbuffer DenoiserConstants : register(b1)
 {
     int stepSize;
-    float colorSigma;
-    float normalSigma;
-    float depthSigma;
+    float colorSigma;      // 推奨値: 0.2-0.4 (間接光ノイズ用)
+    float normalSigma;     // 推奨値: 0.5-1.0 (法線感度)
+    float depthSigma;      // 推奨値: 0.1-0.3 (深度感度)
     float2 texelSize;
-    float2 padding;
+    float2 denoiserPadding;  // Common.hlsliのpaddingとの名前競合を回避
 }
 
 // 5x5 A-Trous カーネル (B3-spline interpolation)
@@ -80,12 +80,40 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float3 centerNormal = normalize(NormalBuffer[centerCoord].xyz);
     float centerDepth = DepthBuffer[centerCoord].r;
     
-    // NaN/無限大チェック
-    if (any(isnan(centerColor.rgb)) || any(isinf(centerColor.rgb)) ||
-        any(isnan(centerNormal)) || any(isinf(centerNormal)) ||
-        isnan(centerDepth) || isinf(centerDepth))
+    // NaN/無限大チェック（詳細デバッグ）
+    if (any(isnan(centerColor.rgb)) || any(isinf(centerColor.rgb)))
     {
-        DenoiserOutput[id.xy] = float4(1, 0, 1, 1); // マゼンタでエラー表示
+        DenoiserOutput[id.xy] = float4(1, 0, 0, 1); // 赤：RenderTarget（centerColor）にNaN/Inf
+        return;
+    }
+    if (any(isnan(centerNormal)) || any(isinf(centerNormal)))
+    {
+        // Normal値の詳細デバッグ
+        float3 rawNormal = NormalBuffer[centerCoord].xyz;
+        
+        if (isnan(rawNormal.x)) {
+            DenoiserOutput[id.xy] = float4(1, 0.5f, 0.5f, 1); // 赤系：X成分がNaN
+        } else if (isnan(rawNormal.y)) {
+            DenoiserOutput[id.xy] = float4(0.5f, 1, 0.5f, 1); // 緑系：Y成分がNaN  
+        } else if (isnan(rawNormal.z)) {
+            DenoiserOutput[id.xy] = float4(0.5f, 0.5f, 1, 1); // 青系：Z成分がNaN
+        } else if (any(isinf(rawNormal))) {
+            DenoiserOutput[id.xy] = float4(1, 1, 1, 1); // 白：Inf値
+        } else {
+            DenoiserOutput[id.xy] = float4(0, 1, 0, 1); // 緑：normalize()でNaN
+        }
+        return;
+    }
+    if (isnan(centerDepth) || isinf(centerDepth))
+    {
+        DenoiserOutput[id.xy] = float4(0, 0, 1, 1); // 青：DepthBufferにNaN/Inf
+        return;
+    }
+    
+    // AlbedoBufferのチェック（既に取得済み）
+    if (any(isnan(centerAlbedo)) || any(isinf(centerAlbedo)))
+    {
+        DenoiserOutput[id.xy] = float4(1, 1, 0, 1); // 黄：AlbedoBufferにNaN/Inf
         return;
     }
     
