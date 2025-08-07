@@ -172,10 +172,10 @@ LightSample SampleLightByIndexStratified(uint lightIndex, float3 worldPos, inout
         cellU = safeMargin + cellU * (1.0f - 2.0f * safeMargin);
         cellV = safeMargin + cellV * (1.0f - 2.0f * safeMargin);
         
-        // ライト表面座標に変換（薄いライトでもY方向を適切にサンプリング）
+        // ライト表面座標に変換（XZ平面のエリアライト用）
         float3 lightSamplePos = light.position + float3(
             (cellU - 0.5f) * light.size.x,
-            (v - 0.5f) * light.size.y, // **修正: Y方向も適切にサンプリング**
+            (cellV - 0.5f) * light.size.y, // **修正: 天井ライトはXZ平面なのでY=0**
             (cellV - 0.5f) * light.size.z
         );
         

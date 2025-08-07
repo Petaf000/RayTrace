@@ -12,9 +12,9 @@ float3 ComputeDirectLighting(float3 worldPos, float3 normal, MaterialData materi
         uint maxLightsToSample = min(numLights, 4u);
         
         for (uint lightIdx = 0; lightIdx < maxLightsToSample; lightIdx++) {
-            // 適応的ソフトシャドウサンプリング
-            const uint strataX = (depth == 0) ? 4u : 2u;
-            const uint strataY = (depth == 0) ? 4u : 2u;
+            // 適応的ソフトシャドウサンプリング（品質重視で調査）
+            const uint strataX = (depth == 0) ? 3u : 1u;
+            const uint strataY = (depth == 0) ? 3u : 1u;
             const uint totalStrata = strataX * strataY;
             
             float3 totalContribution = 0.0f;
@@ -262,8 +262,8 @@ BRDFSample SampleLambertianBRDF(float3 normal, MaterialData material, inout uint
 [shader("closesthit")]
 void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
 {
-    // **通常モード（従来の直接照明+間接照明）**
-    int debugMode = 0; // 0=通常（直接照明+間接照明）
+    // **G-Bufferモード：マテリアル情報のみ提供（ReSTIR統合型アーキテクチャ）**
+    int debugMode = 3; // 3=G-Bufferモード（照明計算なし、マテリアル情報のみ）
     
     // 最大反射回数チェック
     if (payload.depth >= 3)
@@ -296,7 +296,7 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     float aoFactor = 1.0f;
     if (payload.depth == 0) { // プライマリレイでのみAO計算
         float occluded = 0.0f;
-        const int aoSamples = 8; // AO専用サンプル数（品質重視）
+        const int aoSamples = 6; // AO専用サンプル数（品質重視で調査）
         const float aoRadius = 0.3f; // AOの影響半径（30cm - より広範囲）
         
         for (int i = 0; i < aoSamples; i++) {
@@ -347,10 +347,8 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
         }
         
         // AO係数計算（0=完全遮蔽, 1=遮蔽なし）
-        float normalizer = 0.0f;
-        for (int j = 0; j < aoSamples; j++) {
-            normalizer += 1.0f; // 理想的なコサイン重み
-        }
+        // normalizerは理論的な最大遮蔽値（全サンプルが完全遮蔽された場合）
+        float normalizer = float(aoSamples); // 最大遮蔽値
         
         if (normalizer > 0.0f) {
             aoFactor = 1.0f - (occluded / normalizer);
@@ -389,6 +387,14 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     // **デバッグモード2: 間接照明のみ**
     if (debugMode == 2 && payload.depth == 0) {
         payload.color = indirectColor * aoFactor;
+        return;
+    }
+    
+    // **G-Bufferモード: マテリアル情報のみ（照明計算なし）**
+    if (debugMode == 3) {
+        // G-Bufferデータのみ設定、照明計算は全てRayGenで実行
+        payload.color = float3(0, 0, 0); // 照明なし
+        // worldPos, normal, albedo, materialTypeなどは既に設定済み
         return;
     }
     

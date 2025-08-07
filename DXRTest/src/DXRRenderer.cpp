@@ -216,7 +216,7 @@ void DXRRenderer::Render() {
     // ★★★ 9個のUAV後からSRVが開始 ★★★
     CD3DX12_GPU_DESCRIPTOR_HANDLE srvTableHandle = tableBaseHandle;
     // t1 のディスクリプタまで9つ分 (u0-u8) 進める
-    srvTableHandle.Offset(9, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    srvTableHandle.Offset(10, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
     m_commandList->SetComputeRootDescriptorTable(3, srvTableHandle);
     // レイトレーシング実行
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
@@ -575,10 +575,10 @@ void DXRRenderer::CreateRootSignature() {
     CD3DX12_DESCRIPTOR_RANGE descriptorRanges[2];
 
     // UAV レンジ（出力テクスチャ + 時間的蓄積 + G-Buffer + ダミー + ReSTIR DI）
-    descriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 9, 0);  // u0-u8: RenderTarget, AccumulationBuffer, PrevFrameData, Albedo, Normal, Depth, Dummy, CurrentReservoirs, PreviousReservoirs
+    descriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 10, 0);  // u0-u9: RenderTarget, AccumulationBuffer, PrevFrameData, Albedo, Normal, Depth, Dummy, CurrentReservoirs, PreviousReservoirs, CurrentGIReservoirs, PreviousGIReservoirs
 
     // SRV レンジ（マテリアル、頂点、インデックス、オフセット、ライトバッファ + G-Buffer読み取り用）
-    descriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 9, 1);  // t1-t9: Materials, Vertex, Index, Offset, Lights + G-Buffer
+    descriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 8, 1);  // t1-t8: Materials, Vertex, Index, Offset, Lights, G-Buffer SRVs
 
     CD3DX12_ROOT_PARAMETER rootParameters[5];  // 4 → 5に拡張
     rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0]);  // 出力UAV + G-Buffer UAV
@@ -1730,7 +1730,7 @@ ID3D12Resource* DXRRenderer::RunDenoiser() {
     m_commandList->SetComputeRootShaderResourceView(1, m_topLevelAS->GetGPUVirtualAddress());
     m_commandList->SetComputeRootConstantBufferView(2, m_sceneConstantBuffer->GetGPUVirtualAddress());
     CD3DX12_GPU_DESCRIPTOR_HANDLE srvTableHandle = tableBaseHandle;
-    srvTableHandle.Offset(9, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    srvTableHandle.Offset(10, m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
     m_commandList->SetComputeRootDescriptorTable(3, srvTableHandle);
 
     // --- ★★★ ここからが新しい状態管理ロジック ★★★ ---
@@ -2004,7 +2004,7 @@ void DXRRenderer::CreateOutputResource() {
 
     // === ディスクリプタヒープ作成 (ReSTIR DI用バッファ追加で18に増加) ===
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    descriptorHeapDesc.NumDescriptors = 18;  // UAV(9) + SRV(9) ReSTIR DI用バッファ追加（ダミーu6含む）
+    descriptorHeapDesc.NumDescriptors = 18;  // UAV(10) + SRV(8) ReSTIR DI+GI用バッファ + G-Buffer SRV
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     hr = m_device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&m_descriptorHeap));
@@ -2044,18 +2044,17 @@ void DXRRenderer::CreateOutputResource() {
     m_device->CreateUnorderedAccessView(m_depthBuffer.Get(), nullptr, &uavDesc, handle);
     handle.Offset(1, descriptorSize);
 
-    // Index 6: u6 (ダミーUAV) - 連続レンジのため必須
-    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    m_device->CreateUnorderedAccessView(m_raytracingOutput.Get(), nullptr, &uavDesc, handle); // ダミーとしてRenderTargetを再利用
-    handle.Offset(1, descriptorSize);
+    // Index 6-9: u6-u9 (ReSTIR DI+GI Reservoirs) - CreateReSTIRResources()で作成
 
-    // Index 7: u7 (CurrentReservoirs) - ReSTIR DI用 (CreateReSTIRResourcesで作成)
-    // Index 8: u8 (PreviousReservoirs) - ReSTIR DI用 (CreateReSTIRResourcesで作成)  
-    // これらはCreateReSTIRResources()で個別に作成される（但しu6の後ろにずれる）
-    handle.Offset(2, descriptorSize); // ReSTIR DIバッファ分をスキップ
+    // Index 6: u6 (CurrentReservoirs) - ReSTIR DI用 (CreateReSTIRResourcesで作成)
+    // Index 7: u7 (PreviousReservoirs) - ReSTIR DI用 (CreateReSTIRResourcesで作成)
+    // Index 8: u8 (CurrentGIReservoirs) - ReSTIR GI用 (CreateReSTIRResourcesで作成)
+    // Index 9: u9 (PreviousGIReservoirs) - ReSTIR GI用 (CreateReSTIRResourcesで作成)
+    // これらはCreateReSTIRResources()で個別に作成される
+    handle.Offset(4, descriptorSize); // ReSTIR DI+GI バッファ分をスキップ
 
-    // --- SRV ディスクリプタ作成 (Index 9-17) ---
-    // この時点で handle は Index 9 を指している
+    // --- SRV ディスクリプタ作成 (Index 10-14) ---
+    // この時点で handle は Index 10 を指している
 
     auto& gameManager = Singleton<GameManager>::getInstance();
     DXRScene* dxrScene = dynamic_cast<DXRScene*>( gameManager.GetScene().get() );
@@ -2063,7 +2062,7 @@ void DXRRenderer::CreateOutputResource() {
     const auto& materials = dxrScene->GetUniqueMaterials();
     TLASData tlasData = dxrScene->GetTLASData();
 
-    // Index 9: t1 (Materials)
+    // Index 10: t1 (Materials)
     if ( m_materialBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -2076,7 +2075,7 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 10: t2 (Vertex)
+    // Index 11: t2 (Vertex)
     if ( m_globalVertexBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -2089,7 +2088,7 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 11: t3 (Index)
+    // Index 12: t3 (Index)
     if ( m_globalIndexBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_R32_UINT;
@@ -2101,7 +2100,7 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 12: t4 (InstanceOffset)
+    // Index 13: t4 (InstanceOffset)
     if ( m_instanceOffsetBuffer ) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -2114,7 +2113,7 @@ void DXRRenderer::CreateOutputResource() {
     }
     handle.Offset(1, descriptorSize);
 
-    // Index 13: t5 (LightBuffer) - ライトバッファー追加
+    // Index 14: t5 (LightBuffer) - ライトバッファー追加
     if (m_lightBuffer && m_numLights > 0) {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -2551,13 +2550,13 @@ void DXRRenderer::CreateReSTIRResources() {
     // ディスクリプタヒープに追加（既存のm_descriptorHeapを使用）
     CD3DX12_CPU_DESCRIPTOR_HANDLE currentHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
         m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-        7, // u7 slot (ReSTIR Current Reservoirs) - u6はダミー
+        6, // u6 slot (ReSTIR Current Reservoirs)
         m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
     );
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE previousHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
         m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-        8, // u8 slot (ReSTIR Previous Reservoirs)
+        7, // u7 slot (ReSTIR Previous Reservoirs)
         m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
     );
 
@@ -2583,7 +2582,95 @@ void DXRRenderer::CreateReSTIRResources() {
         previousHandle
     );
 
-    OutputDebugStringA("ReSTIR resources created successfully\n");
+    // **ReSTIR GI用Reservoirバッファ作成は無効化（メモリ使用量削減）**
+    // 1.4GB の GI Reservoirバッファ作成を停止してメモリ使用量を大幅削減
+    sprintf_s(debugMsg, "ReSTIR GI buffers disabled - saving ~1.4GB memory\n");
+    OutputDebugStringA(debugMsg);
+    
+    /*
+    // **以下の巨大バッファ作成をコメントアウト（メモリ使用量削減）**
+    UINT giReservoirBufferSize = reservoirCount * sizeof(GIReservoir);
+    
+    sprintf_s(debugMsg, "GI Reservoir buffer size: %u bytes (%u GI reservoirs)\n", giReservoirBufferSize, reservoirCount);
+    OutputDebugStringA(debugMsg);
+
+    // GI Reservoir構造体のサイズ確認
+    static_assert(sizeof(::GIReservoir) <= 512, "GIReservoir size should be reasonable (<= 512 bytes)");
+
+    // Current GI Reservoirバッファ作成
+    CD3DX12_RESOURCE_DESC currentGIReservoirDesc = CD3DX12_RESOURCE_DESC::Buffer(
+        giReservoirBufferSize,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+    );
+
+    hr = m_device->CreateCommittedResource(
+        &defaultHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &currentGIReservoirDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nullptr,
+        IID_PPV_ARGS(&m_currentGIReservoirs)
+    );
+
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Current GI Reservoir buffer");
+    }
+
+    m_currentGIReservoirs->SetName(L"Current ReSTIR GI Reservoirs");
+
+    // Previous GI Reservoirバッファ作成
+    hr = m_device->CreateCommittedResource(
+        &defaultHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &currentGIReservoirDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nullptr,
+        IID_PPV_ARGS(&m_previousGIReservoirs)
+    );
+
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Previous GI Reservoir buffer");
+    }
+
+    m_previousGIReservoirs->SetName(L"Previous ReSTIR GI Reservoirs");
+
+    // GI Reservoirディスクリプタハンドル作成
+    CD3DX12_CPU_DESCRIPTOR_HANDLE currentGIHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+        m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+        8, // u8 slot (ReSTIR GI Current Reservoirs)
+        m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+    );
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE previousGIHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+        m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+        9, // u9 slot (ReSTIR GI Previous Reservoirs)
+        m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+    );
+
+    // GI UAVディスクリプタ作成
+    D3D12_UNORDERED_ACCESS_VIEW_DESC giUavDesc = {};
+    giUavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    giUavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    giUavDesc.Buffer.FirstElement = 0;
+    giUavDesc.Buffer.NumElements = reservoirCount;
+    giUavDesc.Buffer.StructureByteStride = sizeof(::GIReservoir);
+
+    m_device->CreateUnorderedAccessView(
+        m_currentGIReservoirs.Get(),
+        nullptr,
+        &giUavDesc,
+        currentGIHandle
+    );
+
+    m_device->CreateUnorderedAccessView(
+        m_previousGIReservoirs.Get(),
+        nullptr,
+        &giUavDesc,
+        previousGIHandle
+    );
+    */
+
+    OutputDebugStringA("ReSTIR DI + GI resources created successfully\n");
 }
 
 void DXRRenderer::InitializeReSTIRBuffers() {

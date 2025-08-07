@@ -58,7 +58,7 @@ void CornelBoxScene::CreateMaterials() {
     
     // Material 3: Light
     material.albedo = { 1.0f, 1.0f, 1.0f };
-    material.emission = { 18.4f, 15.6f, 11.2f }; // 物理的に適切な発光強度（W/m²sr）
+    material.emission = { 17 / 1.5, 12 / 1.5, 4 / 1.5 }; // 物理的に適切な発光強度（W/m²sr）
     material.materialType = 3; // DiffuseLight
     m_uniqueMaterials.push_back(material);
 

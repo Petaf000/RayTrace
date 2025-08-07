@@ -100,49 +100,15 @@ struct PathReservoir
     bool valid;          // 有効性
 };
 
-// **ReSTIR GI用PathVertex構造体**
-struct PathVertex
-{
-    float3 position;     // 頂点位置
-    float3 normal;       // 表面法線
-    float3 albedo;       // 表面アルベド
-    float3 emission;     // 自己発光
-    uint materialType;   // マテリアルタイプ
-    float roughness;     // 表面粗さ
-    float2 padding;      // アライメント用
-};
-
-// **ReSTIR GI用完全なPath情報**
-struct GIPath
-{
-    PathVertex vertices[4];  // 最大4バウンスのパス頂点
-    float3 throughput;       // パスのスループット（累積BRDF）
-    float3 radiance;         // パスの放射輝度
-    uint vertexCount;        // 有効な頂点数
-    float pathPdf;           // パス全体のPDF
-    float misWeight;         // MIS重み
-    bool valid;              // パスの有効性
-};
-
-// **ReSTIR GI用Reservoir構造体**
-struct GIReservoir
-{
-    GIPath selectedPath;     // 選択されたGIパス
-    float weight;            // Reservoir重み (W)
-    uint sampleCount;        // 処理されたサンプル数 (M)
-    float weightSum;         // 重みの累積 (w_sum)
-    float pathPdf;           // 選択されたパスのPDF
-    bool valid;              // Reservoirが有効かどうか
-    float3 padding;          // アライメント用
-};
+// **ReSTIR GI用構造体は削除（メモリリーク対策）**
+// PathVertex, GIPath, GIReservoir構造体を削除してメモリリーク回避
 
 // **ReSTIR DI用Reservoirバッファ（構造体定義後）**
 RWStructuredBuffer<LightReservoir> CurrentReservoirs : register(u6);  // 現在フレームのReservoir
 RWStructuredBuffer<LightReservoir> PreviousReservoirs : register(u7); // 前フレームのReservoir
 
-// **ReSTIR GI用Reservoirバッファ（将来実装用 - 現在はコメントアウト）**
-// RWStructuredBuffer<GIReservoir> CurrentGIReservoirs : register(u8);   // 現在フレームのGI Reservoir
-// RWStructuredBuffer<GIReservoir> PreviousGIReservoirs : register(u9);  // 前フレームのGI Reservoir
+// **ReSTIR GI用Reservoirバッファは削除（メモリリーク対策）**
+// u8, u9レジスタ使用を完全停止してメモリリーク回避
 
 // ������ �ǉ��F�e��o�b�t�@ ������
 StructuredBuffer<MaterialData> MaterialBuffer : register(t1);
@@ -396,154 +362,9 @@ LightReservoir GenerateInitialLightSample(float3 worldPos, float3 normal, inout 
     return reservoir;
 }
 
-// **ReSTIR GI用ユーティリティ関数**
+// **ReSTIR GI関連関数は削除（メモリリーク対策）**
+// 全てのGI Reservoir関数を削除してクリーンな状態に戻す
 
-// GI Reservoirの初期化
-GIReservoir InitGIReservoir()
-{
-    GIReservoir reservoir;
-    
-    // GIPathの初期化
-    reservoir.selectedPath.throughput = float3(0, 0, 0);
-    reservoir.selectedPath.radiance = float3(0, 0, 0);
-    reservoir.selectedPath.vertexCount = 0;
-    reservoir.selectedPath.pathPdf = 0.0f;
-    reservoir.selectedPath.misWeight = 0.0f;
-    reservoir.selectedPath.valid = false;
-    
-    // 全頂点を初期化
-    for (int i = 0; i < 4; i++) {
-        reservoir.selectedPath.vertices[i].position = float3(0, 0, 0);
-        reservoir.selectedPath.vertices[i].normal = float3(0, 0, 1);
-        reservoir.selectedPath.vertices[i].albedo = float3(0, 0, 0);
-        reservoir.selectedPath.vertices[i].emission = float3(0, 0, 0);
-        reservoir.selectedPath.vertices[i].materialType = 0;
-        reservoir.selectedPath.vertices[i].roughness = 0.0f;
-        reservoir.selectedPath.vertices[i].padding = float2(0, 0);
-    }
-    
-    // Reservoir状態の初期化
-    reservoir.weight = 0.0f;
-    reservoir.sampleCount = 0;
-    reservoir.weightSum = 0.0f;
-    reservoir.pathPdf = 0.0f;
-    reservoir.valid = false;
-    reservoir.padding = float3(0, 0, 0);
-    
-    return reservoir;
-}
-
-// PathVertex作成ヘルパー
-PathVertex CreatePathVertex(float3 position, float3 normal, float3 albedo, 
-                           float3 emission, uint materialType, float roughness)
-{
-    PathVertex vertex;
-    vertex.position = position;
-    vertex.normal = normal;
-    vertex.albedo = albedo;
-    vertex.emission = emission;
-    vertex.materialType = materialType;
-    vertex.roughness = roughness;
-    vertex.padding = float2(0, 0);
-    return vertex;
-}
-
-// GIPath作成ヘルパー
-GIPath CreateGIPath()
-{
-    GIPath path;
-    path.throughput = float3(1, 1, 1); // 初期スループット
-    path.radiance = float3(0, 0, 0);
-    path.vertexCount = 0;
-    path.pathPdf = 1.0f;
-    path.misWeight = 1.0f;
-    path.valid = false;
-    
-    // 全頂点を初期化
-    for (int i = 0; i < 4; i++) {
-        path.vertices[i] = CreatePathVertex(float3(0,0,0), float3(0,0,1), float3(0,0,0), 
-                                           float3(0,0,0), 0, 0.0f);
-    }
-    
-    return path;
-}
-
-// GIPathの寄与度計算（MIS weight）
-float CalculateGIPathContribution(GIPath path, float3 viewPos, float3 viewNormal)
-{
-    if (!path.valid || path.vertexCount == 0) return 0.0f;
-    
-    // パスの最終頂点から受け取る放射輝度
-    float3 incomingRadiance = path.radiance;
-    
-    // パスの最初の頂点（シェーディングポイントに接続）
-    PathVertex connectVertex = path.vertices[0];
-    
-    // 接続点への方向と距離
-    float3 connectDir = connectVertex.position - viewPos;
-    float connectDist = length(connectDir);
-    connectDir /= connectDist;
-    
-    // Lambert BRDF評価
-    float cosTheta = max(0.0f, dot(viewNormal, connectDir));
-    if (cosTheta <= 0.0f) return 0.0f;
-    
-    // 距離減衰
-    float attenuation = 1.0f / (connectDist * connectDist);
-    
-    // 放射輝度の輝度値
-    float luminance = dot(incomingRadiance, float3(0.2126f, 0.7152f, 0.0722f));
-    
-    // 最終寄与度 = BRDF × cosine × radiance × attenuation × MIS weight
-    return luminance * cosTheta * attenuation * path.misWeight;
-}
-
-// RIS (Resampled Importance Sampling) でGI Reservoir更新
-bool UpdateGIReservoir(inout GIReservoir reservoir, GIPath candidatePath, 
-                      float3 viewPos, float3 viewNormal, inout uint seed)
-{
-    // Target PDF = パスの寄与度
-    float targetPdf = CalculateGIPathContribution(candidatePath, viewPos, viewNormal);
-    float sourcePdf = candidatePath.pathPdf;
-    
-    if (sourcePdf <= 0.0f || targetPdf <= 0.0f) return false;
-    
-    // 重み計算 (w = target_pdf / source_pdf)
-    float weight = targetPdf / sourcePdf;
-    reservoir.weightSum += weight;
-    reservoir.sampleCount++;
-    
-    // 重み付き確率でサンプル選択
-    float probability = weight / reservoir.weightSum;
-    if (RandomFloat(seed) < probability) {
-        reservoir.selectedPath = candidatePath;
-        reservoir.pathPdf = targetPdf;
-        reservoir.valid = true;
-    }
-    
-    // 最終重み更新 (W = (1/M) * (w_sum / p_hat))
-    // ReSTIR論文に従った正しい重み計算（GI用はpathPdfを使用）
-    if (reservoir.sampleCount > 0 && reservoir.pathPdf > 0.0f) {
-        reservoir.weight = reservoir.weightSum / (float(reservoir.sampleCount) * reservoir.pathPdf);
-    }
-    
-    return true;
-}
-
-// 2つのGI Reservoirを結合
-GIReservoir CombineGIReservoirs(GIReservoir r1, GIReservoir r2, 
-                               float3 viewPos, float3 viewNormal, inout uint seed)
-{
-    if (!r1.valid) return r2;
-    if (!r2.valid) return r1;
-    
-    GIReservoir result = r1;
-    
-    // r2のパスを考慮してReservoir更新
-    UpdateGIReservoir(result, r2.selectedPath, viewPos, viewNormal, seed);
-    
-    return result;
-}
 
 // ライト関連ヘッダーをインクルード（循環参照を避けるため最後に）
 #include "LightFunc.hlsli"
