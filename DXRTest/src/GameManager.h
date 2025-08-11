@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "Scene.h"
 
@@ -29,7 +29,7 @@ public:
 
 	unsigned long GetFrame() { return m_frame; }
 
-	// DXRŠÖ˜A
+	// DXRé–¢é€£
 	void SetUseDXR(bool useDXR) { m_useDXR = useDXR; }
 	bool GetUseDXR() const { return m_useDXR; }
 private:
@@ -41,7 +41,7 @@ private:
 	void DrawIMGUI();
 
 	Renderer* m_renderer = nullptr;
-	DXRRenderer* m_dxrRenderer = nullptr; // DXRRenderer’Ç‰Á
+	DXRRenderer* m_dxrRenderer = nullptr; // DXRRendererè¿½åŠ 
 
 
 	std::unique_ptr<Scene> m_scene{};
@@ -58,7 +58,7 @@ private:
 
 
 	bool m_isRunningDraw{};
-	bool m_useDXR = false; // DXRŽg—pƒtƒ‰ƒO
+	bool m_useDXR = false; // DXRä½¿ç”¨ãƒ•ãƒ©ã‚°
 
 	tf::Executor m_executor;
 	tf::Taskflow m_renderTask;

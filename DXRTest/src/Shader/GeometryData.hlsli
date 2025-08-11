@@ -1,13 +1,13 @@
-#ifndef GEOMETRYDATA_HLSLI
+ï»¿#ifndef GEOMETRYDATA_HLSLI
 #define GEOMETRYDATA_HLSLI
 
-// ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv
+// ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—
 #define MATERIAL_LAMBERTIAN  0
 #define MATERIAL_METAL       1
 #define MATERIAL_DIELECTRIC  2
 #define MATERIAL_LIGHT       3
 
-// ’¸“_ƒf[ƒ^\‘¢‘Ì
+// é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿æ§‹é€ ä½“
 struct DXRVertex
 {
     float3 position;
@@ -15,30 +15,30 @@ struct DXRVertex
     float2 texCoord;
 };
 
-// Šg’£‚³‚ê‚½ƒŒƒCƒyƒCƒ[ƒh
+// æ‹¡å¼µã•ã‚ŒãŸãƒ¬ã‚¤ãƒšã‚¤ãƒ­ãƒ¼ãƒ‰
 struct RayPayload
 {
     float3 color;
     uint depth;
     uint seed;
     
-    // G-Buffer—pƒf[ƒ^ (ƒvƒ‰ƒCƒ}ƒŠƒŒƒC‚Ìê‡‚Ì‚İg—p)
-    float3 albedo; // ƒ}ƒeƒŠƒAƒ‹‚ÌƒAƒ‹ƒxƒh
-    float3 normal; // ƒ[ƒ‹ƒh‹óŠÔ–@ü
-    float3 worldPos; // ƒ[ƒ‹ƒhÀ•W
-    float hitDistance; // ƒqƒbƒg‹——£i[“x—pj
-    uint materialType; // ƒ}ƒeƒŠƒAƒ‹ƒ^ƒCƒv
-    float roughness; // ƒ‰ƒtƒlƒX’l
-    uint padding; // ƒAƒ‰ƒCƒƒ“ƒg—p
+    // G-Bufferç”¨ãƒ‡ãƒ¼ã‚¿ (ãƒ—ãƒ©ã‚¤ãƒãƒªãƒ¬ã‚¤ã®å ´åˆã®ã¿ä½¿ç”¨)
+    float3 albedo; // ãƒãƒ†ãƒªã‚¢ãƒ«ã®ã‚¢ãƒ«ãƒ™ãƒ‰
+    float3 normal; // ãƒ¯ãƒ¼ãƒ«ãƒ‰ç©ºé–“æ³•ç·š
+    float3 worldPos; // ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™
+    float hitDistance; // ãƒ’ãƒƒãƒˆè·é›¢ï¼ˆæ·±åº¦ç”¨ï¼‰
+    uint materialType; // ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ—
+    float roughness; // ãƒ©ãƒ•ãƒã‚¹å€¤
+    uint padding; // ã‚¢ãƒ©ã‚¤ãƒ¡ãƒ³ãƒˆç”¨
 };
 
-// ’¸“_‘®«
+// é ‚ç‚¹å±æ€§
 struct VertexAttributes
 {
     float2 barycentrics : SV_IntersectionAttributes;
 };
 
-// ƒ}ƒeƒŠƒAƒ‹ƒf[ƒ^iƒVƒF[ƒ_[—pj
+// ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ‡ãƒ¼ã‚¿ï¼ˆã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ç”¨ï¼‰
 struct MaterialData
 {
     float3 albedo;
@@ -49,7 +49,7 @@ struct MaterialData
     float padding;
 };
 
-// ƒCƒ“ƒXƒ^ƒ“ƒXƒIƒtƒZƒbƒgî•ñ
+// ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã‚ªãƒ•ã‚»ãƒƒãƒˆæƒ…å ±
 struct InstanceOffsetData
 {
     uint vertexOffset;
@@ -58,11 +58,11 @@ struct InstanceOffsetData
     uint padding;
 };
 
-// G-Bufferƒf[ƒ^‚ğİ’è‚·‚éƒwƒ‹ƒp[ŠÖ”
+// G-Bufferãƒ‡ãƒ¼ã‚¿ã‚’è¨­å®šã™ã‚‹ãƒ˜ãƒ«ãƒ‘ãƒ¼é–¢æ•°
 void SetGBufferData(inout RayPayload payload, float3 worldPos, float3 worldNormal,
                    float3 albedo, uint materialType, float roughness, float hitDistance)
 {
-    // ƒvƒ‰ƒCƒ}ƒŠƒŒƒC‚Ìê‡‚Ì‚İG-Bufferƒf[ƒ^‚ğİ’è
+    // ãƒ—ãƒ©ã‚¤ãƒãƒªãƒ¬ã‚¤ã®å ´åˆã®ã¿G-Bufferãƒ‡ãƒ¼ã‚¿ã‚’è¨­å®š
     if (payload.depth == 0)
     {
         payload.worldPos = worldPos;

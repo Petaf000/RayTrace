@@ -200,6 +200,12 @@
     <None Include="src\Shader\LightFunc.hlsli">
       <Filter>Shader</Filter>
     </None>
+    <None Include="src\Shader\ReSTIR_GI.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="src\Shader\ReSTIR_DI.hlsli">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="src\Shader\RayGen.hlsl">

@@ -1,17 +1,17 @@
-#ifndef UTIL_HLSLI
+﻿#ifndef UTIL_HLSLI
 #define UTIL_HLSLI
 
-// ���w�I�萔
+// 数学的定数
 #define PI 3.14159265359f
 #define INV_PI 0.31830988618f
 
-// ���[�e�B���e�B�֐�
+// ユーティリティ関数
 float3 OffsetRay(const float3 p, const float3 n)
 {
     return p + n * 0.001f; // 元のオフセットに戻す
 }
 
-// ���������i�ȈՔŁj
+// 乱数生成（簡単版）
 uint WangHash(uint seed)
 {
     seed = (seed ^ 61) ^ (seed >> 16);

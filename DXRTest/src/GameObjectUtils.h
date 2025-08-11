@@ -1,12 +1,12 @@
-#pragma once
-// ‹¤’Êƒ}ƒNƒ’è‹`
+ï»¿#pragma once
+// å…±é€šãƒã‚¯ãƒ­å®šç¾©
 #define FLOAT3_ZERO(x, y, z) x = y = z = 0.0f
 #define FLOAT3_SET(x, y, z, val) x = y = z = val
 #define FLOAT3_COPY(x, y, z, x2, y2, z2) x = x2; y = y2; z = z2
 #define FLOAT3_ASSIGN_OP(x, y, z, x2, y2, z2, op) x op x2; y op y2; z op z2
 #define FLOAT_EPSILON 1e-6f
 
-// ‰‰Zq©“®¶¬ƒ}ƒNƒ
+// æ¼”ç®—å­è‡ªå‹•ç”Ÿæˆãƒã‚¯ãƒ­
 #define DEFINE_FLOAT3_ARITHMETIC_OPERATORS(ClassName) \
     ClassName operator+(const ClassName& other) const { \
         return ClassName(x + other.x, y + other.y, z + other.z); \
@@ -68,7 +68,7 @@
         return *this; \
     }
 
-// ‹¤’Êƒwƒ‹ƒp[ŠÖ”
+// å…±é€šãƒ˜ãƒ«ãƒ‘ãƒ¼é–¢æ•°
 namespace TransformHelpers {
     inline bool FloatEquals(float a, float b, float epsilon = FLOAT_EPSILON) {
         return std::abs(a - b) < epsilon;
@@ -89,7 +89,7 @@ namespace TransformHelpers {
     }
 }
 
-// ‹¤’Ê‚ÌƒxƒNƒgƒ‹‘€ì
+// å…±é€šã®ãƒ™ã‚¯ãƒˆãƒ«æ“ä½œ
 template<typename Derived>
 struct VectorOps {
     Derived& self() { return static_cast<Derived&>( *this ); }
@@ -149,7 +149,7 @@ struct VectorOps {
     }
 };
 
-// Float3‚Ì‹¤’ÊŠî’êƒNƒ‰ƒX
+// Float3ã®å…±é€šåŸºåº•ã‚¯ãƒ©ã‚¹
 template<typename Derived>
 struct Float3Base : VectorOps<Derived> {
     union {
@@ -159,7 +159,7 @@ struct Float3Base : VectorOps<Derived> {
         };
     };
 
-    // ‹¤’ÊƒRƒ“ƒXƒgƒ‰ƒNƒ^
+    // å…±é€šã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
     Float3Base() noexcept {
         FLOAT3_ZERO(x, y, z);
     }

@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 
 struct Vertex {
@@ -30,11 +30,11 @@ public:
 	}
 
     void ResetCommandList() {
-        WaitGPU();  // GPU‚Ìˆ—‚ªŠ®—¹‚·‚é‚Ü‚Å‘Ò‹@
-        // ƒRƒ}ƒ“ƒhƒŠƒXƒg‚ÌƒŠƒZƒbƒg
+        WaitGPU();  // GPUã®å‡¦ç†ãŒå®Œäº†ã™ã‚‹ã¾ã§å¾…æ©Ÿ
+        // ã‚³ãƒãƒ³ãƒ‰ãƒªã‚¹ãƒˆã®ãƒªã‚»ãƒƒãƒˆ
         ThrowIfFailed(m_commandAllocator->Reset());
 
-        ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));  // ƒpƒCƒvƒ‰ƒCƒ“‚ğnullptr‚Éİ’è
+        ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));  // ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã‚’nullptrã«è¨­å®š
     }
 
 	void ExecuteCommandListAndWait() {
@@ -74,7 +74,7 @@ private:
 
     static const uint32_t m_frameBufferCount = 2;
 
-    // DirectX 12 ƒIƒuƒWƒFƒNƒg
+    // DirectX 12 ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     ComPtr<ID3D12Device> m_device;
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<IDXGISwapChain3> m_swapChain;
@@ -86,20 +86,20 @@ private:
     uint32_t m_rtvDescriptorSize;
     uint32_t m_frameIndex;
 
-    // “¯Šú—pƒIƒuƒWƒFƒNƒg
+    // åŒæœŸç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     ComPtr<ID3D12Fence> m_fence;
     uint64_t m_fenceValue;
     HANDLE m_fenceEvent;
 
-    // ƒpƒCƒvƒ‰ƒCƒ“ƒXƒe[ƒg
+    // ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã‚¹ãƒ†ãƒ¼ãƒˆ
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12PipelineState> m_pipelineState;
 
-    // ’¸“_ƒoƒbƒtƒ@
+    // é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡
     ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 
-    // ƒEƒBƒ“ƒhƒE‚ÌƒTƒCƒY
+    // ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ã‚µã‚¤ã‚º
     uint32_t m_bufferWidth;
     uint32_t m_bufferHeight;
 	HWND m_hWnd;

@@ -1,5 +1,5 @@
-#pragma once
-// DXR�p�̊g�����_�\����
+﻿#pragma once
+// DXR用の拡張頂点構造体
 struct DXRVertex {
     XMFLOAT3 position;
     XMFLOAT3 normal;
@@ -16,7 +16,7 @@ struct DXRMaterialData {
     float padding[1];       // アライメント調整
 };
 
-// BLAS�\�z�p�f�[�^
+// BLAS構築用データ
 struct BLASData {
     ComPtr<ID3D12Resource> vertexBuffer;
     std::vector<DXRVertex> vertices;
@@ -27,7 +27,7 @@ struct BLASData {
     ComPtr<ID3D12Resource> scratchBuffer;
 };
 
-// TLAS�\�z�p�f�[�^  
+// TLAS構築用データ  
 struct TLASData {
     std::vector<BLASData> blasDataList;
     std::vector<XMMATRIX> instanceTransforms;
@@ -62,7 +62,28 @@ struct LightReservoir {
     // 合計: 52 bytes
 };
 
-// **ReSTIR GI用構造体（将来実装用）**
+// **ReSTIR GI用Reservoir構造体**
+struct GIReservoir {
+    XMFLOAT3 position;       // サンプル位置 (12 bytes)
+    float padding1;          // アライメント (4 bytes)
+    XMFLOAT3 normal;         // サンプル法線 (12 bytes)
+    float padding2;          // アライメント (4 bytes)
+    XMFLOAT3 radiance;       // サンプル輝度 (12 bytes)
+    float padding3;          // アライメント (4 bytes)
+    XMFLOAT3 throughput;     // 経路throughput (12 bytes)
+    float weight;            // RIS重み (4 bytes)
+    float weightSum;         // 重み累積 (4 bytes)
+    uint32_t sampleCount;    // サンプル数（M値） (4 bytes)
+    float pdf;               // PDF値 (4 bytes)
+    uint32_t valid;          // 有効性フラグ (4 bytes)
+    uint32_t pathLength;     // パス長 (4 bytes)
+    uint32_t bounceCount;    // バウンス回数 (4 bytes)
+    XMFLOAT3 albedo;         // アルベド (12 bytes)
+    float padding4;          // アライメント (4 bytes)
+    // 合計: 96 bytes
+};
+
+// **パストレーシング用頂点構造体（将来実装用）**
 struct PathVertex {
     XMFLOAT3 position;       // 頂点位置 (12 bytes)
     XMFLOAT3 normal;         // 表面法線 (12 bytes) 
@@ -85,22 +106,13 @@ struct GIPath {
     // 合計: 296 bytes
 };
 
-struct GIReservoir {
-    GIPath selectedPath;     // 選択されたGIパス (296 bytes)
-    float weight;            // Reservoir重み (4 bytes)
-    uint32_t sampleCount;    // 処理されたサンプル数 (4 bytes)
-    float weightSum;         // 重みの累積 (4 bytes)
-    float pathPdf;           // 選択されたパスのPDF (4 bytes)
-    uint32_t valid;          // Reservoirが有効かどうか (4 bytes)
-    XMFLOAT3 padding;        // アライメント用 (12 bytes)
-    // 合計: 328 bytes
-};
+// GIReservoir構造体は上記（66行目）で既に定義済み
 
-// ������ DXR�ݒ�萔 ������
+// 共通の DXR設定定数 
 namespace DXRConfig {
-    static constexpr UINT MAX_INSTANCES = 128;           // �ő�C���X�^���X��
-    static constexpr UINT MAX_MATERIALS = 64;            // �ő�}�e���A����
+    static constexpr UINT MAX_INSTANCES = 128;           // 最大インスタンス数
+    static constexpr UINT MAX_MATERIALS = 64;            // 最大マテリアル数
     static constexpr UINT MAX_LIGHTS = 32;               // 最大ライト数
-    static constexpr UINT MAX_RAY_DEPTH = 8;             // �ő僌�C�̐[�x
-    static constexpr UINT SHADER_IDENTIFIER_SIZE = 32;   // �V�F�[�_�[���ʎq�T�C�Y
+    static constexpr UINT MAX_RAY_DEPTH = 8;             // 最大レイの深度
+    static constexpr UINT SHADER_IDENTIFIER_SIZE = 32;   // シェーダー識別子サイズ
 }

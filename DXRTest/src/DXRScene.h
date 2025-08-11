@@ -1,4 +1,4 @@
-// DXRScene.h
+ï»¿// DXRScene.h
 #pragma once
 #include "Scene.h"
 #include "DXRData.h"
@@ -14,11 +14,11 @@ public:
     virtual void Update() override;
     virtual void Draw() override;
 
-    // DXR—pƒf[ƒ^æ“¾
+    // DXRç”¨ãƒ‡ãƒ¼ã‚¿å–å¾—
     TLASData GetTLASData() const;
     std::vector<DXRShape*> GetDXRShapes() const;
 
-    // ƒJƒƒ‰î•ñ
+    // ã‚«ãƒ¡ãƒ©æƒ…å ±
     struct CameraData {
         XMFLOAT3 position;
         XMFLOAT3 target;

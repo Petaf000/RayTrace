@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 class App
 {
@@ -43,7 +43,7 @@ public:
 		m_targetFrameRate = fps;
 	}
 
-    // ‚Æ‚è‚ ‚¦‚¸‚ÌƒGƒ‰[ƒtƒBƒ‹ƒ^[‚ğ•t‚¯‚Ü‚·
+    // ã¨ã‚Šã‚ãˆãšã®ã‚¨ãƒ©ãƒ¼ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼ã‚’ä»˜ã‘ã¾ã™
 	static void SetDefaultUnhandledExceptionFilter() {
 		SetUnhandledExceptionFilter(TopLevelExceptionFilter);
 	}

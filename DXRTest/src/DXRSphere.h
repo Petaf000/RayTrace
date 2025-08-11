@@ -1,4 +1,4 @@
-// DXRSphere.h
+ï»¿// DXRSphere.h
 #pragma once
 #include "DXRShape.h"
 
@@ -19,7 +19,7 @@ public:
     virtual std::vector<uint32_t> GetIndices() const override { return m_indices; };
 
 	void SetScale(const XMFLOAT3& scale) override {
-		// SetScale‚ÅScale‚ğ‹…‚É‡‚í‚¹‚é‚½‚ß‚Éx‚Ì‚İg—p
+		// SetScaleã§Scaleã‚’çƒã«åˆã‚ã›ã‚‹ãŸã‚ã«xã®ã¿ä½¿ç”¨
 		SetRadius(scale.x);
 	}
 
@@ -36,8 +36,8 @@ private:
     void CreateSphereGeometry();
 
     float m_radius = 1.0f;
-    int m_segments = 32;  // …•½•ªŠ„”
-    int m_rings = 16;     // ‚’¼•ªŠ„”
+    int m_segments = 32;  // æ°´å¹³åˆ†å‰²æ•°
+    int m_rings = 16;     // å‚ç›´åˆ†å‰²æ•°
     std::vector<DXRVertex> m_vertices;
     std::vector<uint32_t> m_indices;
 };

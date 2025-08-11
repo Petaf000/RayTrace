@@ -1,4 +1,4 @@
-// ===== ClosestHit_Lambertian.hlsl NEE+MIS完全実装版（直接光・間接光分離） =====
+﻿// ===== ClosestHit_Lambertian.hlsl NEE+MIS完全実装版（直接光・間接光分離） =====
 #include "Common.hlsli"
 
 // **直接照明計算関数（NEE + MIS）**
@@ -392,8 +392,13 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     
     // **G-Bufferモード: マテリアル情報のみ（照明計算なし）**
     if (debugMode == 3) {
-        // G-Bufferデータのみ設定、照明計算は全てRayGenで実行
-        payload.color = float3(0, 0, 0); // 照明なし
+        if (payload.depth == 0) {
+            // プライマリレイ: G-Bufferデータのみ、照明なし
+            payload.color = float3(0, 0, 0);
+        } else {
+            // GIレイ: テスト用に固定色を返す
+            payload.color = material.albedo; // 壁の色をそのまま返す
+        }
         // worldPos, normal, albedo, materialTypeなどは既に設定済み
         return;
     }

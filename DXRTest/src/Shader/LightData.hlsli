@@ -1,4 +1,4 @@
-#ifndef LIGHTDATA_HLSLI
+﻿#ifndef LIGHTDATA_HLSLI
 #define LIGHTDATA_HLSLI
 
 // このファイルは現在使用されていません。

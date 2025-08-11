@@ -1,4 +1,4 @@
-// ===== ClosestHit_DiffuseLight.hlsl �̏C�� =====
+﻿// ===== ClosestHit_DiffuseLight.hlsl の修正 =====
 #include "Common.hlsli"
 
 [shader("closesthit")]
@@ -15,36 +15,35 @@ void ClosestHit_DiffuseLight(inout RayPayload payload, in VertexAttributes attr)
     uint instanceID = InstanceID();
     MaterialData material = GetMaterial(instanceID);
     
-    // ��_���v�Z
+    // 頂点位置計算
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
-    // �@���`�F�b�N�i�\�ʂ���̃��C�̂ݔ����j
+    // 法線チェック（表面からのレイのみ発射）
     float3 rayDir = normalize(WorldRayDirection());
     uint primitiveID = PrimitiveIndex();
     float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
     
-    // G-Buffer�f�[�^��ݒ�i�v���C�}�����C�̏ꍇ�̂݁j
+    // G-Bufferデータを設定（プライマリレイの場合のみ）
     SetGBufferData(payload, worldPos, normal, material.emission,
                    MATERIAL_LIGHT, 0.0f, RayTCurrent());
     
-    // �\�ʂ���̃��C�̂ݔ����i���ʂ͔������Ȃ��j
+    // 表面からのレイのみ発射（裏面は発射しない）
     if (dot(rayDir, normal) < 0.0f)
     {
-        // �v���C�}�����C�̏ꍇ�͋�������
+        // プライマリレイの場合は発光する
         if (payload.depth == 0)
         {
             payload.color = material.emission;
         }
         else
         {
-            // �ԐڏƖ��ł̌����̊�^�i������߂�j
             // 間接照明での光源寄与（元の処理に戻す）
             payload.color = material.emission;
         }
     }
     else
     {
-        // ���ʂ͔������Ȃ�
+        // 裏面は発射しない
         payload.color = float3(0, 0, 0);
     }
 }

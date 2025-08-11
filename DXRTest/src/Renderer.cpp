@@ -1,4 +1,4 @@
-#include "Renderer.h"
+ï»¿#include "Renderer.h"
 
 #include "App.h"
 #include "GameManager.h"
@@ -36,7 +36,7 @@ void Renderer::Init() {
     D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
     debug->EnableDebugLayer();
 #endif // _DEBUG
-    // š ImGui‚Ì‰Šú‰»iRenderer‚ÅˆêŒ³ŠÇ—j š
+    // â˜… ImGuiã®åˆæœŸåŒ–ï¼ˆRendererã§ä¸€å…ƒç®¡ç†ï¼‰ â˜…
     {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -49,7 +49,7 @@ void Renderer::Init() {
 
         ImGui_ImplWin32_Init(m_hWnd);
 
-        // š Renderer‚ÌSRVƒq[ƒv‚ğg—p š
+        // â˜… Rendererã®SRVãƒ’ãƒ¼ãƒ—ã‚’ä½¿ç”¨ â˜…
         ImGui_ImplDX12_Init(m_device.Get(), 2,
             DXGI_FORMAT_R8G8B8A8_UNORM, m_srvHeap.Get(),
             m_srvHeap->GetCPUDescriptorHandleForHeapStart(),
@@ -75,23 +75,23 @@ void Renderer::LoadPipeline() {
     ComPtr<IDXGIFactory4> factory;
     ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
-    // Å‚«”\‚ÌƒAƒ_ƒvƒ^[‚ğ‘I‘ğ
+    // æœ€é«˜æ€§èƒ½ã®ã‚¢ãƒ€ãƒ—ã‚¿ãƒ¼ã‚’é¸æŠ
     ComPtr<IDXGIAdapter1> bestAdapter = GetBestAdapter(factory.Get());
 
-    // ‘I‘ğ‚µ‚½ƒAƒ_ƒvƒ^[‚ÅƒfƒoƒCƒXì¬
+    // é¸æŠã—ãŸã‚¢ãƒ€ãƒ—ã‚¿ãƒ¼ã§ãƒ‡ãƒã‚¤ã‚¹ä½œæˆ
     ThrowIfFailed(D3D12CreateDevice(
-        bestAdapter.Get(),  // Å‚«”\ƒAƒ_ƒvƒ^[g—p
+        bestAdapter.Get(),  // æœ€é«˜æ€§èƒ½ã‚¢ãƒ€ãƒ—ã‚¿ãƒ¼ä½¿ç”¨
         D3D_FEATURE_LEVEL_11_0,
         IID_PPV_ARGS(&m_device)
     ));
 
-    // ƒRƒ}ƒ“ƒhƒLƒ…[‚Ìì¬
+    // ã‚³ãƒãƒ³ãƒ‰ã‚­ãƒ¥ãƒ¼ã®ä½œæˆ
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
-    // ƒXƒƒbƒvƒ`ƒF[ƒ“‚Ìì¬
+    // ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ä½œæˆ
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     swapChainDesc.BufferCount = m_frameBufferCount;
     swapChainDesc.Width = m_bufferWidth;
@@ -111,13 +111,13 @@ void Renderer::LoadPipeline() {
         &swapChain
     ));
 
-    // Alt+Enter ‚É‚æ‚é‘S‰æ–ÊØ‘Ö‚ğ–³Œø‰»
+    // Alt+Enter ã«ã‚ˆã‚‹å…¨ç”»é¢åˆ‡æ›¿ã‚’ç„¡åŠ¹åŒ–
     ThrowIfFailed(factory->MakeWindowAssociation(m_hWnd, DXGI_MWA_NO_ALT_ENTER));
 
     ThrowIfFailed(swapChain.As(&m_swapChain));
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-    // ƒŒƒ“ƒ_[ƒ^[ƒQƒbƒgƒrƒ…[—pƒfƒXƒNƒŠƒvƒ^ƒq[ƒv‚Ìì¬
+    // ãƒ¬ãƒ³ãƒ€ãƒ¼ã‚¿ãƒ¼ã‚²ãƒƒãƒˆãƒ“ãƒ¥ãƒ¼ç”¨ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ’ãƒ¼ãƒ—ã®ä½œæˆ
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
     rtvHeapDesc.NumDescriptors = m_frameBufferCount;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -132,7 +132,7 @@ void Renderer::LoadPipeline() {
     ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
 
 
-    // ƒtƒŒ[ƒ€ƒoƒbƒtƒ@‚Ìì¬
+    // ãƒ•ãƒ¬ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆ
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
     for ( UINT i = 0; i < m_frameBufferCount; i++ ) {
         ThrowIfFailed(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
@@ -146,7 +146,7 @@ void Renderer::LoadPipeline() {
 }
 
 void Renderer::LoadAssets() {
-    // 1. ‹ó‚Ìƒ‹[ƒgƒVƒOƒlƒ`ƒƒ‚Ìì¬
+    // 1. ç©ºã®ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ã®ä½œæˆ
     {
         D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
         rootSignatureDesc.NumParameters = 0;
@@ -161,7 +161,7 @@ void Renderer::LoadAssets() {
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
     }
 
-    // 2. ƒVƒF[ƒ_[‚ÌƒRƒ“ƒpƒCƒ‹‚ÆƒpƒCƒvƒ‰ƒCƒ“ƒXƒe[ƒg‚Ìì¬
+    // 2. ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«ã¨ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã‚¹ãƒ†ãƒ¼ãƒˆã®ä½œæˆ
     {
         ComPtr<ID3DBlob> vertexShader;
         ComPtr<ID3DBlob> pixelShader;
@@ -209,12 +209,12 @@ void Renderer::LoadAssets() {
         psoDesc.SampleDesc.Count = 1;
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
     }
-    // 3. ƒRƒ}ƒ“ƒhƒŠƒXƒg‚Ìì¬
+    // 3. ã‚³ãƒãƒ³ãƒ‰ãƒªã‚¹ãƒˆã®ä½œæˆ
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
     OutputDebugStringW(L"CommandList closed Load Asset\n");
     ThrowIfFailed(m_commandList->Close());
 
-    // 4. **“¯ŠúƒIƒuƒWƒFƒNƒg‚Ìì¬iFence‚ÆƒCƒxƒ“ƒgj‚ğæ‚És‚¤**
+    // 4. **åŒæœŸã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ä½œæˆï¼ˆFenceã¨ã‚¤ãƒ™ãƒ³ãƒˆï¼‰ã‚’å…ˆã«è¡Œã†**
     {
         ThrowIfFailed(m_device->CreateFence(m_fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
         m_fenceValue++;
@@ -225,7 +225,7 @@ void Renderer::LoadAssets() {
         }
     }
 
-    // 5. ’¸“_ƒoƒbƒtƒ@‚Ìì¬‚ÆƒAƒbƒvƒ[ƒh
+    // 5. é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆã¨ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰
     {
         Vertex triangleVertices[] = {
             { {  0.0f,  0.25f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
@@ -236,7 +236,7 @@ void Renderer::LoadAssets() {
 
         ComPtr<ID3D12Resource> vertexBufferUpload;
 
-        // ƒfƒtƒHƒ‹ƒgƒq[ƒv‚ÆƒAƒbƒvƒ[ƒhƒq[ƒv‚ÌƒvƒƒpƒeƒB‚ğƒ[ƒJƒ‹•Ï”‚Æ‚µ‚Äì¬
+        // ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆãƒ’ãƒ¼ãƒ—ã¨ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰ãƒ’ãƒ¼ãƒ—ã®ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ã‚’ãƒ­ãƒ¼ã‚«ãƒ«å¤‰æ•°ã¨ã—ã¦ä½œæˆ
         CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
         CD3DX12_RESOURCE_DESC vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
         ThrowIfFailed(m_device->CreateCommittedResource(
@@ -304,7 +304,7 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
             continue;
         }
 
-        // D3D12ƒfƒoƒCƒXì¬ƒeƒXƒg
+        // D3D12ãƒ‡ãƒã‚¤ã‚¹ä½œæˆãƒ†ã‚¹ãƒˆ
         ComPtr<ID3D12Device5> testDevice;
         if ( SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&testDevice))) ) {
 
@@ -312,7 +312,7 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
             WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, gpuName, sizeof(gpuName), nullptr, nullptr);
             SIZE_T vramMB = desc.DedicatedVideoMemory / ( 1024 * 1024 );
 
-            // DXR‘Î‰ƒ`ƒFƒbƒN
+            // DXRå¯¾å¿œãƒã‚§ãƒƒã‚¯
             D3D12_FEATURE_DATA_D3D12_OPTIONS5 dxrSupport = {};
             bool supportsDXR = false;
             if ( SUCCEEDED(testDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &dxrSupport, sizeof(dxrSupport))) ) {
@@ -324,7 +324,7 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
             sprintf_s(debugMsg, "  VRAM: %zu MB, DXR: %s\n", vramMB, supportsDXR ? "Yes" : "No");
             OutputDebugStringA(debugMsg);
 
-            // ê—pƒrƒfƒIƒƒ‚ƒŠ‚ªÅ‘å‚Ì‚à‚Ì‚ğ‘I‘ğ
+            // å°‚ç”¨ãƒ“ãƒ‡ã‚ªãƒ¡ãƒ¢ãƒªãŒæœ€å¤§ã®ã‚‚ã®ã‚’é¸æŠ
             if ( desc.DedicatedVideoMemory > maxVideoMemory ) {
                 maxVideoMemory = desc.DedicatedVideoMemory;
                 bestAdapter = adapter;
@@ -340,7 +340,7 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
         WideCharToMultiByte(CP_UTF8, 0, selectedDesc.Description, -1, selectedGpuName, sizeof(selectedGpuName), nullptr, nullptr);
         SIZE_T selectedVramMB = selectedDesc.DedicatedVideoMemory / ( 1024 * 1024 );
 
-        // ‘I‘ğ‚³‚ê‚½GPU‚ÌDXRî•ñ‚àæ“¾
+        // é¸æŠã•ã‚ŒãŸGPUã®DXRæƒ…å ±ã‚‚å–å¾—
         ComPtr<ID3D12Device5> finalDevice;
         bool finalDXRSupport = false;
         if ( SUCCEEDED(D3D12CreateDevice(bestAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&finalDevice))) ) {
@@ -370,30 +370,30 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
 }
 
 void Renderer::Update() {
-    // XVˆ—i•K—v‚É‰‚¶‚Äj
+    // æ›´æ–°å‡¦ç†ï¼ˆå¿…è¦ã«å¿œã˜ã¦ï¼‰
 }
 
 void Renderer::Render() {
     m_commandList->SetPipelineState(m_pipelineState.Get());
-    // ƒfƒXƒNƒŠƒvƒ^ƒq[ƒv‚Ìİ’è
+    // ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ’ãƒ¼ãƒ—ã®è¨­å®š
     {
         ID3D12DescriptorHeap* heaps[] = { m_srvHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(heaps), heaps);
     }
 
-    // ƒ‹[ƒgƒVƒOƒlƒ`ƒƒ‚Ìİ’è
+    // ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ã®è¨­å®š
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
-    // OŠpŒ`•`‰æ
+    // ä¸‰è§’å½¢æç”»
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
     m_commandList->DrawInstanced(3, 1, 0, 0);
 }
 
 void Renderer::InitFrame() {
-    WaitGPU();  // GPU‚Ìˆ—‚ªŠ®—¹‚·‚é‚Ü‚Å‘Ò‹@
+    WaitGPU();  // GPUã®å‡¦ç†ãŒå®Œäº†ã™ã‚‹ã¾ã§å¾…æ©Ÿ
 
-    // ƒRƒ}ƒ“ƒhƒŠƒXƒg‚ÌƒŠƒZƒbƒg
+    // ã‚³ãƒãƒ³ãƒ‰ãƒªã‚¹ãƒˆã®ãƒªã‚»ãƒƒãƒˆ
     ThrowIfFailed(m_commandAllocator->Reset());
     ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
 
@@ -401,7 +401,7 @@ void Renderer::InitFrame() {
 
     OutputDebugStringA("InitFrameForDXR: Setting up for DXR rendering\n");
 
-    // ImGui‚ÌƒtƒŒ[ƒ€ŠJniDXR—pj
+    // ImGuiã®ãƒ•ãƒ¬ãƒ¼ãƒ é–‹å§‹ï¼ˆDXRç”¨ï¼‰
     {
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth,
@@ -410,12 +410,12 @@ void Renderer::InitFrame() {
         ImGui::NewFrame();
     }
 
-    // š DXR—pFƒoƒbƒNƒoƒbƒtƒ@‚Ìó‘Ô‘JˆÚ‚ÍDXRRenderer‘¤‚Ås‚¤ š
-    // ‚±‚±‚Å‚ÍƒoƒbƒNƒoƒbƒtƒ@‚Ìó‘Ô‘JˆÚ‚ğs‚í‚È‚¢iPRESENTó‘Ô‚Ì‚Ü‚Üj
+    // â˜… DXRç”¨ï¼šãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã®çŠ¶æ…‹é·ç§»ã¯DXRRendererå´ã§è¡Œã† â˜…
+    // ã“ã“ã§ã¯ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã®çŠ¶æ…‹é·ç§»ã‚’è¡Œã‚ãªã„ï¼ˆPRESENTçŠ¶æ…‹ã®ã¾ã¾ï¼‰
 
     OutputDebugStringA("InitFrameForDXR completed\n");
 
-    //// ƒoƒbƒNƒoƒbƒtƒ@‚ğƒŒƒ“ƒ_[ƒ^[ƒQƒbƒg‚Éİ’è
+    //// ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã‚’ãƒ¬ãƒ³ãƒ€ãƒ¼ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã«è¨­å®š
     //auto subBuf = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
     //    D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     //m_commandList->ResourceBarrier(1, &subBuf);
@@ -423,11 +423,11 @@ void Renderer::InitFrame() {
     //CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     //m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-    //// ‰æ–ÊƒNƒŠƒA
+    //// ç”»é¢ã‚¯ãƒªã‚¢
     //const float clearColor[] = { 1.0f, 0.2f, 0.4f, 1.0f };
     //m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
-    //// ƒrƒ…[ƒ|[ƒgEƒVƒU[‹éŒ`‚Ìİ’è
+    //// ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆãƒ»ã‚·ã‚¶ãƒ¼çŸ©å½¢ã®è¨­å®š
     //CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<float>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
     //m_commandList->RSSetViewports(1, &viewport);
     //CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
@@ -435,15 +435,15 @@ void Renderer::InitFrame() {
 }
 
 void Renderer::InitFrameForDXR() {
-    WaitGPU();  // GPU‚Ìˆ—‚ªŠ®—¹‚·‚é‚Ü‚Å‘Ò‹@
+    WaitGPU();  // GPUã®å‡¦ç†ãŒå®Œäº†ã™ã‚‹ã¾ã§å¾…æ©Ÿ
 
-    // ƒRƒ}ƒ“ƒhƒŠƒXƒg‚ÌƒŠƒZƒbƒg
+    // ã‚³ãƒãƒ³ãƒ‰ãƒªã‚¹ãƒˆã®ãƒªã‚»ãƒƒãƒˆ
     ThrowIfFailed(m_commandAllocator->Reset());
     ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-    // ImGui‚ÌƒtƒŒ[ƒ€ŠJniDXR—pj
+    // ImGuiã®ãƒ•ãƒ¬ãƒ¼ãƒ é–‹å§‹ï¼ˆDXRç”¨ï¼‰
     {
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth,
@@ -454,9 +454,9 @@ void Renderer::InitFrameForDXR() {
 }
 
 void Renderer::EndFrame() {
-    // š íœF‚±‚Ì“_‚ÅƒoƒbƒNƒoƒbƒtƒ@‚Í DXRRenderer::Render() ‚É‚æ‚Á‚Ä
-    //         Šù‚É D3D12_RESOURCE_STATE_RENDER_TARGET ó‘Ô‚É‚È‚Á‚Ä‚¢‚é‚Í‚¸‚È‚Ì‚ÅA
-    //         ‚±‚±‚Å‚Ì‘JˆÚ‚Í•s—v‚©‚ÂŠÔˆá‚¢‚Å‚·B
+    // â˜… å‰Šé™¤ï¼šã“ã®æ™‚ç‚¹ã§ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã¯ DXRRenderer::Render() ã«ã‚ˆã£ã¦
+    //         æ—¢ã« D3D12_RESOURCE_STATE_RENDER_TARGET çŠ¶æ…‹ã«ãªã£ã¦ã„ã‚‹ã¯ãšãªã®ã§ã€
+    //         ã“ã“ã§ã®é·ç§»ã¯ä¸è¦ã‹ã¤é–“é•ã„ã§ã™ã€‚
     /* auto transitionToRT = CD3DX12_RESOURCE_BARRIER::Transition(
         m_renderTargets[m_frameIndex].Get(),
         D3D12_RESOURCE_STATE_PRESENT,
@@ -465,27 +465,27 @@ void Renderer::EndFrame() {
     m_commandList->ResourceBarrier(1, &transitionToRT);
     */
 
-    // š ƒrƒ…[ƒ|[ƒgEƒVƒU[‹éŒ`‚Ìİ’èi‘S‰æ–Êj š
+    // â˜… ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆãƒ»ã‚·ã‚¶ãƒ¼çŸ©å½¢ã®è¨­å®šï¼ˆå…¨ç”»é¢ï¼‰ â˜…
     CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( m_bufferWidth ), static_cast<float>( m_bufferHeight ));
     m_commandList->RSSetViewports(1, &viewport);
     CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( m_bufferWidth ), static_cast<LONG>( m_bufferHeight ));
     m_commandList->RSSetScissorRects(1, &scissorRect);
 
-    // ƒŒƒ“ƒ_[ƒ^[ƒQƒbƒg‚ğİ’èiImGui•`‰æ—pj
+    // ãƒ¬ãƒ³ãƒ€ãƒ¼ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã‚’è¨­å®šï¼ˆImGuiæç”»ç”¨ï¼‰
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-    // š ImGui—p‚ÌƒfƒBƒXƒNƒŠƒvƒ^ƒq[ƒv‚ğİ’è š
-    // ’ˆÓFDXRRenderer‚ÅƒfƒoƒbƒOƒrƒ…[‚ğì¬‚µ‚½ƒq[ƒv‚Æ“¯‚¶‚à‚Ì‚ğİ’è‚µ‚Ä‚­‚¾‚³‚¢
-    ID3D12DescriptorHeap* imguiHeaps[] = { m_srvHeap.Get() }; // m_srvHeap‚Í³‚µ‚¢‚Å‚·‚©H DXRRenderer‚Ìm_imguiDescriptorHeap‚©‚à‚µ‚ê‚Ü‚¹‚ñ
+    // â˜… ImGuiç”¨ã®ãƒ‡ã‚£ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ’ãƒ¼ãƒ—ã‚’è¨­å®š â˜…
+    // æ³¨æ„ï¼šDXRRendererã§ãƒ‡ãƒãƒƒã‚°ãƒ“ãƒ¥ãƒ¼ã‚’ä½œæˆã—ãŸãƒ’ãƒ¼ãƒ—ã¨åŒã˜ã‚‚ã®ã‚’è¨­å®šã—ã¦ãã ã•ã„
+    ID3D12DescriptorHeap* imguiHeaps[] = { m_srvHeap.Get() }; // m_srvHeapã¯æ­£ã—ã„ã§ã™ã‹ï¼Ÿ DXRRendererã®m_imguiDescriptorHeapã‹ã‚‚ã—ã‚Œã¾ã›ã‚“
     m_commandList->SetDescriptorHeaps(_countof(imguiHeaps), imguiHeaps);
 
-    // ImGui•`‰æ
+    // ImGuiæç”»
     ImGui::Render();
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_commandList.Get());
 
-    // ššš ‚±‚ê‚ª—Bˆê•K—v‚ÈuPresentƒoƒŠƒAv‚Å‚· ššš
-    // ƒoƒbƒNƒoƒbƒtƒ@‚ğPresentó‘Ô‚É‘JˆÚ‚³‚¹‚ÄA‰æ–Ê‚É•\¦‚·‚é€”õ‚ğ‚µ‚Ü‚·
+    // â˜…â˜…â˜… ã“ã‚ŒãŒå”¯ä¸€å¿…è¦ãªã€ŒPresentãƒãƒªã‚¢ã€ã§ã™ â˜…â˜…â˜…
+    // ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã‚’PresentçŠ¶æ…‹ã«é·ç§»ã•ã›ã¦ã€ç”»é¢ã«è¡¨ç¤ºã™ã‚‹æº–å‚™ã‚’ã—ã¾ã™
     auto transitionToPresent = CD3DX12_RESOURCE_BARRIER::Transition(
         m_renderTargets[m_frameIndex].Get(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -493,7 +493,7 @@ void Renderer::EndFrame() {
     );
     m_commandList->ResourceBarrier(1, &transitionToPresent);
 
-    // ƒRƒ}ƒ“ƒhƒŠƒXƒgÀs
+    // ã‚³ãƒãƒ³ãƒ‰ãƒªã‚¹ãƒˆå®Ÿè¡Œ
     ThrowIfFailed(m_commandList->Close());
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);

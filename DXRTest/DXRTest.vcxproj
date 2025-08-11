@@ -120,6 +120,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;dxguid.lib;DirectXTex.lib;winmm.lib;xinput.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <BuildLog>
+      <Path>$(SolutionDir)$(MSBuildProjectName).log</Path>
+    </BuildLog>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -206,6 +209,8 @@
     <None Include="src\Shader\GeometryData.hlsli" />
     <None Include="src\Shader\LightData.hlsli" />
     <None Include="src\Shader\LightFunc.hlsli" />
+    <None Include="src\Shader\ReSTIR_GI.hlsli" />
+    <None Include="src\Shader\ReSTIR_DI.hlsli" />
     <None Include="src\Shader\Utils.hlsli" />
   </ItemGroup>
   <ItemGroup>

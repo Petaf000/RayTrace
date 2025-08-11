@@ -1,25 +1,25 @@
-// shader/Common.hlsli - ���ʃw�b�_�[�i�f�o�b�O�Łj
+﻿// shader/Common.hlsli - 共通ヘッダー（デバッグ版）
 #ifndef COMMON_HLSLI
 #define COMMON_HLSLI
 
 #include "Utils.hlsli"
 #include "GeometryData.hlsli"
 
-// �萔�o�b�t�@
+// 定数バッファ
 cbuffer SceneConstantBuffer : register(b0)
 {
     float4x4 projectionMatrix;
     float4x4 viewMatrix;
     
-    // �p�b�N���ꂽ�`���i�A�N�Z�X���₷���d���j
+    // パックされた形式（アクセスしやすい重複）
     float3 cameraRight;
-    float tanHalfFov; // cameraRight�Ɠ���float4�Ɏ��߂�
+    float tanHalfFov; // cameraRightと同一float4に収める
     
     float3 cameraUp;
-    float aspectRatio; // cameraUp�Ɠ���float4�Ɏ��߂�
+    float aspectRatio; // cameraUpと同一float4に収める
     
     float3 cameraForward;
-    float frameCount; // �����̊g���p�i�A�j���[�V�������j
+    float frameCount; // 将来の拡張用（アニメーション等）
     
     uint numLights;   // ライト数
     uint cameraMovedFlag; // カメラ動き検出フラグ (0=静止, 1=動いた)
@@ -28,7 +28,7 @@ cbuffer SceneConstantBuffer : register(b0)
     // 合計: 128 + 48 + 16 = 192 bytes (完全にアライメント)
 };
 
-// �O���[�o�����\�[�X
+// グローバルリソース
 RaytracingAccelerationStructure SceneBVH : register(t0);
 RWTexture2D<float4> RenderTarget : register(u0);
 
@@ -88,6 +88,27 @@ struct LightReservoir
     float padding;       // アライメント用
 };
 
+// **ReSTIR GI用Reservoir構造体**
+struct GIReservoir
+{
+    float3 position;        // サンプル位置
+    float padding1;         // アライメント
+    float3 normal;          // サンプル法線
+    float padding2;         // アライメント
+    float3 radiance;        // サンプル輝度
+    float padding3;         // アライメント
+    float3 throughput;      // 経路throughput
+    float weight;           // RIS重み
+    float weightSum;        // 重み累積
+    uint sampleCount;       // サンプル数（M値）
+    float pdf;              // PDF値
+    bool valid;             // 有効性フラグ
+    uint pathLength;        // パス長
+    uint bounceCount;       // バウンス回数
+    float3 albedo;          // アルベド
+    float padding4;         // アライメント
+};
+
 struct PathReservoir
 {
     float3 pathVertex;   // パス上の頂点位置
@@ -107,25 +128,26 @@ struct PathReservoir
 RWStructuredBuffer<LightReservoir> CurrentReservoirs : register(u6);  // 現在フレームのReservoir
 RWStructuredBuffer<LightReservoir> PreviousReservoirs : register(u7); // 前フレームのReservoir
 
-// **ReSTIR GI用Reservoirバッファは削除（メモリリーク対策）**
-// u8, u9レジスタ使用を完全停止してメモリリーク回避
+// **ReSTIR GI用Reservoirバッファ（Phase 2で使用）**
+RWStructuredBuffer<GIReservoir> CurrentGIReservoirs : register(u8);   // 現在フレームのGI Reservoir
+RWStructuredBuffer<GIReservoir> PreviousGIReservoirs : register(u9);  // 前フレームのGI Reservoir
 
-// ������ �ǉ��F�e��o�b�t�@ ������
+// 各種バッファ
 StructuredBuffer<MaterialData> MaterialBuffer : register(t1);
 StructuredBuffer<DXRVertex> VertexBuffer : register(t2);
 StructuredBuffer<uint> IndexBuffer : register(t3);
 StructuredBuffer<InstanceOffsetData> InstanceOffsetBuffer : register(t4);
 StructuredBuffer<LightInfo> LightBuffer : register(t5);
 
-// ������ �ǉ��F�}�e���A���擾�w���p�[�֐� ������
+// マテリアル取得ヘルパー関数
 MaterialData GetMaterial(uint instanceID)
 {
     InstanceOffsetData instanceData = InstanceOffsetBuffer[instanceID];
     
-    // TODO: CPP���Ń}�e���A�����Ȃ����̏�����ǉ�����
+    // TODO: CPP側でマテリアルが無い場合の処理を追加する
     /*if (instanceData.materialID == 0xFFFFFFFF)
     {
-        // �f�t�H���g�}�e���A��
+        // デフォルトマテリアル
         MaterialData defaultMaterial;
         defaultMaterial.albedo = float3(0.0f, 0.0f, 1.0f); // 青（エラー色）
         defaultMaterial.roughness = 1.0f;
@@ -138,27 +160,27 @@ MaterialData GetMaterial(uint instanceID)
     return MaterialBuffer[instanceData.materialID];
 }
 
-// ������ �f�o�b�O�p�F�@����F�ɕϊ�����֐� ������
+// デバッグ用：法線を色に変換する関数
 float3 NormalToColor(float3 normal)
 {
-    // �@���x�N�g�� (-1 to 1) ��F (0 to 1) �ɕϊ�
+    // 法線ベクトル (-1 to 1) を色 (0 to 1) に変換
     return normal * 0.5f + 0.5f;
 }
-// ������ �ł��V���v���Ȗ@���擾�i�f�o�b�O�p�j������
+// でき限りシンプルな法線取得（デバッグ用）
 float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentrics)
 {
-    // �I�t�Z�b�g�����擾
+    // オフセットデータ取得
     InstanceOffsetData offset = InstanceOffsetBuffer[instanceID];
     
-    // �O�p�`�̃C���f�b�N�X���擾  
+    // 三角形のインデックスを取得  
     uint baseIndex = offset.indexOffset + primitiveID * 3;
     
-    // ���_�C���f�b�N�X�擾
+    // 頂点インデックス取得
     uint i0 = IndexBuffer[baseIndex + 0] + offset.vertexOffset;
     uint i1 = IndexBuffer[baseIndex + 1] + offset.vertexOffset;
     uint i2 = IndexBuffer[baseIndex + 2] + offset.vertexOffset;
     
-    // ���_�@�����d�S���W�ŕ��
+    // 頂点法線を重心座標で補間
     float3 normal = VertexBuffer[i0].normal * (1.0f - barycentrics.x - barycentrics.y) +
                     VertexBuffer[i1].normal * barycentrics.x +
                     VertexBuffer[i2].normal * barycentrics.y;
@@ -166,20 +188,20 @@ float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentr
     return normalize(normal);
 }
 
-// ������ ���[���h�ϊ��ł̖@���擾�i�C���Łj ������
+// ワールド変換での法線取得（修正版）
 float3 GetWorldNormal(uint instanceID, uint primitiveID, float2 barycentrics)
 {
-    // ���[�J���@�����擾
+    // ローカル法線を取得
     float3 localNormal = GetInterpolatedNormal(instanceID, primitiveID, barycentrics);
 
-    // ���[���h�ϊ��s����擾
+    // ワールド変換行列を取得
     float3x4 objectToWorld = ObjectToWorld3x4();
 
-    // �@�������[���h��Ԃɕϊ�
-    // objectToWorld�̍����3x3�����i��]�ƃX�P�[�����O��S���j����Z����
+    // 法線をワールド空間に変換
+    // objectToWorldの左上3x3部分（回転とスケーリング情報）のみ使用する
     float3 worldNormal = mul((float3x3) objectToWorld, localNormal);
 
-    // �ϊ���̖@���𐳋K�����ĕԂ�
+    // 変換後の法線を正規化して返す
     return normalize(worldNormal);
 }
 
@@ -365,6 +387,27 @@ LightReservoir GenerateInitialLightSample(float3 worldPos, float3 normal, inout 
 // **ReSTIR GI関連関数は削除（メモリリーク対策）**
 // 全てのGI Reservoir関数を削除してクリーンな状態に戻す
 
+
+// **MIS用: Cosine-weighted Hemisphere Sampling**
+float3 SampleCosineHemisphere(float3 normal, inout uint seed)
+{
+    float u1 = RandomFloat(seed);
+    float u2 = RandomFloat(seed);
+    
+    // Cosine-weighted sampling
+    float cosTheta = sqrt(u1);
+    float sinTheta = sqrt(1.0f - u1);
+    float phi = 2.0f * 3.14159265f * u2;
+    
+    float3 sample = float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
+    
+    // Convert to world space aligned with normal
+    float3 up = abs(normal.y) < 0.999f ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 tangent = normalize(cross(up, normal));
+    float3 bitangent = cross(normal, tangent);
+    
+    return sample.x * tangent + sample.y * normal + sample.z * bitangent;
+}
 
 // ライト関連ヘッダーをインクルード（循環参照を避けるため最後に）
 #include "LightFunc.hlsli"

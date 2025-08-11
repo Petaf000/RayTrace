@@ -1,4 +1,4 @@
-// ===== ClosestHit_Metal.hlsl NEE+MIS対応版 =====
+﻿// ===== ClosestHit_Metal.hlsl NEE+MIS対応版 =====
 #include "Common.hlsli"
 
 // Metal反射用BRDF サンプリング

@@ -1,22 +1,22 @@
-// DXRScene.cpp
+ï»¿// DXRScene.cpp
 #include "DXRScene.h"
 
 void DXRScene::UnInit() {
-    Scene::UnInit();  // Šî’êƒNƒ‰ƒX‚ÌUnInitŒÄ‚Ño‚µ
+    Scene::UnInit();  // åŸºåº•ã‚¯ãƒ©ã‚¹ã®UnInitå‘¼ã³å‡ºã—
 }
 
 void DXRScene::Update() {
-    Scene::Update();  // Šî’êƒNƒ‰ƒX‚ÌUpdateŒÄ‚Ño‚µ
+    Scene::Update();  // åŸºåº•ã‚¯ãƒ©ã‚¹ã®Updateå‘¼ã³å‡ºã—
 }
 
 void DXRScene::Draw() {
-    Scene::Draw();    // Šî’êƒNƒ‰ƒX‚ÌDrawŒÄ‚Ño‚µ
+    Scene::Draw();    // åŸºåº•ã‚¯ãƒ©ã‚¹ã®Drawå‘¼ã³å‡ºã—
 }
 
 TLASData DXRScene::GetTLASData() const {
     TLASData tlasData;
 
-    // ‘SƒŒƒCƒ„[‚©‚çDXRShape‚ğûW
+    // å…¨ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‹ã‚‰DXRShapeã‚’åé›†
     auto dxrShapes = GetDXRShapes();
 
     char debugMsg[256];
@@ -39,7 +39,7 @@ TLASData DXRScene::GetTLASData() const {
 std::vector<DXRShape*> DXRScene::GetDXRShapes() const {
     std::vector<DXRShape*> dxrShapes;
 
-    // ‘SƒŒƒCƒ„[‚ğ‘–¸‚µ‚ÄDXRShape‚ğ’Šo
+    // å…¨ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’èµ°æŸ»ã—ã¦DXRShapeã‚’æŠ½å‡º
     for ( int i = 0; i < Layer::LayerAll; i++ ) {
         for ( auto* obj : m_GameObject[i] ) {
             DXRShape* dxrShape = dynamic_cast<DXRShape*>( obj );

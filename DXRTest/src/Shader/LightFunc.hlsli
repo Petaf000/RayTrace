@@ -1,19 +1,19 @@
-#ifndef LIGHTFUNC_HLSLI
+﻿#ifndef LIGHTFUNC_HLSLI
 #define LIGHTFUNC_HLSLI
 #include "Utils.hlsli"
 
-// PDF�l�̌v�Z�iCPU���C�g���Ɠ��������j
+// PDF値の計算（CPU側ライトと同様処理）
 float LightSamplePDF(float3 worldPos, float3 direction, float distance)
 {
     LightInfo light = GetLightInfo();
     
-    // ���C�ƌ����̌������e�X�g
-    // �ȗ����F������������ւ̓��B���m�F
+    // ライトと現在の光線方向テスト
+    // 概算：現在の方向への到達確率確認
     float3 lightCenter = light.position;
     float3 toLight = normalize(lightCenter - worldPos);
     
-    // �����̗ގ������`�F�b�N
-    if (dot(normalize(direction), toLight) > 0.99f) // ��̓�������
+    // 方向の類似性チェック
+    if (dot(normalize(direction), toLight) > 0.99f) // ほぼ同じ方向
     {
         float distanceSquared = distance * distance;
         float cosTheta = max(0.0f, dot(-normalize(direction), light.normal));
@@ -101,7 +101,7 @@ float CalculateLightPDF(uint lightIndex, float3 worldPos, float3 lightSamplePos,
     return 0.0f;
 }
 
-// ������ CPU�R�[�h�����̃G���A���C�g�T���v�����O ������
+// CPU側コードからのエリアライトサンプリング
 LightSample SampleAreaLight(float3 worldPos, inout uint seed)
 {
     LightSample sample;
@@ -110,30 +110,30 @@ LightSample SampleAreaLight(float3 worldPos, inout uint seed)
     float u = RandomFloat(seed);
     float v = RandomFloat(seed);
     
-    // XZ���ʂł̋�`�T���v�����O
+    // XZ平面での矩形サンプリング
     float3 lightSamplePos = light.position + float3(
         (u - 0.5f) * light.size.x,
         0.0f,
         (v - 0.5f) * light.size.z
     );
     
-    // �����Ƌ���
+    // 方向と距離
     float3 toLight = lightSamplePos - worldPos;
     sample.distance = length(toLight);
     sample.direction = normalize(toLight);
     sample.position = lightSamplePos;
     
-    // ���C�g�̖@���Ƃ̓��ρi���������C�g�j
+    // ライトの法線との内積（裏面ライト）
     float cosTheta = max(0.0f, dot(-sample.direction, light.normal));
     
     if (cosTheta > 0.001f && sample.distance > 0.001f)
     {
-        // ������ �C��: ���������̊pPDF�i�����������݁j ������
+        // 修正: 立体角PDFへの変換（物理的に正確）
         float distanceSquared = sample.distance * sample.distance;
         sample.pdf = distanceSquared / (cosTheta * light.area);
         
-        // ������ ���S�Ȕ͈͂ɃN�����v ������
-        sample.pdf = max(sample.pdf, 0.0001f); // �ŏ�PDF�l
+        // 安全な範囲にクランプ
+        sample.pdf = max(sample.pdf, 0.0001f); // 最小PDF値
         
         sample.radiance = light.emission;
         sample.valid = true;
@@ -263,7 +263,7 @@ LightSample SampleLightByIndex(uint lightIndex, float3 worldPos, inout uint seed
         sample.position = light.position;
         
         if (sample.distance > 0.001f) {
-            // ポイントライトのPDF: 1 / (4π * r²)
+            // ポイントライトのPDF: 1 / (4π * r2)
             float distanceSquared = sample.distance * sample.distance;
             sample.pdf = 1.0f / (4.0f * PI * distanceSquared);
             sample.radiance = light.emission / distanceSquared; // 距離減衰

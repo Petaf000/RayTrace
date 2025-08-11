@@ -1,13 +1,13 @@
-#pragma once
+ï»¿#pragma once
 #include "GameObjectUtils.h"
 
 struct OPosition : Float3Base<OPosition> {
-    // Œp³ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+    // ç¶™æ‰¿ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
     using Float3Base::Float3Base;
 
     DEFINE_FLOAT3_ARITHMETIC_OPERATORS(OPosition)
 
-        // PositionŒÅ—L‚Ì‹@”\
+        // Positionå›ºæœ‰ã®æ©Ÿèƒ½
         OPosition Cross(const OPosition& other) const {
         return OPosition(
             y * other.z - z * other.y,
@@ -16,13 +16,13 @@ struct OPosition : Float3Base<OPosition> {
         );
     }
 
-    // ”½Ëi–@üƒxƒNƒgƒ‹‚É‘Î‚µ‚Äj
+    // åå°„ï¼ˆæ³•ç·šãƒ™ã‚¯ãƒˆãƒ«ã«å¯¾ã—ã¦ï¼‰
     OPosition Reflect(const OPosition& normal) const {
         OPosition n = normal.Normalize();
         return *this - n * ( 2.0f * this->Dot(n) );
     }
 
-    // “Š‰eiƒxƒNƒgƒ‹‚É‘Î‚µ‚Äj
+    // æŠ•å½±ï¼ˆãƒ™ã‚¯ãƒˆãƒ«ã«å¯¾ã—ã¦ï¼‰
     OPosition Project(const OPosition& onto) const {
         float dot = this->Dot(onto);
         float lengthSq = onto.LengthSquared();
@@ -30,7 +30,7 @@ struct OPosition : Float3Base<OPosition> {
         return onto * ( dot / lengthSq );
     }
 
-    // Šp“xŒvZiƒ‰ƒWƒAƒ“j
+    // è§’åº¦è¨ˆç®—ï¼ˆãƒ©ã‚¸ã‚¢ãƒ³ï¼‰
     float AngleTo(const OPosition& other) const {
         OPosition a = this->Normalize();
         OPosition b = other.Normalize();
@@ -38,13 +38,13 @@ struct OPosition : Float3Base<OPosition> {
         return acosf(dot);
     }
 
-    // •½–Ê‚Ö‚Ì“Š‰ei•½–Ê‚Ì–@ü‚ğw’èj
+    // å¹³é¢ã¸ã®æŠ•å½±ï¼ˆå¹³é¢ã®æ³•ç·šã‚’æŒ‡å®šï¼‰
     OPosition ProjectOnPlane(const OPosition& planeNormal) const {
         OPosition n = planeNormal.Normalize();
         return *this - n * this->Dot(n);
     }
 
-    // ‹…–ÊüŒ`•âŠÔi•ûŒüƒxƒNƒgƒ‹—pj
+    // çƒé¢ç·šå½¢è£œé–“ï¼ˆæ–¹å‘ãƒ™ã‚¯ãƒˆãƒ«ç”¨ï¼‰
     static OPosition Slerp(const OPosition& a, const OPosition& b, float t) {
         OPosition na = a.Normalize();
         OPosition nb = b.Normalize();
@@ -68,7 +68,7 @@ struct OPosition : Float3Base<OPosition> {
         return direction.Normalize() * distance;
     }
 
-    // Ã“I’è”
+    // é™çš„å®šæ•°
     static const OPosition Zero() { return OPosition(0, 0, 0); }
     static const OPosition One() { return OPosition(1, 1, 1); }
     static const OPosition Forward() { return OPosition(0, 0, 1); }
@@ -79,7 +79,7 @@ struct OPosition : Float3Base<OPosition> {
     static const OPosition Left() { return OPosition(-1, 0, 0); }
 };
 
-// ƒOƒ[ƒoƒ‹‰‰Zq
+// ã‚°ãƒ­ãƒ¼ãƒãƒ«æ¼”ç®—å­
 inline OPosition operator*(float scalar, const OPosition& pos) {
     return pos * scalar;
 }

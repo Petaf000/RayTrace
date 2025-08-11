@@ -1,4 +1,4 @@
-// ===== ClosestHit_Dielectric.hlsl NEE+MIS対応版 =====
+﻿// ===== ClosestHit_Dielectric.hlsl NEE+MIS対応版 =====
 #include "Common.hlsli"
 
 // CPUでのUtil.hと完全に同じSchlick近似

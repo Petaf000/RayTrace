@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include "GameObject3D.h"
 #include "DXRData.h"
 
@@ -7,31 +7,31 @@ public:
     DXRShape() = default;
     virtual ~DXRShape() = default;
 
-    // GameObject3D‚Ì‰¼‘zŠÖ”À‘•
+    // GameObject3Dã®ä»®æƒ³é–¢æ•°å®Ÿè£…
     virtual void Init() override {}
     virtual void Update() override {}
-    virtual void Draw() override {} // Œ»İ‚Í‹óÀ‘•
+    virtual void Draw() override {} // ç¾åœ¨ã¯ç©ºå®Ÿè£…
     virtual void UnInit() override {}
 
-    // DXR—pƒf[ƒ^æ“¾iƒˆ‰¼‘zŠÖ”j
+    // DXRç”¨ãƒ‡ãƒ¼ã‚¿å–å¾—ï¼ˆç´”ç²‹ä»®æƒ³é–¢æ•°ï¼‰
     virtual std::vector<DXRVertex> GetVertices() const = 0;
     virtual std::vector<uint32_t> GetIndices() const = 0;
-    // ššš ƒ}ƒeƒŠƒAƒ‹ID‚ğˆµ‚¤‚æ‚¤‚É•ÏX ššš
+    // â˜…â˜…â˜… ãƒãƒ†ãƒªã‚¢ãƒ«IDã‚’æ‰±ã†ã‚ˆã†ã«å¤‰æ›´ â˜…â˜…â˜…
     virtual uint32_t GetMaterialID() const { return m_materialID; }
     virtual void SetMaterialID(uint32_t id) { m_materialID = id; }
 
-    // BLAS\’z—pƒf[ƒ^æ“¾
+    // BLASæ§‹ç¯‰ç”¨ãƒ‡ãƒ¼ã‚¿å–å¾—
     BLASData GetBLASData() const {
         BLASData blasData;
-        // ˆˆˆ ’¸“_‚Íƒ[ƒJƒ‹À•W‚Ì‚Ü‚ÜŠi”[ ˆˆˆ
+        // âˆ´âˆ´âˆ´ é ‚ç‚¹ã¯ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ã®ã¾ã¾æ ¼ç´ âˆ´âˆ´âˆ´
         blasData.vertices = GetVertices();
         blasData.indices = GetIndices();
         blasData.materialID = GetMaterialID();
 
-        // ˆˆˆ ƒ[ƒ‹ƒh•ÏŠ·s—ñ‚ğtransform‚Éİ’è ˆˆˆ
+        // âˆ´âˆ´âˆ´ ãƒ¯ãƒ¼ãƒ«ãƒ‰å¤‰æ›è¡Œåˆ—ã‚’transformã«è¨­å®š âˆ´âˆ´âˆ´
         blasData.transform = GetWorldMatrix();
 
-        // ƒfƒoƒbƒOF•ÏŠ·s—ñ‚ÌŠm”F
+        // ãƒ‡ãƒãƒƒã‚°ï¼šå¤‰æ›è¡Œåˆ—ã®ç¢ºèª
         XMFLOAT4X4 transformFloat;
         XMStoreFloat4x4(&transformFloat, blasData.transform);
         char debugMsg[256];

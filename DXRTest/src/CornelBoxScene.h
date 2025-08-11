@@ -1,4 +1,4 @@
-// CornelBoxScene.h
+ï»¿// CornelBoxScene.h
 #pragma once
 #include "DXRScene.h"
 
@@ -16,7 +16,7 @@ private:
     void CreateObjects();
     void SetupCamera();
 
-    // ƒ}ƒeƒŠƒAƒ‹ƒf[ƒ^
+    // ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ‡ãƒ¼ã‚¿
     DXRMaterialData m_redMaterial;
     DXRMaterialData m_greenMaterial;
     DXRMaterialData m_whiteMaterial;

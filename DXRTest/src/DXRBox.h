@@ -1,4 +1,4 @@
-// DXRBox.h
+ï»¿// DXRBox.h
 #pragma once
 #include "DXRShape.h"
 
@@ -17,10 +17,10 @@ public:
     virtual std::vector<DXRVertex> GetVertices() const override { return m_vertices; };
     virtual std::vector<uint32_t> GetIndices() const override { return m_indices; };
 
-    // šC³FSetSize()‚ÅƒWƒIƒƒgƒŠ‚ğÄ¶¬‚·‚é‚æ‚¤‚É•ÏX
+    // â˜…ä¿®æ­£ï¼šSetSize()ã§ã‚¸ã‚ªãƒ¡ãƒˆãƒªã‚’å†ç”Ÿæˆã™ã‚‹ã‚ˆã†ã«å¤‰æ›´
     void SetScale(const XMFLOAT3& scale) override{
 		GameObject3D::SetScale(scale);
-        // ƒTƒCƒY‚ª•ÏX‚³‚ê‚½‚çƒWƒIƒƒgƒŠ‚ğÄ¶¬
+        // ã‚µã‚¤ã‚ºãŒå¤‰æ›´ã•ã‚ŒãŸã‚‰ã‚¸ã‚ªãƒ¡ãƒˆãƒªã‚’å†ç”Ÿæˆ
         if ( !m_vertices.empty() ) {
             CreateBoxGeometry();
         }

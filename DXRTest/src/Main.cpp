@@ -1,4 +1,4 @@
-#include "Pch.h"
+Ôªø#include "Pch.h"
 #include "App.h"
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
@@ -11,7 +11,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         App::Run();
 	}
 	catch ( const std::runtime_error& e ) {
-		MessageBoxA(nullptr, e.what(), "ÉGÉâÅ[", MB_OK);
+		MessageBoxA(nullptr, e.what(), "„Ç®„É©„Éº", MB_OK);
 		return -1;
 	}
 

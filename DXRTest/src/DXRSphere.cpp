@@ -15,10 +15,10 @@ void DXRSphere::CreateSphereGeometry() {
     m_indices.clear();
 
     char debugMsg[256];
-    sprintf_s(debugMsg, "=== Creating Sphere Geometry ===\n");
+    sprintf_s(debugMsg, "Creating Sphere Geometry\n");
     OutputDebugStringA(debugMsg);
 
-    // ★★★ 球らしく見える適切な分割数 ★★★
+    // 球らしく見える適切な分割数
     const int SEGMENTS = 16;  // 水平分割数（経度方向）
     const int RINGS = 8;      // 垂直分割数（緯度方向）
 
@@ -36,7 +36,7 @@ void DXRSphere::CreateSphereGeometry() {
 
     const float PI = 3.14159265359f;
 
-    // ★★★ 頂点生成 ★★★
+    // 頂点生成
     for ( int ring = 0; ring <= RINGS; ++ring ) {
         float phi = PI * ring / RINGS;  // 0 から π まで
         float y = cosf(phi);            // Y座標（上から下へ）
@@ -62,7 +62,7 @@ void DXRSphere::CreateSphereGeometry() {
     sprintf_s(debugMsg, "Generated %zu vertices (expected: %d)\n", m_vertices.size(), expectedVertices);
     OutputDebugStringA(debugMsg);
 
-    // ★★★ インデックス生成 ★★★
+    // インデックス生成
     int triangleCount = 0;
     int verticesPerRing = SEGMENTS + 1;
 
@@ -85,13 +85,13 @@ void DXRSphere::CreateSphereGeometry() {
                 continue;
             }
 
-            // ★★★ 三角形1: (topLeft, topRight, bottomLeft) ★★★
+            // 三角形1: (topLeft, topRight, bottomLeft)
             m_indices.push_back(static_cast<uint32_t>( topLeft ));
             m_indices.push_back(static_cast<uint32_t>( topRight ));
             m_indices.push_back(static_cast<uint32_t>( bottomLeft ));
             triangleCount++;
 
-            // ★★★ 三角形2: (topRight, bottomRight, bottomLeft) ★★★
+            // 三角形2: (topRight, bottomRight, bottomLeft)
             m_indices.push_back(static_cast<uint32_t>( topRight ));
             m_indices.push_back(static_cast<uint32_t>( bottomRight ));
             m_indices.push_back(static_cast<uint32_t>( bottomLeft ));
@@ -103,7 +103,7 @@ void DXRSphere::CreateSphereGeometry() {
         m_indices.size(), triangleCount, expectedIndices);
     OutputDebugStringA(debugMsg);
 
-    // ★★★ 基本的な検証 ★★★
+    // 基本的な検証
     uint32_t maxIndex = 0;
     bool hasErrors = false;
 
@@ -123,16 +123,16 @@ void DXRSphere::CreateSphereGeometry() {
     OutputDebugStringA(debugMsg);
 
     if ( !hasErrors && maxIndex < m_vertices.size() ) {
-        OutputDebugStringA("✓ Sphere creation SUCCESS!\n");
+        OutputDebugStringA("Sphere creation SUCCESS!\n");
         sprintf_s(debugMsg, "Sphere stats: %zu vertices, %d triangles\n",
             m_vertices.size(), triangleCount);
         OutputDebugStringA(debugMsg);
     }
     else {
-        OutputDebugStringA("✗ Sphere creation FAILED!\n");
+        OutputDebugStringA("Sphere creation FAILED!\n");
     }
 
-    // ★★★ メンバー変数を更新 ★★★
+    // メンバー変数を更新
     m_segments = SEGMENTS;
     m_rings = RINGS;
 }

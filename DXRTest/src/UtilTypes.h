@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #ifdef _WINDOWS_
 
 struct SQUARE {
@@ -47,7 +47,7 @@ struct Time {
 
 
 #if _MSC_VER
-	// ‘OƒtƒŒ[ƒ€‚©‚ç‚ÌŒo‰ßŠÔ(Sec)
+	// å‰ãƒ•ãƒ¬ãƒ¼ãƒ ã‹ã‚‰ã®çµŒéæ™‚é–“(Sec)
 	__declspec( property( get = GetDeltaSec ) ) float DeltaTime;
 
 

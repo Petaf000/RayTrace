@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include "GameObjectUtils.h"
 
 struct ORotation {
@@ -40,7 +40,7 @@ private:
     }
 
 public:
-    // ƒvƒƒpƒeƒBƒAƒNƒZƒT
+    // ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ã‚¢ã‚¯ã‚»ã‚µ
     float GetPitchInternal() const {
         UpdateEulerCache();
         return m_cachedEuler.x;
@@ -120,7 +120,7 @@ public:
         InvalidateEulerCache();
     }
 
-    // ƒvƒƒpƒeƒB’è‹`
+    // ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£å®šç¾©
 #ifdef _MSC_VER
     __declspec( property( get = GetPitchInternal, put = SetPitchInternal ) ) float Pitch;
     __declspec( property( get = GetYawInternal, put = SetYawInternal ) ) float Yaw;
@@ -130,7 +130,7 @@ public:
     __declspec( property( get = GetQuaternionInternal, put = SetQuaternionInternal ) ) XMFLOAT4 Quaternion;
 #endif // _MSC_VER
 
-    // ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+    // ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
     ORotation() noexcept {
         quaternion.x = quaternion.y = quaternion.z = 0.0f;
         quaternion.w = 1.0f;
@@ -173,7 +173,7 @@ public:
         InvalidateEulerCache();
     }
 
-    // ƒLƒƒƒXƒg‰‰Zq
+    // ã‚­ãƒ£ã‚¹ãƒˆæ¼”ç®—å­
     operator XMFLOAT4() const { return quaternion; }
     operator XMFLOAT4* ( ) { return &quaternion; }
     operator const XMFLOAT4* ( ) const { return &quaternion; }
@@ -183,7 +183,7 @@ public:
         return m_cachedEuler;
     }
 
-    // Zp‰‰Zq
+    // ç®—è¡“æ¼”ç®—å­
     ORotation operator*(const ORotation& other) const {
         XMVECTOR q1 = XMLoadFloat4(&quaternion);
         XMVECTOR q2 = XMLoadFloat4(&other.quaternion);
@@ -217,7 +217,7 @@ public:
         return *this;
     }
 
-    // ”äŠr‰‰Zq
+    // æ¯”è¼ƒæ¼”ç®—å­
     bool operator==(const ORotation& other) const {
         XMVECTOR q1 = XMLoadFloat4(&quaternion);
         XMVECTOR q2 = XMLoadFloat4(&other.quaternion);
@@ -229,7 +229,7 @@ public:
         return !( *this == other );
     }
 
-    // ‰ñ“]ŠÖ˜A‹@”\
+    // å›è»¢é–¢é€£æ©Ÿèƒ½
     ORotation Normalize() const {
         XMVECTOR q = XMLoadFloat4(&quaternion);
         XMVECTOR normalized = XMQuaternionNormalize(q);
@@ -299,7 +299,7 @@ public:
         return RotateVector(OPosition::Up());
     }
 
-    // Šp“x‚Ì³‹K‰»
+    // è§’åº¦ã®æ­£è¦åŒ–
     void NormalizeAngles() {
         XMFLOAT3 euler = EulerAngles;
 
@@ -316,7 +316,7 @@ public:
         EulerAngles = euler;
     }
 
-    // 2‚Â‚ÌƒxƒNƒgƒ‹ŠÔ‚Ì‰ñ“]‚ğì¬
+    // 2ã¤ã®ãƒ™ã‚¯ãƒˆãƒ«é–“ã®å›è»¢ã‚’ä½œæˆ
     static ORotation FromToRotation(const OPosition& from, const OPosition& to) {
         XMVECTOR fromVec = XMVector3Normalize(from.ToXMVector());
         XMVECTOR toVec = XMVector3Normalize(to.ToXMVector());
@@ -380,7 +380,7 @@ public:
         return FromMatrix(lookAtMatrix);
     }
 
-    // Ã“Iƒtƒ@ƒNƒgƒŠƒƒ\ƒbƒh
+    // é™çš„ãƒ•ã‚¡ã‚¯ãƒˆãƒªãƒ¡ã‚½ãƒƒãƒ‰
     static ORotation FromQuaternionVector(XMVECTOR quat) {
         ORotation result;
         XMVECTOR normalized = XMQuaternionNormalize(quat);

@@ -1,5 +1,4 @@
-
-// CornelBoxScene.cpp
+﻿// CornelBoxScene.cpp
 #include "CornelBoxScene.h"
 #include "DXRBox.h"
 #include "DXRSphere.h"
@@ -26,14 +25,14 @@ void CornelBoxScene::Update() {
         m_cameraData.position.y -= CAMERA_SPEED;
 
     if(Input::GetKeyPress('W') )
-		m_cameraData.position.z += CAMERA_SPEED; // �O�i
+		m_cameraData.position.z += CAMERA_SPEED; // 前進
 	if ( Input::GetKeyPress('S') )
-		m_cameraData.position.z -= CAMERA_SPEED; // ���
+		m_cameraData.position.z -= CAMERA_SPEED; // 後退
 
 }
 
 void CornelBoxScene::CreateMaterials() {
-    // �V�[���������j�[�N�ȃ}�e���A���̃��X�g���N���A
+    // シーン全体でユニークなマテリアルのリストをクリア
     m_uniqueMaterials.clear();
 
     DXRMaterialData material;
@@ -58,7 +57,7 @@ void CornelBoxScene::CreateMaterials() {
     
     // Material 3: Light
     material.albedo = { 1.0f, 1.0f, 1.0f };
-    material.emission = { 17 / 1.5, 12 / 1.5, 4 / 1.5 }; // 物理的に適切な発光強度（W/m²sr）
+    material.emission = { 17 / 1.5, 12 / 1.5, 4 / 1.5 };
     material.materialType = 3; // DiffuseLight
     m_uniqueMaterials.push_back(material);
 
@@ -78,8 +77,8 @@ void CornelBoxScene::CreateMaterials() {
 }
 
 void CornelBoxScene::CreateWalls() {
-    // �e�I�u�W�F�N�g�Ƀ}�e���A���f�[�^�𒼐ړn������ɁA�}�e���A��ID�i���X�g�̃C���f�b�N�X�j��n��
-    // ��AddGameObject��DXRBox/Sphere�̃R���X�g���N�^���}�e���A��ID���󂯎���悤�ɏC�����K�v�ł�
+    // 各オブジェクトにマテリアルデータを直接渡すために、マテリアルのID（リストのインデックス）を渡す
+    // ※AddGameObjectでDXRBox/Sphereのコンストラクタがマテリアル IDを受け取れるよう修正が必要です
 
     // **物理的に正確な2m×2m Cornell Box（床を原点基準）**
     
@@ -110,7 +109,7 @@ void CornelBoxScene::CreateWalls() {
 
 void CornelBoxScene::CreateObjects() {
     /*
-    // �����{�b�N�X�iID:2�j
+    // 短いボックス（ID:2）
     auto* shortBox = AddGameObject<DXRBox>(Layer::Gameobject3D, XMFLOAT3(166.5, 166.5, 166.5), 2);
     shortBox->SetPosition({ 88.8, 83.25, 102.675 });
     shortBox->SetRotation({ 0.0f, XMConvertToRadians(-18.0f), 0.0f });
@@ -132,11 +131,11 @@ void CornelBoxScene::CreateObjects() {
     tallBox->SetRotation({ 0.0f, XMConvertToRadians(-18.0f), 0.0f });
 
 /*
-    // �K���X���iID:5�j
+    // ガラス球（ID:5）
     auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 45.0f, 5);
     glassSphere->SetPosition({ 0.0f, -142.5f, -250.0f });
 
-    // �A���~�j�E�����iID:4�j
+    // アルミニウム球（ID:4）
     auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, 4);
     aluminumSphere->SetPosition({ 150.0f, -107.5f, -125.0f });
     */

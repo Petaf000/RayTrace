@@ -1,4 +1,4 @@
-#include "App.h"
+ï»¿#include "App.h"
 
 #include <shellapi.h>
 #include <strsafe.h>
@@ -9,14 +9,14 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 void App::Init() {
 
-    // wWinMain‚Ìˆø”æ“¾
+    // wWinMainã®å¼•æ•°å–å¾—
     {
         if ( ( m_hInstance = GetModuleHandle(nullptr) ) == NULL )
-            throw std::runtime_error("ƒCƒ“ƒXƒ^ƒ“ƒX‚ª³í‚Éæ“¾‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½");
+            throw std::runtime_error("ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ãŒæ­£å¸¸ã«å–å¾—ã§ãã¾ã›ã‚“ã§ã—ãŸ");
 
-        // ƒRƒ}ƒ“ƒhƒ‰ƒCƒ“ˆø”‚Ìæ“¾
-        // NOTE: ‚Æ‚è‚ ‚¦‚¸‚ÌÀ‘•‚Å‚·
-        // TODO: ƒRƒ}ƒ“ƒhƒ‰ƒCƒ“‚ª•K—v‚È‚ÉÄ“xÀ‘•
+        // ã‚³ãƒãƒ³ãƒ‰ãƒ©ã‚¤ãƒ³å¼•æ•°ã®å–å¾—
+        // NOTE: ã¨ã‚Šã‚ãˆãšã®å®Ÿè£…ã§ã™
+        // TODO: ã‚³ãƒãƒ³ãƒ‰ãƒ©ã‚¤ãƒ³ãŒå¿…è¦ãªæ™‚ã«å†åº¦å®Ÿè£…
         int argc;
         LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
         while ( argc > 1 ) {
@@ -28,7 +28,7 @@ void App::Init() {
 
 
 
-	// ƒEƒBƒ“ƒhƒEƒNƒ‰ƒX‚Ì“o˜^
+	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¯ãƒ©ã‚¹ã®ç™»éŒ²
     {
         WNDCLASSEX wcex;
         {
@@ -62,15 +62,15 @@ void App::Init() {
                 nullptr, nullptr, m_hInstance, nullptr);
 
             if ( FAILED(m_hWnd) )
-                throw std::runtime_error("ƒEƒBƒ“ƒhƒE‚Ìì¬‚É¸”s‚µ‚Ü‚µ‚½");
+                throw std::runtime_error("ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ä½œæˆã«å¤±æ•—ã—ã¾ã—ãŸ");
         }
 
         if ( FAILED(CoInitializeEx(nullptr, COINITBASE_MULTITHREADED)) )
-            throw std::runtime_error("COM‰Šú‰»‚É¸”s‚µ‚Ü‚µ‚½");
+            throw std::runtime_error("COMåˆæœŸåŒ–ã«å¤±æ•—ã—ã¾ã—ãŸ");
     }
 
 
-    // TODO: ‰Šú‰»
+    // TODO: åˆæœŸåŒ–
 
 	Singleton<GameManager>::getInstance().Init();
 
@@ -93,7 +93,7 @@ void App::Run()
 
 
 
-	// ƒƒCƒ“ƒ‹[ƒv
+	// ãƒ¡ã‚¤ãƒ³ãƒ«ãƒ¼ãƒ—
     MSG msg{};
     float delta;
     while ( true ) {
@@ -108,7 +108,7 @@ void App::Run()
         }
         else {
 
-			// ‰Â•ÏƒtƒŒ[ƒ€ƒŒ[ƒg(Å‘å600FPS)
+			// å¯å¤‰ãƒ•ãƒ¬ãƒ¼ãƒ ãƒ¬ãƒ¼ãƒˆ(æœ€å¤§600FPS)
             if ( ( delta = m_time.DeltaTime) >= 1.0f / m_targetFrameRate) {
 
 
@@ -116,12 +116,12 @@ void App::Run()
                 App::SetWindowName(fps);
                 GetClientRect(m_hWnd, &m_windowSize.Rect);
                 
-                // TODO: ƒtƒŒ[ƒ€ˆ—
+                // TODO: ãƒ•ãƒ¬ãƒ¼ãƒ å‡¦ç†
                 try {
 					Singleton<GameManager>::getInstance().Update();
                 }
                 catch ( const std::exception& e ) {
-                    MessageBoxA(nullptr, e.what(), "ƒGƒ‰[", MB_OK);
+                    MessageBoxA(nullptr, e.what(), "ã‚¨ãƒ©ãƒ¼", MB_OK);
 					Cleanup();
                     break;
                 }
@@ -138,7 +138,7 @@ void App::Run()
 
 void App::Cleanup() {
 
-	// TODO: ƒNƒŠ[ƒ“ƒAƒbƒvˆ—
+	// TODO: ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—å‡¦ç†
 
 	Singleton<GameManager>::getInstance().UnInit();
 
@@ -193,8 +193,8 @@ LRESULT App::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 
 
 
-// Windows—áŠOƒtƒBƒ‹ƒ^
-// NOTE: ‚Æ‚è‚ ‚¦‚¸ƒGƒ‰[ƒtƒBƒ‹ƒ^[À‘•‚µ‚Ä‚Ü‚·@ƒJƒXƒ^ƒ€‚Å‚â‚è‚½‚¢‚Æ‚«‚Í•Ê“rSetUnhandledExceptionFilter‚µ‚Ä‚­‚¾‚³‚¢
+// Windowsä¾‹å¤–ãƒ•ã‚£ãƒ«ã‚¿
+// NOTE: ã¨ã‚Šã‚ãˆãšã‚¨ãƒ©ãƒ¼ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼å®Ÿè£…ã—ã¦ã¾ã™ã€€ã‚«ã‚¹ã‚¿ãƒ ã§ã‚„ã‚ŠãŸã„ã¨ãã¯åˆ¥é€”SetUnhandledExceptionFilterã—ã¦ãã ã•ã„
 LONG WINAPI App::TopLevelExceptionFilter(struct _EXCEPTION_POINTERS* ExceptionInfo) {
     TCHAR szText[1024] = { TEXT('\0') };
 
@@ -207,7 +207,7 @@ LONG WINAPI App::TopLevelExceptionFilter(struct _EXCEPTION_POINTERS* ExceptionIn
         ExceptionInfo->ExceptionRecord->ExceptionInformation,
         ExceptionInfo->ExceptionRecord->NumberParameters);
 
-    MessageBox(NULL, szText, TEXT("Win32ƒGƒ‰[ƒtƒBƒ‹ƒ^["), MB_OK);
+    MessageBox(NULL, szText, TEXT("Win32ã‚¨ãƒ©ãƒ¼ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼"), MB_OK);
 
     return 0;
 }
