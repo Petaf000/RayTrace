@@ -1,15 +1,14 @@
-
-
-
-
-
-
-
-
-
-
 #pragma once
 #include "DXRScene.h"
+
+enum class CornelBoxMaterial : int {
+    Red = 0,
+    Green,
+    White,
+    Light,
+    Metal,
+    Glass
+};
 
 class CornelBoxScene : public DXRScene {
 public:
@@ -24,11 +23,4 @@ private:
     void CreateWalls();
     void CreateObjects();
     void SetupCamera();
-
-    DXRMaterialData m_redMaterial;
-    DXRMaterialData m_greenMaterial;
-    DXRMaterialData m_whiteMaterial;
-    DXRMaterialData m_lightMaterial;
-    DXRMaterialData m_metalMaterial;
-    DXRMaterialData m_glassMaterial;
 };

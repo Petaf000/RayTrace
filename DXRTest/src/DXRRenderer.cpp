@@ -4,16 +4,14 @@
 #include "DXRScene.h"
 
 void DXRRenderer::Init(Renderer* renderer) {
-    ID3D12Device* baseDevice = renderer->GetDevice();
-    HRESULT hr = baseDevice->QueryInterface(IID_PPV_ARGS(&m_device));
+    HRESULT hr = renderer->GetDevice()->QueryInterface(IID_PPV_ARGS(&m_device));
     if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to create DXR Device");
     }
 
     m_commandQueue = renderer->GetCommandQueue();
 
-    ComPtr<ID3D12GraphicsCommandList> baseCommandList = renderer->GetCommandList();
-    hr = baseCommandList->QueryInterface(IID_PPV_ARGS(&m_commandList));
+    hr = renderer->GetCommandList()->QueryInterface(IID_PPV_ARGS(&m_commandList));
     if ( FAILED(hr) ) {
         throw std::runtime_error("Failed to create DXR CommandList");
     }
@@ -47,7 +45,7 @@ void DXRRenderer::Init(Renderer* renderer) {
     imguiHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     imguiHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-    ID3D12DescriptorHeap* sharedSrvHeap = renderer->GetSRVHeap();
+    ComPtr<ID3D12DescriptorHeap> sharedSrvHeap = renderer->GetSRVHeap();
     UINT descriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     const int dxrDebugViewOffset = 1;
@@ -59,14 +57,6 @@ void DXRRenderer::Init(Renderer* renderer) {
     m_debugSrvHeapStart_GPU.Offset(dxrDebugViewOffset, descriptorSize);
 
     CreateDebugBufferViews();
-
-    SetDenoiserEnabled(false);
-    SetDenoiserIterations(3);
-    SetDenoiserParameters(
-        0.15f,
-        16.0f,
-        0.1f
-    );
 
     OutputDebugStringA("DXR initialization completed\n");
 }
@@ -128,16 +118,16 @@ void DXRRenderer::Render() {
         OutputDebugStringA(debugMsg);
     }
     
-    if (!m_restirInitialized) {
+    /*if (!m_restirInitialized) {
         InitializeReSTIRBuffers();
         
         char debugMsg[256];
         sprintf_s(debugMsg, "ReSTIR DI buffers initialized\n");
         OutputDebugStringA(debugMsg);
-    }
+    }*/
 
     auto& renderer = Singleton<Renderer>::getInstance();
-    ID3D12Resource* currentBackBuffer = renderer.GetBackBuffer(renderer.GetCurrentFrameIndex());
+    ComPtr<ID3D12Resource> currentBackBuffer = renderer.GetBackBuffer(renderer.GetCurrentFrameIndex());
     if ( !currentBackBuffer ) {
         return;
     }
@@ -219,22 +209,21 @@ void DXRRenderer::Render() {
     m_commandList->ResourceBarrier(static_cast<UINT>(restoreBarriers.size()), restoreBarriers.data());
 
     if ( m_denoiserEnabled ) {
-        ID3D12Resource* finalDenoisedResult = RunDenoiser();
 
         std::vector<CD3DX12_RESOURCE_BARRIER> preCopyBarriers = {
-            CD3DX12_RESOURCE_BARRIER::Transition(finalDenoisedResult,
+            CD3DX12_RESOURCE_BARRIER::Transition(m_denoisedOutput.Get(),
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
-            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer.Get(),
                 D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
         };
         m_commandList->ResourceBarrier(static_cast<UINT>( preCopyBarriers.size() ), preCopyBarriers.data());
 
-        m_commandList->CopyResource(currentBackBuffer, finalDenoisedResult);
+        m_commandList->CopyResource(currentBackBuffer.Get(), m_denoisedOutput.Get());
 
         std::vector<CD3DX12_RESOURCE_BARRIER> postCopyBarriers = {
-            CD3DX12_RESOURCE_BARRIER::Transition(finalDenoisedResult,
+            CD3DX12_RESOURCE_BARRIER::Transition(m_denoisedOutput.Get(),
                 D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer.Get(),
                 D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET)
         };
         m_commandList->ResourceBarrier(static_cast<UINT>( postCopyBarriers.size() ), postCopyBarriers.data());
@@ -245,17 +234,17 @@ void DXRRenderer::Render() {
         std::vector<CD3DX12_RESOURCE_BARRIER> preCopyBarriers = {
             CD3DX12_RESOURCE_BARRIER::Transition(finalResult,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE),
-            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+            CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer.Get(),
                 D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
         };
         m_commandList->ResourceBarrier(static_cast<UINT>( preCopyBarriers.size() ), preCopyBarriers.data());
 
-        m_commandList->CopyResource(currentBackBuffer, finalResult);
+        m_commandList->CopyResource(currentBackBuffer.Get(), finalResult);
 
         std::vector<CD3DX12_RESOURCE_BARRIER> postCopyBarriers = {
             CD3DX12_RESOURCE_BARRIER::Transition(finalResult,
                 D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-                CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer,
+                CD3DX12_RESOURCE_BARRIER::Transition(currentBackBuffer.Get(),
                     D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET)
         };
         m_commandList->ResourceBarrier(static_cast<UINT>( postCopyBarriers.size() ), postCopyBarriers.data());
@@ -477,7 +466,7 @@ void DXRRenderer::InitializeDXR(ID3D12Device* device) {
     HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
 
     if ( FAILED(hr) || options5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED ) {
-        throw std::runtime_error("DXR is not supported on this device");
+        ThrowIfFailed(hr);
     }
 }
 
@@ -1449,7 +1438,7 @@ void DXRRenderer::CreateDenoiserPipeline() {
     OutputDebugStringA("Denoiser pipeline created successfully using global root signature\n");
 }
 
-ID3D12Resource* DXRRenderer::RunDenoiser() {
+ComPtr<ID3D12Resource> DXRRenderer::RunDenoiser() {
     if ( !m_denoiserEnabled || m_denoiserIterations <= 0 ) {
         return m_raytracingOutput.Get();
     }
@@ -1516,7 +1505,7 @@ ID3D12Resource* DXRRenderer::RunDenoiser() {
     };
     m_commandList->ResourceBarrier(static_cast<UINT>( postLoopBarriers.size() ), postLoopBarriers.data());
 
-    return m_denoisedOutput.Get();
+    return m_denoisedOutput;
 }
 
 void DXRRenderer::UpdateDenoiserConstants(int stepSize) {
@@ -2092,57 +2081,9 @@ void DXRRenderer::CreateShaderTables() {
 
     m_hitGroupShaderTable->Unmap(0, nullptr);
     s_hitGroupEntrySize = hitGroupEntrySize;
-
-    /*
-    UINT hitGroupEntrySize = AlignTo(s_shaderIdentifierSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
-    CD3DX12_RESOURCE_DESC hitGroupShaderTableDesc = CD3DX12_RESOURCE_DESC::Buffer(hitGroupEntrySize * numInstances);
-
-    hr = m_device->CreateCommittedResource(
-        &uploadHeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &hitGroupShaderTableDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&m_hitGroupShaderTable)
-    );
-
-    void* mappedHitGroupData;
-    m_hitGroupShaderTable->Map(0, nullptr, &mappedHitGroupData);
-
-    for ( size_t i = 0; i < numInstances; ++i ) {
-        char* entryStart = static_cast<char*>( mappedHitGroupData ) + ( i * hitGroupEntrySize );
-
-        void* shaderID = nullptr;
-        
-        uint32_t materialID = tlasData.blasDataList[i].materialID;
-        int materialType = 0;
-        
-        auto& gameManager = Singleton<GameManager>::getInstance();
-        DXRScene* dxrScene = dynamic_cast<DXRScene*>(gameManager.GetScene().get());
-        if (dxrScene) {
-            const auto& materials = dxrScene->GetUniqueMaterials();
-            if (materialID < materials.size()) {
-                materialType = materials[materialID].materialType;
-            }
-        }
-        
-        switch ( materialType ) {
-            case 0: shaderID = lambertianHitGroupID; break;
-            case 1: shaderID = metalHitGroupID; break;
-            case 2: shaderID = dielectricHitGroupID; break;
-            case 3: shaderID = lightHitGroupID; break;
-            default: shaderID = lambertianHitGroupID; break;
-        }
-
-        memcpy(entryStart, shaderID, s_shaderIdentifierSize);
-    }
-
-    m_hitGroupShaderTable->Unmap(0, nullptr);
-    s_hitGroupEntrySize = hitGroupEntrySize;
-    */
 }
 
-
+// ReSTIR実行してないですが、リソースだけ作成してます
 void DXRRenderer::CreateReSTIRResources() {
     char debugMsg[256];
     sprintf_s(debugMsg, "Creating ReSTIR resources for resolution %ux%u\n", m_width, m_height);

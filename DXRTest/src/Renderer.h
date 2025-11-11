@@ -17,7 +17,6 @@ public:
     void Update();
     void Render();
     void InitFrame();
-    void InitFrameForDXR();
 	void EndFrame();
 
 	void WaitGPU() {
@@ -44,19 +43,19 @@ public:
         WaitGPU();
 	}
 
-    ID3D12Device* GetDevice() const { return m_device.Get(); }
-    ID3D12CommandQueue* GetCommandQueue() const { return m_commandQueue.Get(); }
-    ID3D12GraphicsCommandList* GetCommandList() { return m_commandList.Get(); }
+    ComPtr<ID3D12Device> GetDevice() const { return m_device; }
+    ComPtr<ID3D12CommandQueue> GetCommandQueue() const { return m_commandQueue; }
+    ComPtr<ID3D12GraphicsCommandList> GetCommandList() { return m_commandList; }
     HWND GetHwnd() const { return m_hWnd; }
     UINT GetBufferWidth() const { return m_bufferWidth; }
     UINT GetBufferHeight() const { return m_bufferHeight; }
     UINT GetCurrentFrameIndex() const { return m_frameIndex; }
-    ID3D12Resource* GetBackBuffer(UINT index) const {
-        return ( index < m_frameBufferCount ) ? m_renderTargets[index].Get() : nullptr;
+    ComPtr<ID3D12Resource> GetBackBuffer(UINT index) const {
+        return ( index < m_frameBufferCount ) ? m_renderTargets[index] : nullptr;
     }
-    ID3D12DescriptorHeap* GetRTVHeap() const { return m_rtvHeap.Get(); }
+    ComPtr<ID3D12DescriptorHeap> GetRTVHeap() const { return m_rtvHeap; }
     UINT GetRTVDescriptorSize() const { return m_rtvDescriptorSize; }
-    ID3D12DescriptorHeap* GetSRVHeap() const { return m_srvHeap.Get(); }
+    ComPtr<ID3D12DescriptorHeap> GetSRVHeap() const { return m_srvHeap; }
 
 private:
 	friend class Singleton<Renderer>;

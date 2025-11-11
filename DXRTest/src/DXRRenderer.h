@@ -14,13 +14,14 @@ public:
 	UINT GetWidth() const { return m_width; }
 	UINT GetHeight() const { return m_height; }
 	
-    void SetDenoiserEnabled(bool enabled) { m_denoiserEnabled = enabled; }
+	// ATrousDenoiserÇÕåªç›égÇ¡ÇƒÇ‹ÇπÇÒ(TemporalAccumulationÇÃÇ›é¿çsÇ≈Ç´Ç‹Ç∑)
+    /*void SetDenoiserEnabled(bool enabled) { m_denoiserEnabled = enabled; }
     void SetDenoiserIterations(int iterations) { m_denoiserIterations = max(1, min(5, iterations)); }
     void SetDenoiserParameters(float colorSigma, float normalSigma, float depthSigma) {
         m_colorSigma = colorSigma;
         m_normalSigma = normalSigma;
         m_depthSigma = depthSigma;
-    }
+    }*/
 private:
     friend class Singleton<DXRRenderer>;
 
@@ -46,7 +47,7 @@ private:
 
     void CreateDenoiserResources();
     void CreateDenoiserPipeline();
-    ID3D12Resource* RunDenoiser();
+    ComPtr<ID3D12Resource> RunDenoiser();
     void UpdateDenoiserConstants(int stepSize);
     
     void CreateReSTIRResources();
@@ -163,7 +164,7 @@ private:
     UINT m_width = 1920;
     UINT m_height = 1080;
 
-    bool m_denoiserEnabled = true;
+    bool m_denoiserEnabled = false;
     int m_denoiserIterations = 3;
     float m_colorSigma = 0.125f;
     float m_normalSigma = 32.0f;

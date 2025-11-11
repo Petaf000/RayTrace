@@ -24,7 +24,7 @@ void Renderer::Init() {
 
     LoadAssets();
 
-
+	// デバッグレイヤーの有効化
 #ifdef _DEBUG
     ComPtr<ID3D12InfoQueue> infoQueue;
     if ( SUCCEEDED(m_device->QueryInterface(IID_PPV_ARGS(&infoQueue))) ) {
@@ -36,6 +36,8 @@ void Renderer::Init() {
     D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
     debug->EnableDebugLayer();
 #endif
+
+	// ImGuiの初期化
     {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -276,7 +278,7 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
     SIZE_T maxVideoMemory = 0;
     char debugMsg[512];
 
-    sprintf_s(debugMsg, "=== DXR GPU Selection ===\n");
+    sprintf_s(debugMsg, "=== DXRに対応したGPUを選択 ===\n");
     OutputDebugStringA(debugMsg);
 
     for ( UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; i++ ) {
@@ -389,23 +391,6 @@ void Renderer::InitFrame() {
 
 
 
-}
-
-void Renderer::InitFrameForDXR() {
-    WaitGPU();
-
-    ThrowIfFailed(m_commandAllocator->Reset());
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
-
-    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
-
-    {
-        ImGui_ImplDX12_NewFrame();
-        ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth,
-            (float)App::GetWindowSize().Height / m_bufferHeight,
-            (float)m_bufferWidth, (float)m_bufferHeight);
-        ImGui::NewFrame();
-    }
 }
 
 void Renderer::EndFrame() {

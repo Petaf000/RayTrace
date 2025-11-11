@@ -21,7 +21,7 @@ void GameManager::Init() {
 	m_dxrRenderer = &Singleton<DXRRenderer>::getInstance();
 	m_dxrRenderer->Init(m_renderer);
 
-	m_useDXR = true; // DXRを使用する場合はtrueに設定
+	m_useDXR = true; // 現在DXRのみ使用可
 
 
 	StartDrawThread();
@@ -97,7 +97,7 @@ void GameManager::Draw() {
 			}
 			else {
 				// DXRレンダリング
-				m_renderer->InitFrameForDXR();  // 新しいメソッド
+				m_renderer->InitFrame();
 				m_dxrRenderer->Render();
 				m_dxrRenderer->RenderDXRIMGUI();
 				DrawIMGUI();
@@ -152,17 +152,8 @@ void GameManager::DrawIMGUI() {
 	if ( m_useDXR ) {
 		ImGui::Separator();
 		ImGui::Text("DXR Settings");
-
-		// 将来的にDXR固有の設定を追加可能
-		// 例: 最大反射回数、サンプル数など
 	}
 
-	ImGui::End();
-
-	// 任意のImGui関数の呼び出し
-	// 下記では"Hello, world!"というタイトルのウィンドウを表示する
-	ImGui::Begin("Hello, world!");
-	ImGui::Text("This is some useful text.");
 	ImGui::End();
 
 	*/

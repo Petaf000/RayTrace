@@ -14,6 +14,13 @@ struct DXRMaterialData {
     float padding[1];
 };
 
+enum class MaterialType : int {
+    Lambert = 0,
+    Metal,
+    Dielectric,
+    Light
+};
+
 struct BLASData {
     ComPtr<ID3D12Resource> vertexBuffer;
     std::vector<DXRVertex> vertices;
