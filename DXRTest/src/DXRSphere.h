@@ -1,4 +1,3 @@
-﻿// DXRSphere.h
 #pragma once
 #include "DXRShape.h"
 
@@ -19,7 +18,6 @@ public:
     virtual std::vector<uint32_t> GetIndices() const override { return m_indices; };
 
 	void SetScale(const XMFLOAT3& scale) override {
-		// SetScaleでScaleを球に合わせるためにxのみ使用
 		SetRadius(scale.x);
 	}
 
@@ -36,8 +34,8 @@ private:
     void CreateSphereGeometry();
 
     float m_radius = 1.0f;
-    int m_segments = 32;  // 水平分割数
-    int m_rings = 16;     // 垂直分割数
+    int m_segments = 32;
+    int m_rings = 16;
     std::vector<DXRVertex> m_vertices;
     std::vector<uint32_t> m_indices;
 };

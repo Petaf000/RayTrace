@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 
 struct Vertex {
@@ -30,11 +30,10 @@ public:
 	}
 
     void ResetCommandList() {
-        WaitGPU();  // GPUの処理が完了するまで待機
-        // コマンドリストのリセット
+        WaitGPU();
         ThrowIfFailed(m_commandAllocator->Reset());
 
-        ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));  // パイプラインをnullptrに設定
+        ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
     }
 
 	void ExecuteCommandListAndWait() {
@@ -74,7 +73,6 @@ private:
 
     static const uint32_t m_frameBufferCount = 2;
 
-    // DirectX 12 オブジェクト
     ComPtr<ID3D12Device> m_device;
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<IDXGISwapChain3> m_swapChain;
@@ -86,20 +84,16 @@ private:
     uint32_t m_rtvDescriptorSize;
     uint32_t m_frameIndex;
 
-    // 同期用オブジェクト
     ComPtr<ID3D12Fence> m_fence;
     uint64_t m_fenceValue;
     HANDLE m_fenceEvent;
 
-    // パイプラインステート
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12PipelineState> m_pipelineState;
 
-    // 頂点バッファ
     ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 
-    // ウィンドウのサイズ
     uint32_t m_bufferWidth;
     uint32_t m_bufferHeight;
 	HWND m_hWnd;

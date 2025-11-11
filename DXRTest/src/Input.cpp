@@ -1,4 +1,4 @@
-﻿#include "Input.h"
+#include "Input.h"
 
 
 BYTE Input::m_OldKeyState[256];

@@ -1,4 +1,4 @@
-ï»¿#pragma once
+#pragma once
 #include "Position.h"
 #include "Scale.h"
 #include "Rotation.h"
@@ -39,7 +39,7 @@ struct Transform {
         return result;
     }
 
-    // Transformã®åˆæˆ
+    // Transform‚Ì‡¬
     Transform Combine(const Transform& other) const {
         XMMATRIX thisMatrix = GetWorldMatrix();
         XMMATRIX otherMatrix = other.GetWorldMatrix();
@@ -47,7 +47,7 @@ struct Transform {
         return FromMatrix(combined);
     }
 
-    // ç›¸å¯¾Transformï¼ˆthisã‹ã‚‰otherã¸ã®å¤‰æ›ï¼‰
+    // ‘Š‘ÎTransformithis‚©‚çother‚Ö‚Ì•ÏŠ·j
     Transform GetRelativeTo(const Transform& other) const {
         XMMATRIX thisMatrix = GetWorldMatrix();
         XMMATRIX otherMatrix = other.GetWorldMatrix();
@@ -55,7 +55,7 @@ struct Transform {
         return FromMatrix(relative);
     }
 
-    // ç‚¹ã‚’å¤‰æ›
+    // “_‚ğ•ÏŠ·
     OPosition TransformPoint(const OPosition& point) const {
         XMVECTOR p = point.ToXMVector();
         XMMATRIX worldMatrix = GetWorldMatrix();
@@ -63,7 +63,7 @@ struct Transform {
         return OPosition::FromXMVector(transformed);
     }
 
-    // ãƒ™ã‚¯ãƒˆãƒ«ã‚’å¤‰æ›ï¼ˆä½ç½®æƒ…å ±ã‚’ç„¡è¦–ï¼‰
+    // ƒxƒNƒgƒ‹‚ğ•ÏŠ·iˆÊ’uî•ñ‚ğ–³‹j
     OPosition TransformVector(const OPosition& vector) const {
         XMVECTOR v = vector.ToXMVector();
         XMMATRIX worldMatrix = GetWorldMatrix();
@@ -71,12 +71,12 @@ struct Transform {
         return OPosition::FromXMVector(transformed);
     }
 
-    // é€†å¤‰æ›
+    // ‹t•ÏŠ·
     Transform Inverse() const {
         return FromMatrix(GetInverseWorldMatrix());
     }
 
-    // ç·šå½¢è£œé–“
+    // üŒ`•âŠÔ
     static Transform Lerp(const Transform& a, const Transform& b, float t) {
         return Transform(
             OPosition::Lerp(a.Position, b.Position, t),
@@ -85,72 +85,72 @@ struct Transform {
         );
     }
 
-    // å‰æ–¹å‘ã«ç§»å‹•
+    // ‘O•ûŒü‚ÉˆÚ“®
     void MoveForward(float distance) {
         OPosition forward = Rotation.GetForwardVector();
         Position += forward * distance;
     }
 
-    // å³æ–¹å‘ã«ç§»å‹•
+    // ‰E•ûŒü‚ÉˆÚ“®
     void MoveRight(float distance) {
         OPosition right = Rotation.GetRightVector();
         Position += right * distance;
     }
 
-    // ä¸Šæ–¹å‘ã«ç§»å‹•
+    // ã•ûŒü‚ÉˆÚ“®
     void MoveUp(float distance) {
         OPosition up = Rotation.GetUpVector();
         Position += up * distance;
     }
 
-    // æŒ‡å®šã—ãŸæ–¹å‘ã‚’å‘ã
+    // w’è‚µ‚½•ûŒü‚ğŒü‚­
     void LookAt(const OPosition& target, const OPosition& up = OPosition::Up()) {
         OPosition direction = ( target - Position ).Normalize();
         Rotation = ORotation::LookAt(direction, up);
     }
 
-    // æŒ‡å®šã—ãŸè»¸å‘¨ã‚Šã§å›è»¢
+    // w’è‚µ‚½²ü‚è‚Å‰ñ“]
     void RotateAroundAxis(const OPosition& axis, float angle) {
         ORotation axisRotation = ORotation::AxisAngle(axis, angle);
         Rotation *= axisRotation;
     }
 
-    // ãƒ­ãƒ¼ã‚«ãƒ«è»¸å‘¨ã‚Šã§å›è»¢
+    // ƒ[ƒJƒ‹²ü‚è‚Å‰ñ“]
     void RotateLocal(const ORotation& localRotation) {
         Rotation *= localRotation;
     }
 
-    // ãƒ¯ãƒ¼ãƒ«ãƒ‰è»¸å‘¨ã‚Šã§å›è»¢
+    // ƒ[ƒ‹ƒh²ü‚è‚Å‰ñ“]
     void RotateWorld(const ORotation& worldRotation) {
         Rotation = worldRotation * Rotation;
     }
 
-    // Transformé–“ã®è·é›¢
+    // TransformŠÔ‚Ì‹——£
     float DistanceTo(const Transform& other) const {
         return Position.Distance(other.Position);
     }
 
-    // æŒ‡å®šä½ç½®ã¸ã®ç§»å‹•ï¼ˆè£œé–“ï¼‰
+    // w’èˆÊ’u‚Ö‚ÌˆÚ“®i•âŠÔj
     void MoveTo(const OPosition& target, float speed) {
         OPosition direction = ( target - Position ).Normalize();
         Position += direction * speed;
     }
 
-    // ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ç³»ã§ã®ç§»å‹•
+    // ƒ[ƒJƒ‹À•WŒn‚Å‚ÌˆÚ“®
     void MoveLocal(const OPosition& localMovement) {
         OPosition worldMovement = Rotation.RotateVector(localMovement);
         Position += worldMovement;
     }
 
-    // ã‚¹ã‚±ãƒ¼ãƒ«ã®ä¸€æ§˜é©ç”¨
+    // ƒXƒP[ƒ‹‚Ìˆê—l“K—p
     void SetUniformScale(float scale) {
         Scale = OScale(scale);
     }
 
-    // å¢ƒç•Œãƒœãƒƒã‚¯ã‚¹å¤‰æ›ï¼ˆ8ã¤ã®è§’ã‚’å¤‰æ›ï¼‰
+    // ‹«ŠEƒ{ƒbƒNƒX•ÏŠ·i8‚Â‚ÌŠp‚ğ•ÏŠ·j
     void TransformBounds(const OPosition& min, const OPosition& max,
         OPosition& outMin, OPosition& outMax) const {
-        // 8ã¤ã®è§’ã‚’è¨ˆç®—
+        // 8‚Â‚ÌŠp‚ğŒvZ
         OPosition corners[8] = {
             OPosition(min.x, min.y, min.z),
             OPosition(max.x, min.y, min.z),
@@ -162,11 +162,11 @@ struct Transform {
             OPosition(max.x, max.y, max.z)
         };
 
-        // æœ€åˆã®è§’ã‚’å¤‰æ›ã—ã¦åˆæœŸå€¤ã¨ã™ã‚‹
+        // Å‰‚ÌŠp‚ğ•ÏŠ·‚µ‚Ä‰Šú’l‚Æ‚·‚é
         OPosition transformed = TransformPoint(corners[0]);
         outMin = outMax = transformed;
 
-        // æ®‹ã‚Šã®è§’ã‚’å¤‰æ›ã—ã¦æœ€å°ãƒ»æœ€å¤§ã‚’æ›´æ–°
+        // c‚è‚ÌŠp‚ğ•ÏŠ·‚µ‚ÄÅ¬EÅ‘å‚ğXV
         for ( int i = 1; i < 8; ++i ) {
             transformed = TransformPoint(corners[i]);
             outMin.x = std::min<float>(outMin.x, transformed.x);
@@ -178,7 +178,7 @@ struct Transform {
         }
     }
 
-    // ã‚ˆã‚Šé«˜åº¦ãªè£œé–“ï¼ˆã‚¹ãƒ ãƒ¼ã‚ºã‚¹ãƒ†ãƒƒãƒ—ï¼‰
+    // ‚æ‚è‚“x‚È•âŠÔiƒXƒ€[ƒYƒXƒeƒbƒvj
     static Transform SmoothStep(const Transform& a, const Transform& b, float t) {
         t = std::clamp(t, 0.0f, 1.0f);
         t = t * t * ( 3.0f - 2.0f * t );

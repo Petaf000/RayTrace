@@ -1,11 +1,11 @@
-ï»¿#pragma once
+#pragma once
 #include "GameObjectUtils.h"
 
 struct OScale : Float3Base<OScale> {
-    // ç¶™æ‰¿ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+    // Œp³ƒRƒ“ƒXƒgƒ‰ƒNƒ^
     using Float3Base::Float3Base;
 
-    // Scaleå›ºæœ‰ã®ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+    // ScaleŒÅ—L‚ÌƒRƒ“ƒXƒgƒ‰ƒNƒ^
     OScale() noexcept {
         FLOAT3_SET(x, y, z, 1.0f);
     }
@@ -17,7 +17,7 @@ struct OScale : Float3Base<OScale> {
     DEFINE_FLOAT3_ARITHMETIC_OPERATORS(OScale)
     DEFINE_SCALE_OPERATORS(OScale)
 
-    // Scaleå›ºæœ‰ã®æ©Ÿèƒ½
+    // ScaleŒÅ—L‚Ì‹@”\
     float Volume() const {
         return x * y * z;
     }
@@ -61,14 +61,14 @@ struct OScale : Float3Base<OScale> {
         FLOAT3_SET(x, y, z, avgScale);
     }
 
-    // ã‚¹ã‚±ãƒ¼ãƒ«ã®è£œé–“ï¼ˆå„è»¸ã‚’å€‹åˆ¥ã«è£œé–“ï¼‰
+    // ƒXƒP[ƒ‹‚Ì•âŠÔiŠe²‚ğŒÂ•Ê‚É•âŠÔj
     static OScale SmoothStep(const OScale& a, const OScale& b, float t) {
         t = std::clamp(t, 0.0f, 1.0f);
         t = t * t * ( 3.0f - 2.0f * t ); // Smooth step function
         return Lerp(a, b, t);
     }
 
-    // åˆ¶é™ï¼ˆæœ€å°ãƒ»æœ€å¤§å€¤ã§ã‚¯ãƒ©ãƒ³ãƒ—ï¼‰
+    // §ŒÀiÅ¬EÅ‘å’l‚ÅƒNƒ‰ƒ“ƒvj
     OScale Clamp(const OScale& min, const OScale& max) const {
         return OScale(
             std::clamp(x, min.x, max.x),
@@ -77,7 +77,7 @@ struct OScale : Float3Base<OScale> {
         );
     }
 
-    // çµ¶å¯¾å€¤
+    // â‘Î’l
     OScale Abs() const {
         return OScale(std::abs(x), std::abs(y), std::abs(z));
     }
@@ -86,7 +86,7 @@ struct OScale : Float3Base<OScale> {
         return OPosition(pos.x * x, pos.y * y, pos.z * z);
     }
 
-    // é™çš„å®šæ•°
+    // Ã“I’è”
     static const OScale Identity() { return OScale(1, 1, 1); }
     static const OScale Zero() { return OScale(0, 0, 0); }
     static const OScale Half() { return OScale(0.5f, 0.5f, 0.5f); }

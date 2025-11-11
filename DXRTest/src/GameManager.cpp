@@ -132,6 +132,7 @@ void GameManager::WaitDraw() {
 }
 
 void GameManager::DrawIMGUI() {
+	/*
 	// IMGUIウィンドウ開始
 	ImGui::Begin("Rendering Options");
 
@@ -164,10 +165,9 @@ void GameManager::DrawIMGUI() {
 	ImGui::Text("This is some useful text.");
 	ImGui::End();
 
-	ImGui::Begin("Performance Info");
+	*/
 
-	
-	
+	ImGui::Begin("Performance Info");
 	float fps = 1.0f / m_drawTime.DeltaTime;
 	ImGui::Text("DrawFPS: %f", fps);
 	ImGui::End();

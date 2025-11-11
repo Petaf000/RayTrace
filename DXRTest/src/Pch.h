@@ -1,4 +1,4 @@
-ï»¿#pragma once
+#pragma once
 
 #define WIN32_LEAN_AND_MEAN
 
@@ -49,7 +49,7 @@ using namespace DirectX;
 #include "singleton_template.h"
 
 
-// ã‚¨ãƒ©ãƒ¼ãƒã‚§ãƒƒã‚¯ç”¨ãƒ˜ãƒ«ãƒ‘ãƒ¼é–¢æ•°
+// ƒGƒ‰[ƒ`ƒFƒbƒN—pƒwƒ‹ƒp[ŠÖ”
 inline void ThrowIfFailed(HRESULT hr) {
     if ( FAILED(hr) ) {
         LPVOID errorMsg;

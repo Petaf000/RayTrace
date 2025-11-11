@@ -1,4 +1,4 @@
-﻿#include "Renderer.h"
+#include "Renderer.h"
 
 #include "App.h"
 #include "GameManager.h"
@@ -35,21 +35,17 @@ void Renderer::Init() {
     ComPtr<ID3D12Debug> debug;
     D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
     debug->EnableDebugLayer();
-#endif // _DEBUG
-    // ★ ImGuiの初期化（Rendererで一元管理） ★
+#endif
     {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO(); (void)io;
-        //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-        //    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
         io.FontGlobalScale = 1.5f;
 
         ImGui::StyleColorsLight();
 
         ImGui_ImplWin32_Init(m_hWnd);
 
-        // ★ RendererのSRVヒープを使用 ★
         ImGui_ImplDX12_Init(m_device.Get(), 2,
             DXGI_FORMAT_R8G8B8A8_UNORM, m_srvHeap.Get(),
             m_srvHeap->GetCPUDescriptorHandleForHeapStart(),
@@ -75,23 +71,19 @@ void Renderer::LoadPipeline() {
     ComPtr<IDXGIFactory4> factory;
     ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
-    // 最高性能のアダプターを選択
     ComPtr<IDXGIAdapter1> bestAdapter = GetBestAdapter(factory.Get());
 
-    // 選択したアダプターでデバイス作成
     ThrowIfFailed(D3D12CreateDevice(
-        bestAdapter.Get(),  // 最高性能アダプター使用
+        bestAdapter.Get(),
         D3D_FEATURE_LEVEL_11_0,
         IID_PPV_ARGS(&m_device)
     ));
 
-    // コマンドキューの作成
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
-    // スワップチェーンの作成
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     swapChainDesc.BufferCount = m_frameBufferCount;
     swapChainDesc.Width = m_bufferWidth;
@@ -111,13 +103,11 @@ void Renderer::LoadPipeline() {
         &swapChain
     ));
 
-    // Alt+Enter による全画面切替を無効化
     ThrowIfFailed(factory->MakeWindowAssociation(m_hWnd, DXGI_MWA_NO_ALT_ENTER));
 
     ThrowIfFailed(swapChain.As(&m_swapChain));
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-    // レンダーターゲットビュー用デスクリプタヒープの作成
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
     rtvHeapDesc.NumDescriptors = m_frameBufferCount;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -132,7 +122,6 @@ void Renderer::LoadPipeline() {
     ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
 
 
-    // フレームバッファの作成
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
     for ( UINT i = 0; i < m_frameBufferCount; i++ ) {
         ThrowIfFailed(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
@@ -146,7 +135,6 @@ void Renderer::LoadPipeline() {
 }
 
 void Renderer::LoadAssets() {
-    // 1. 空のルートシグネチャの作成
     {
         D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
         rootSignatureDesc.NumParameters = 0;
@@ -161,7 +149,6 @@ void Renderer::LoadAssets() {
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
     }
 
-    // 2. シェーダーのコンパイルとパイプラインステートの作成
     {
         ComPtr<ID3DBlob> vertexShader;
         ComPtr<ID3DBlob> pixelShader;
@@ -209,12 +196,10 @@ void Renderer::LoadAssets() {
         psoDesc.SampleDesc.Count = 1;
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
     }
-    // 3. コマンドリストの作成
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
     OutputDebugStringW(L"CommandList closed Load Asset\n");
     ThrowIfFailed(m_commandList->Close());
 
-    // 4. **同期オブジェクトの作成（Fenceとイベント）を先に行う**
     {
         ThrowIfFailed(m_device->CreateFence(m_fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
         m_fenceValue++;
@@ -225,7 +210,6 @@ void Renderer::LoadAssets() {
         }
     }
 
-    // 5. 頂点バッファの作成とアップロード
     {
         Vertex triangleVertices[] = {
             { {  0.0f,  0.25f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
@@ -236,7 +220,6 @@ void Renderer::LoadAssets() {
 
         ComPtr<ID3D12Resource> vertexBufferUpload;
 
-        // デフォルトヒープとアップロードヒープのプロパティをローカル変数として作成
         CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
         CD3DX12_RESOURCE_DESC vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
         ThrowIfFailed(m_device->CreateCommittedResource(
@@ -304,7 +287,6 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
             continue;
         }
 
-        // D3D12デバイス作成テスト
         ComPtr<ID3D12Device5> testDevice;
         if ( SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&testDevice))) ) {
 
@@ -312,7 +294,6 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
             WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, gpuName, sizeof(gpuName), nullptr, nullptr);
             SIZE_T vramMB = desc.DedicatedVideoMemory / ( 1024 * 1024 );
 
-            // DXR対応チェック
             D3D12_FEATURE_DATA_D3D12_OPTIONS5 dxrSupport = {};
             bool supportsDXR = false;
             if ( SUCCEEDED(testDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &dxrSupport, sizeof(dxrSupport))) ) {
@@ -324,7 +305,6 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
             sprintf_s(debugMsg, "  VRAM: %zu MB, DXR: %s\n", vramMB, supportsDXR ? "Yes" : "No");
             OutputDebugStringA(debugMsg);
 
-            // 専用ビデオメモリが最大のものを選択
             if ( desc.DedicatedVideoMemory > maxVideoMemory ) {
                 maxVideoMemory = desc.DedicatedVideoMemory;
                 bestAdapter = adapter;
@@ -340,7 +320,6 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
         WideCharToMultiByte(CP_UTF8, 0, selectedDesc.Description, -1, selectedGpuName, sizeof(selectedGpuName), nullptr, nullptr);
         SIZE_T selectedVramMB = selectedDesc.DedicatedVideoMemory / ( 1024 * 1024 );
 
-        // 選択されたGPUのDXR情報も取得
         ComPtr<ID3D12Device5> finalDevice;
         bool finalDXRSupport = false;
         if ( SUCCEEDED(D3D12CreateDevice(bestAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&finalDevice))) ) {
@@ -370,30 +349,25 @@ ComPtr<IDXGIAdapter1> Renderer::GetBestAdapter(IDXGIFactory4* factory) {
 }
 
 void Renderer::Update() {
-    // 更新処理（必要に応じて）
 }
 
 void Renderer::Render() {
     m_commandList->SetPipelineState(m_pipelineState.Get());
-    // デスクリプタヒープの設定
     {
         ID3D12DescriptorHeap* heaps[] = { m_srvHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(heaps), heaps);
     }
 
-    // ルートシグネチャの設定
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
-    // 三角形描画
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
     m_commandList->DrawInstanced(3, 1, 0, 0);
 }
 
 void Renderer::InitFrame() {
-    WaitGPU();  // GPUの処理が完了するまで待機
+    WaitGPU();
 
-    // コマンドリストのリセット
     ThrowIfFailed(m_commandAllocator->Reset());
     ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
 
@@ -401,7 +375,6 @@ void Renderer::InitFrame() {
 
     OutputDebugStringA("InitFrameForDXR: Setting up for DXR rendering\n");
 
-    // ImGuiのフレーム開始（DXR用）
     {
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth,
@@ -410,40 +383,22 @@ void Renderer::InitFrame() {
         ImGui::NewFrame();
     }
 
-    // ★ DXR用：バックバッファの状態遷移はDXRRenderer側で行う ★
-    // ここではバックバッファの状態遷移を行わない（PRESENT状態のまま）
 
     OutputDebugStringA("InitFrameForDXR completed\n");
 
-    //// バックバッファをレンダーターゲットに設定
-    //auto subBuf = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
-    //    D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    //m_commandList->ResourceBarrier(1, &subBuf);
 
-    //CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-    //m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-    //// 画面クリア
-    //const float clearColor[] = { 1.0f, 0.2f, 0.4f, 1.0f };
-    //m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
-    //// ビューポート・シザー矩形の設定
-    //CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<float>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
-    //m_commandList->RSSetViewports(1, &viewport);
-    //CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetWidth() ), static_cast<LONG>( Singleton<DXRRenderer>::getInstance().GetHeight() ));
-    //m_commandList->RSSetScissorRects(1, &scissorRect);
 }
 
 void Renderer::InitFrameForDXR() {
-    WaitGPU();  // GPUの処理が完了するまで待機
+    WaitGPU();
 
-    // コマンドリストのリセット
     ThrowIfFailed(m_commandAllocator->Reset());
     ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), nullptr));
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-    // ImGuiのフレーム開始（DXR用）
     {
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame((float)App::GetWindowSize().Width / m_bufferWidth,
@@ -454,9 +409,6 @@ void Renderer::InitFrameForDXR() {
 }
 
 void Renderer::EndFrame() {
-    // ★ 削除：この時点でバックバッファは DXRRenderer::Render() によって
-    //         既に D3D12_RESOURCE_STATE_RENDER_TARGET 状態になっているはずなので、
-    //         ここでの遷移は不要かつ間違いです。
     /* auto transitionToRT = CD3DX12_RESOURCE_BARRIER::Transition(
         m_renderTargets[m_frameIndex].Get(),
         D3D12_RESOURCE_STATE_PRESENT,
@@ -465,27 +417,20 @@ void Renderer::EndFrame() {
     m_commandList->ResourceBarrier(1, &transitionToRT);
     */
 
-    // ★ ビューポート・シザー矩形の設定（全画面） ★
     CD3DX12_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>( m_bufferWidth ), static_cast<float>( m_bufferHeight ));
     m_commandList->RSSetViewports(1, &viewport);
     CD3DX12_RECT scissorRect(0, 0, static_cast<LONG>( m_bufferWidth ), static_cast<LONG>( m_bufferHeight ));
     m_commandList->RSSetScissorRects(1, &scissorRect);
 
-    // レンダーターゲットを設定（ImGui描画用）
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-    // ★ ImGui用のディスクリプタヒープを設定 ★
-    // 注意：DXRRendererでデバッグビューを作成したヒープと同じものを設定してください
-    ID3D12DescriptorHeap* imguiHeaps[] = { m_srvHeap.Get() }; // m_srvHeapは正しいですか？ DXRRendererのm_imguiDescriptorHeapかもしれません
+    ID3D12DescriptorHeap* imguiHeaps[] = { m_srvHeap.Get() };
     m_commandList->SetDescriptorHeaps(_countof(imguiHeaps), imguiHeaps);
 
-    // ImGui描画
     ImGui::Render();
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_commandList.Get());
 
-    // ★★★ これが唯一必要な「Presentバリア」です ★★★
-    // バックバッファをPresent状態に遷移させて、画面に表示する準備をします
     auto transitionToPresent = CD3DX12_RESOURCE_BARRIER::Transition(
         m_renderTargets[m_frameIndex].Get(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -493,7 +438,6 @@ void Renderer::EndFrame() {
     );
     m_commandList->ResourceBarrier(1, &transitionToPresent);
 
-    // コマンドリスト実行
     ThrowIfFailed(m_commandList->Close());
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
@@ -506,7 +450,6 @@ void Renderer::Cleanup() {
     WaitGPU();
     CloseHandle(m_fenceEvent);
 
-    // Cleanup
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

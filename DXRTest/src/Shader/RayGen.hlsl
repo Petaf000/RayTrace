@@ -1,9 +1,7 @@
-ï»¿#include "Common.hlsli"
-#include "ReSTIR_GI.hlsli"
-#include "ReSTIR_DI.hlsli"
+#include "Common.hlsli"
 
-// **Blue Noise Pattern 8Ã—8 (ç¸¦ç·šãƒã‚¤ã‚ºé™¤å»ç”¨)**
-static const float BlueNoise8x8[64] = {
+static const float BlueNoise8x8[64] =
+{
     0.515625f, 0.140625f, 0.890625f, 0.328125f, 0.484375f, 0.171875f, 0.921875f, 0.359375f,
     0.015625f, 0.765625f, 0.265625f, 0.703125f, 0.046875f, 0.796875f, 0.296875f, 0.734375f,
     0.640625f, 0.078125f, 0.828125f, 0.203125f, 0.671875f, 0.109375f, 0.859375f, 0.234375f,
@@ -14,25 +12,18 @@ static const float BlueNoise8x8[64] = {
     0.343750f, 0.906250f, 0.406250f, 0.531250f, 0.375000f, 0.937500f, 0.437500f, 0.562500f
 };
 
-
-// **æ”¹è‰¯ã•ã‚ŒãŸã‚·ãƒ¼ãƒ‰ç”Ÿæˆé–¢æ•°ï¼ˆBlue Noise Patternä½¿ç”¨ï¼‰**
 uint GenerateBlueNoiseSeed(uint2 pixelCoord, uint frameIndex, uint sampleIndex)
 {
-    // Blue Noise Patternã‹ã‚‰ãƒ™ãƒ¼ã‚¹å€¤ã‚’å–å¾—
-    uint2 noiseCoord = pixelCoord & 7; // 8Ã—8ãƒ‘ã‚¿ãƒ¼ãƒ³ã§ã‚¿ã‚¤ãƒ«
+    uint2 noiseCoord = pixelCoord & 7;
     uint noiseIndex = noiseCoord.y * 8 + noiseCoord.x;
     float blueNoiseValue = BlueNoise8x8[noiseIndex];
     
-    // Blue Noiseå€¤ã‚’æ•´æ•°ã«å¤‰æ›
-    uint blueNoiseSeed = uint(blueNoiseValue * 4294967295.0f); // 32bit max
-    
-    // **æœ€é©åŒ–: PCGHashä½¿ç”¨ã§ãƒ‘ãƒ•ã‚©ãƒ¼ãƒãƒ³ã‚¹é‡è¦–**
+    uint blueNoiseSeed = uint(blueNoiseValue * 4294967295.0f);
     uint seed = blueNoiseSeed;
-    seed ^= PCGHash(pixelCoord.x * 73856093u);  // å¤§ããªç´ æ•°
-    seed ^= PCGHash(pixelCoord.y * 19349663u);  // å¤§ããªç´ æ•°
-    seed ^= PCGHash(frameIndex * 83492791u);    // ãƒ•ãƒ¬ãƒ¼ãƒ å¤‰å‹•ç”¨
-    seed ^= PCGHash(sampleIndex * 51726139u);   // ã‚µãƒ³ãƒ—ãƒ«å¤‰å‹•ç”¨
-    
+    seed ^= PCGHash(pixelCoord.x * 73856093u);
+    seed ^= PCGHash(pixelCoord.y * 19349663u);
+    seed ^= PCGHash(frameIndex * 83492791u);
+    seed ^= PCGHash(sampleIndex * 51726139u);
     return PCGHash(seed);
 }
 
@@ -42,8 +33,7 @@ void RayGen()
     uint3 launchIndex = DispatchRaysIndex();
     uint3 launchDim = DispatchRaysDimensions();
     
-    // ã‚¢ãƒ³ãƒã‚¨ã‚¤ãƒªã‚¢ã‚·ãƒ³ã‚°ç”¨ãƒãƒ«ãƒã‚µãƒ³ãƒ—ãƒªãƒ³ã‚°
-    float3 totalColor = float3(0, 0, 0);
+    // —İÏ—p•Ï”
     float3 finalColor = float3(0, 0, 0);
     float3 finalAlbedo = float3(0, 0, 0);
     float3 finalNormal = float3(0, 0, 0);
@@ -51,39 +41,37 @@ void RayGen()
     uint finalMaterialType = 0;
     float finalRoughness = 0.0f;
     
-    const int SAMPLES = 1; // ãƒ‘ãƒ•ã‚©ãƒ¼ãƒãƒ³ã‚¹é‡è¦–
-    
+    // spp
+    const int SAMPLES = 1;
     for (int sampleIndex = 0; sampleIndex < SAMPLES; sampleIndex++)
     {
-        // **ãƒ•ãƒ¬ãƒ¼ãƒ æ¯ã®ä¹±æ•°å¤‰å‹•**
+        // ƒtƒŒ[ƒ€ƒx[ƒX‚Ì—”ƒV[ƒh¶¬
         uint frameIndex = uint(frameCount) % 64u;
         uint seed = GenerateBlueNoiseSeed(launchIndex.xy, frameIndex, sampleIndex);
         
-        // ã‚¢ãƒ³ãƒã‚¨ã‚¤ãƒªã‚¢ã‚·ãƒ³ã‚°ç”¨ã‚¸ãƒƒã‚¿ãƒ¼
+        // ƒAƒ“ƒ`ƒGƒCƒŠƒAƒVƒ“ƒO—p‚ÌƒWƒbƒ^[ŒvZ
         float2 jitter = float2(RandomFloat(seed), RandomFloat(seed)) - 0.5f;
         float2 crd = float2(launchIndex.xy) + jitter;
         float2 dims = float2(launchDim.xy);
         
-        // æ­£è¦åŒ–åº§æ¨™ã«å¤‰æ› (-1 to 1)
+        // NDCÀ•WŒvZi-1‚©‚ç1‚Ì”ÍˆÍj
         float2 d = ((crd + 0.5f) / dims) * 2.0f - 1.0f;
-        d.y = -d.y; // Yè»¸åè»¢
+        d.y = -d.y;
         
-        // ã‚«ãƒ¡ãƒ©ä½ç½®
+        // ƒJƒƒ‰s—ñ‚©‚çƒŒƒC‚Ì•ûŒü‚ğŒvZ
         float3 cameraPos = viewMatrix._m03_m13_m23;
-
-        // ãƒ¬ã‚¤æ–¹å‘è¨ˆç®—
         float3 rayDir = normalize(cameraForward +
                         d.x * cameraRight * tanHalfFov * aspectRatio +
                         d.y * cameraUp * tanHalfFov);
         
-        // ãƒ¬ã‚¤è¨­å®š
+        // ƒŒƒC\‘¢‘Ì‚Ìİ’è
         RayDesc ray;
         ray.Origin = cameraPos;
         ray.Direction = rayDir;
         ray.TMin = 0.1f;
         ray.TMax = 10000.0f;
         
-        // ãƒ¬ã‚¤ãƒšã‚¤ãƒ­ãƒ¼ãƒ‰åˆæœŸåŒ–
+        // ƒyƒCƒ[ƒh‰Šú‰»
         RayPayload payload;
         payload.color = float3(0, 0, 0);
         payload.depth = 0;
@@ -96,156 +84,68 @@ void RayGen()
         payload.roughness = 0.0f;
         payload.padding = 0;
         
-        // ãƒ¬ã‚¤ãƒˆãƒ¬ãƒ¼ã‚·ãƒ³ã‚°å®Ÿè¡Œ
+        // ƒŒƒCƒgƒŒ[ƒVƒ“ƒOÀs
         TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, payload);
         
-
-
-        float3 sampleColor = float3(0, 0, 0);
+        // ƒTƒ“ƒvƒ‹Œ‹‰Ê‚ğ—İÏ
+        finalColor += payload.color;
         
-        // ãƒ’ãƒƒãƒˆã—ãŸå ´åˆã®ã¿ç…§æ˜è¨ˆç®—ã‚’å®Ÿè¡Œ
-        if (payload.hitDistance > 0.0f && length(payload.worldPos) > 0.1f) {
-            // G-Bufferã‹ã‚‰åŸºæœ¬ãƒ‡ãƒ¼ã‚¿å–å¾—
-            float3 worldPos = payload.worldPos;
-            float3 normal = payload.normal;
-            float3 albedo = payload.albedo;
-            uint materialType = payload.materialType;
-            float roughness = payload.roughness;
-            
-            // **ãƒ‡ãƒãƒƒã‚°ç”¨ï¼šã¾ãšãƒãƒ†ãƒªã‚¢ãƒ«åŸºæœ¬æƒ…å ±ã§ãƒ†ã‚¹ãƒˆ**
-            if (length(albedo) > 0.0f) {
-                // **ãƒ‡ãƒãƒƒã‚°ï¼šåºŠã®ä¸­å¤®ã‚¢ãƒ¼ãƒ†ã‚£ãƒ•ã‚¡ã‚¯ãƒˆèª¿æŸ»**
-                // åºŠã‹ã©ã†ã‹ã®åˆ¤å®šï¼ˆYåº§æ¨™ãŒä½ã„ä½ç½®ï¼‰
-                bool isFloor = (worldPos.y < -1.0f);
-                
-                // åºŠã®ä¸­å¤®éƒ¨åˆ†ã‹ã©ã†ã‹ã®åˆ¤å®š
-                float2 floorCenter = float2(0.0f, 0.0f); // ä»®ã®åºŠä¸­å¤®
-                float2 floorPos = worldPos.xz;
-                float distanceFromCenter = length(floorPos - floorCenter);
-                bool isFloorCenter = (isFloor && distanceFromCenter < 50.0f);
-                // é€šå¸¸ã®ã‚¢ãƒ«ãƒ™ãƒ‰è¡¨ç¤ºï¼ˆå£ãªã©ï¼‰
-                float gray = dot(albedo, float3(0.3f, 0.6f, 0.1f));
-                sampleColor = float3(gray, gray, gray);
-
-                // **ReSTIR DIå®Œå…¨å®Ÿè£…ï¼ˆåˆ¥ãƒ•ã‚¡ã‚¤ãƒ«ã‹ã‚‰å‘¼ã³å‡ºã—ï¼‰**
-
-                // ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ‡ãƒ¼ã‚¿æ§‹ç¯‰
-                MaterialData material;
-                material.albedo = albedo;
-                material.roughness = roughness;
-                material.materialType = materialType;
-                material.refractiveIndex = 1.0f;
-                material.emission = float3(0, 0, 0);
-
-                // ã‚¹ã‚¯ãƒªãƒ¼ãƒ³æƒ…å ±ã¨Reservoirã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
-                uint2 screenDim = DispatchRaysDimensions().xy;
-                uint reservoirIndex = GetReservoirIndex(launchIndex.xy, screenDim);
-
-                // **ReSTIR DIçµ±åˆå®Ÿè£…ã‚’å‘¼ã³å‡ºã—**
-                float3 directIllumination = CalculateReSTIRDI(worldPos, normal, material,
-                    launchIndex.xy, screenDim, reservoirIndex, seed);
-
-                // **ReSTIR GIå®Œå…¨å®Ÿè£…**
-                float3 indirectIllumination = CalculateReSTIRGI(worldPos, normal, material.albedo,
-                    material.materialType, launchIndex.xy, screenDim, seed);
-
-                // **ReSTIR DI + GIçµ±åˆæœ€é©åŒ–**
-
-                // **ã‚¨ãƒãƒ«ã‚®ãƒ¼æ­£è¦åŒ–ã¨å“è³ªãƒãƒ©ãƒ³ã‚¹**
-                float directLuminance = dot(directIllumination, float3(0.2126f, 0.7152f, 0.0722f));
-                float indirectLuminance = dot(indirectIllumination, float3(0.2126f, 0.7152f, 0.0722f));
-                float totalLuminance = directLuminance + indirectLuminance;
-
-                // **é–“æ¥ç…§æ˜ã‚’é€šå¸¸ãƒ¬ãƒ™ãƒ«ã§è¡¨ç¤º**
-                // indirectIllumination = indirectIllumination * 1.0f; // é€šå¸¸ãƒ¬ãƒ™ãƒ«
-
-                // **çµ±åˆç…§æ˜: ReSTIR DI + GI**
-                sampleColor = directIllumination + indirectIllumination;
-
-                // **ã‚¨ãƒãƒ«ã‚®ãƒ¼åˆ¶é™**
-                float finalLuminance = dot(sampleColor, float3(0.2126f, 0.7152f, 0.0722f));
-                if ( finalLuminance > 3.0f ) {
-                    // éå‰°ãªæ˜ã‚‹ã•ã‚’åˆ¶é™
-                    sampleColor = sampleColor * ( 3.0f / finalLuminance );
-                }
-
-                // **ç‰©ç†çš„ç’°å¢ƒå…‰**ï¼ˆæœ€å°é™ï¼‰
-                sampleColor += material.albedo * 0.001f; // ç‰©ç†çš„ã«æ­£ç¢ºãªæœ€å°ç’°å¢ƒå…‰
-            } else {
-                // ã‚¢ãƒ«ãƒ™ãƒ‰æƒ…å ±ãªã—ï¼ˆãƒã‚¼ãƒ³ã‚¿ã§ã‚¨ãƒ©ãƒ¼è¡¨ç¤ºï¼‰
-                sampleColor = float3(1.0f, 0.0f, 1.0f);
-            }
-        } else {
-            // ãƒ’ãƒƒãƒˆã—ãªã‹ã£ãŸå ´åˆï¼ˆèƒŒæ™¯ï¼‰
-            sampleColor = payload.color;
-        }
-        
-        // ã‚µãƒ³ãƒ—ãƒ«çµæœã‚’ç´¯ç©
-        totalColor += sampleColor;
-        
-        // ãƒ—ãƒ©ã‚¤ãƒãƒªãƒ¬ã‚¤ã®G-Bufferãƒ‡ãƒ¼ã‚¿ã®ã¿ä¿å­˜
-        if (sampleIndex == 0) {
-            finalAlbedo = payload.albedo;
-            finalNormal = payload.normal;
-            finalDepth = payload.hitDistance;
+        // G-bufferƒf[ƒ^‚ÍÅ‰‚ÌƒTƒ“ƒvƒ‹‚Ì‚İg—p
+        if (sampleIndex == 0)
+        {
+            finalAlbedo += payload.albedo;
+            finalNormal += payload.normal;
+            finalDepth += payload.hitDistance;
             finalMaterialType = payload.materialType;
-            finalRoughness = payload.roughness;
+            finalRoughness += payload.roughness;
         }
     }
     
-    // ã‚µãƒ³ãƒ—ãƒ«å¹³å‡åŒ–
-    finalColor = totalColor / float(SAMPLES);
+    // •½‹Ï‰»
+    finalColor /= float(SAMPLES);
+    finalAlbedo /= float(SAMPLES);
+    finalNormal /= float(SAMPLES);
+    finalDepth /= float(SAMPLES);
+    finalRoughness /= float(SAMPLES);
     
-    // æ³•ç·šã®æ­£è¦åŒ–
-    if (length(finalNormal) > 0.1f)
-    {
-        finalNormal = normalize(finalNormal);
-    }
-    else
-    {
+    // –³Œø‚È’l‚Ìê‡‚ÍƒfƒtƒHƒ‹ƒg–@ü‚ğİ’è
+    if (length(finalNormal) < 0.1f)
         finalNormal = float3(0, 0, 1);
-    }
+     
+    finalNormal = normalize(finalNormal);
     
-    // ãƒã‚¹ãƒˆãƒ—ãƒ­ã‚»ã‚·ãƒ³ã‚°
     float3 color = finalColor;
     
-    // NaNãƒã‚§ãƒƒã‚¯
+    // NaN/Inf ƒ`ƒFƒbƒN
+    // F‚ª•s³‚Èê‡‚Íƒ}ƒ[ƒ“ƒ^‚Å•\¦
     if (any(isnan(color)) || any(isinf(color)))
     {
-        color = float3(1, 0, 1); // ãƒã‚¼ãƒ³ã‚¿ã§ã‚¨ãƒ©ãƒ¼è¡¨ç¤º
+        color = float3(1, 0, 1);
     }
     
-    // NaN/Infä»¥å¤–ã¯å…ƒã®è‰²ã‚’ä¿æŒï¼ˆãƒ‡ãƒãƒƒã‚°è¡¨ç¤ºå‰Šé™¤ï¼‰
-    
-    // **ç‰©ç†çš„ã«æ­£ç¢ºãªACESãƒˆãƒ¼ãƒ³ãƒãƒƒãƒ”ãƒ³ã‚°**
+    // --------------------ƒ|ƒXƒgƒvƒƒZƒX--------------------// 
+    // ACES ƒg[ƒ“ƒ}ƒbƒsƒ“ƒO
     float3 aces_input = color * 0.6f;
     float3 a = aces_input * (aces_input + 0.0245786f) - 0.000090537f;
     float3 b = aces_input * (0.983729f * aces_input + 0.4329510f) + 0.238081f;
     color = a / b;
     
-    // **è‰²æ¸©åº¦èª¿æ•´**
+    // ƒJƒ‰[ƒ}ƒgƒŠƒbƒNƒX•ÏŠ·
     float3x3 colorMatrix = float3x3(
-        1.0478112f,  0.0228866f, -0.0501270f,
-        -0.0295081f, 0.9904844f,  0.0150436f,
-        -0.0092345f, 0.0150436f,  0.7521316f
+        1.0478112f, 0.0228866f, -0.0501270f,
+        -0.0295081f, 0.9904844f, 0.0150436f,
+        -0.0092345f, 0.0150436f, 0.7521316f
     );
     color = mul(colorMatrix, color);
     
-    // **é©å¿œçš„éœ²å‡ºè£œæ­£**
-    float avgLuminance = dot(color, float3(0.2126f, 0.7152f, 0.0722f));
-    float targetLuminance = 0.18f;
-    float exposureAdjust = targetLuminance / max(avgLuminance, 0.001f);
-    exposureAdjust = clamp(exposureAdjust, 0.5f, 2.0f);
-    color *= exposureAdjust;
-    
-    // **æ­£ç¢ºãªsRGBã‚¬ãƒ³ãƒè£œæ­£**
+    // sRGB ƒKƒ“ƒ}•â³
     float3 srgb;
-    srgb.x = (color.x <= 0.0031308f) ? color.x * 12.92f : 1.055f * pow(color.x, 1.0f/2.4f) - 0.055f;
-    srgb.y = (color.y <= 0.0031308f) ? color.y * 12.92f : 1.055f * pow(color.y, 1.0f/2.4f) - 0.055f;
-    srgb.z = (color.z <= 0.0031308f) ? color.z * 12.92f : 1.055f * pow(color.z, 1.0f/2.4f) - 0.055f;
+    srgb.x = (color.x <= 0.0031308f) ? color.x * 12.92f : 1.055f * pow(color.x, 1.0f / 2.4f) - 0.055f;
+    srgb.y = (color.y <= 0.0031308f) ? color.y * 12.92f : 1.055f * pow(color.y, 1.0f / 2.4f) - 0.055f;
+    srgb.z = (color.z <= 0.0031308f) ? color.z * 12.92f : 1.055f * pow(color.z, 1.0f / 2.4f) - 0.055f;
     color = srgb;
     
-    // G-Bufferã®ã‚¬ãƒ³ãƒè£œæ­£ã¨NaNãƒã‚§ãƒƒã‚¯
+    // G-buffero—Í‚Ì’lŒŸØ
     if (any(isnan(finalAlbedo)) || any(isinf(finalAlbedo)))
         finalAlbedo = float3(0, 0, 0);
     if (any(isnan(finalNormal)) || any(isinf(finalNormal)))
@@ -253,70 +153,82 @@ void RayGen()
     if (isnan(finalDepth) || isinf(finalDepth))
         finalDepth = 0.0f;
     
-    // æ·±åº¦ã®æ­£è¦åŒ–
-    const float MAX_VIEW_DEPTH = 10.0f;
-    float normalizedDepth = saturate(finalDepth / MAX_VIEW_DEPTH);
-
-    // **æ™‚é–“çš„è“„ç©å‡¦ç†**
-    float3 normalizedNormal = finalNormal * 0.5f + 0.5f;
-    float4 currentFrameData = float4(normalizedNormal, normalizedDepth);
+    
+    // --------------------ƒeƒ“ƒ|ƒ‰ƒ‹ƒAƒLƒ…ƒ€ƒŒ[ƒVƒ‡ƒ“--------------------//
+    // ƒtƒŒ[ƒ€‚ÌƒWƒIƒƒgƒŠî•ñ‚ğƒGƒ“ƒR[ƒh
     float4 prevAccumulation = AccumulationBuffer[launchIndex.xy];
     float frameCount = prevAccumulation.a;
     
-    // **ã‚«ãƒ¡ãƒ©å‹•ãæ¤œå‡ºã«ã‚ˆã‚‹å¼·åˆ¶ãƒªã‚»ãƒƒãƒˆ**
+    // ƒJƒƒ‰ˆÚ“®‚Ì‹­§ƒŠƒZƒbƒg”»’è
     bool forceReset = (cameraMovedFlag != 0u);
-    
-    // **åˆæœŸãƒ•ãƒ¬ãƒ¼ãƒ æ¤œå‡º**
     bool isFirstFrame = (frameCount < 0.5f) || forceReset;
     
     float3 accumulatedColor;
     float newFrameCount;
     
-    if (isFirstFrame) {
+    if (isFirstFrame)
+    {
+        // ‰‰ñƒtƒŒ[ƒ€‚Ü‚½‚ÍƒŠƒZƒbƒg
         accumulatedColor = color;
         newFrameCount = 1.0f;
-    } else {
+    }
+    else
+    {
+        // ‘OƒtƒŒ[ƒ€‚Æ‚Ì—Ş—«”»’è
         float4 prevFrameData = PrevFrameData[launchIndex.xy];
         
-        float3 currentNormal = currentFrameData.rgb * 2.0f - 1.0f;
-        float3 prevNormal = prevFrameData.rgb * 2.0f - 1.0f;
+        float normalSimilarity = dot(finalNormal, prevFrameData.rgb);
         
-        float normalSimilarity = dot(currentNormal, prevNormal);
-        float depthDiff = abs(currentFrameData.a - prevFrameData.a);
+        float depthDiff = abs(finalDepth - prevFrameData.a);
+        float depthSimilarity = exp(-depthDiff);
         
-        float depthSimilarity = exp(-depthDiff * 10.0f);
         float similarity = normalSimilarity * 0.7f + depthSimilarity * 0.3f;
         
         bool shouldAccumulate = (similarity > 0.9f);
         
-        if (shouldAccumulate) {
+        // —Ş—«‚ª‚‚¢ê‡‚Í—İÏ‚ğŒp‘±
+        if (shouldAccumulate)
+        {
             float3 prevColor = prevAccumulation.rgb;
             newFrameCount = frameCount + 1.0f;
             
+            // ƒtƒŒ[ƒ€”‚É‰‚¶‚½“K‰“IƒuƒŒƒ“ƒh—¦
             float alpha;
-            if (newFrameCount < 8.0f) {
+            if (newFrameCount < 8.0f)
+            {
                 alpha = 1.0f / newFrameCount;
-            } else if (newFrameCount < 32.0f) {
+            }
+            else if (newFrameCount < 32.0f)
+            {
                 alpha = 0.1f;
-            } else if (newFrameCount < 64.0f) {
+            }
+            else if (newFrameCount < 64.0f)
+            {
                 alpha = 0.05f;
-            } else {
+            }
+            else
+            {
                 alpha = 0.02f;
                 newFrameCount = 64.0f;
             }
             
             accumulatedColor = lerp(prevColor, color, alpha);
-        } else {
+        }
+        else
+        {
+            // —Ş—«‚ª’á‚¢ê‡‚ÍƒŠƒZƒbƒg
             accumulatedColor = color;
             newFrameCount = 1.0f;
         }
     }
     
-    // çµæœã‚’å‡ºåŠ›
+    const float MAX_VIEW_DEPTH = 10.0f;
+    
+    // Šeƒoƒbƒtƒ@‚Ö‚Ìo—Í
     RenderTarget[launchIndex.xy] = float4(accumulatedColor, 1.0f);
     AccumulationBuffer[launchIndex.xy] = float4(accumulatedColor, newFrameCount);
-    PrevFrameData[launchIndex.xy] = currentFrameData;
+    PrevFrameData[launchIndex.xy] = float4(finalNormal, finalDepth);
     AlbedoOutput[launchIndex.xy] = float4(finalAlbedo, finalRoughness);
     NormalOutput[launchIndex.xy] = float4(finalNormal, 1.0f);
-    DepthOutput[launchIndex.xy] = float4(normalizedDepth, normalizedDepth, normalizedDepth, 1.0f);
+    DepthOutput[launchIndex.xy] = float4(finalDepth / MAX_VIEW_DEPTH, finalDepth / MAX_VIEW_DEPTH, finalDepth / MAX_VIEW_DEPTH, 1.0f);
 }

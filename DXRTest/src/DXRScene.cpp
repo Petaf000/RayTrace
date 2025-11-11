@@ -1,22 +1,22 @@
-﻿// DXRScene.cpp
+
+
 #include "DXRScene.h"
 
 void DXRScene::UnInit() {
-    Scene::UnInit();  // 基底クラスのUnInit呼び出し
+    Scene::UnInit();
 }
 
 void DXRScene::Update() {
-    Scene::Update();  // 基底クラスのUpdate呼び出し
+    Scene::Update();
 }
 
 void DXRScene::Draw() {
-    Scene::Draw();    // 基底クラスのDraw呼び出し
+    Scene::Draw();
 }
 
 TLASData DXRScene::GetTLASData() const {
     TLASData tlasData;
 
-    // 全レイヤーからDXRShapeを収集
     auto dxrShapes = GetDXRShapes();
 
     char debugMsg[256];
@@ -39,7 +39,6 @@ TLASData DXRScene::GetTLASData() const {
 std::vector<DXRShape*> DXRScene::GetDXRShapes() const {
     std::vector<DXRShape*> dxrShapes;
 
-    // 全レイヤーを走査してDXRShapeを抽出
     for ( int i = 0; i < Layer::LayerAll; i++ ) {
         for ( auto* obj : m_GameObject[i] ) {
             DXRShape* dxrShape = dynamic_cast<DXRShape*>( obj );

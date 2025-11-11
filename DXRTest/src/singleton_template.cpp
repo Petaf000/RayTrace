@@ -1,19 +1,19 @@
-ï»¿#include "singleton_template.h"
+#include "singleton_template.h"
 
-//å†…éƒ¨ãƒªãƒ³ã‚±ãƒ¼ã‚¸
+//“à•”ƒŠƒ“ƒP[ƒW
 namespace {
     constexpr int kMaxFinalizersSize = 256;
 }
 
 std::unordered_map<std::type_index, SingletonFinalizer::FinalizerFunc> SingletonFinalizer::Lfinalizers;
 
-//Singletonã‚¯ãƒ©ã‚¹ã‹ã‚‰ã®ã¿ã®ã‚¢ã‚¯ã‚»ã‚¹ã€‚å¤–éƒ¨ã‹ã‚‰ã¯ä½¿ç”¨ã—ãªã„ã§ãã ã•ã„ã€‚
+//SingletonƒNƒ‰ƒX‚©‚ç‚Ì‚İ‚ÌƒAƒNƒZƒXBŠO•”‚©‚ç‚Íg—p‚µ‚È‚¢‚Å‚­‚¾‚³‚¢B
 void SingletonFinalizer::AddFinalizer(FinalizerFunc func, std::type_index type) {
     assert(Lfinalizers.size() < kMaxFinalizersSize);
     Lfinalizers.insert(std::make_pair(type, func));
 }
 
-//mozcå¼ã®ã‚·ãƒ³ã‚°ãƒ«ãƒˆãƒ³ã§ç”Ÿæˆã—ãŸã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã®è§£æ”¾ã€‚ã™ã¹ã¦ã®ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã‚’è§£æ”¾ã—ã¾ã™ã€‚
+//mozc®‚ÌƒVƒ“ƒOƒ‹ƒgƒ“‚Å¶¬‚µ‚½ƒCƒ“ƒXƒ^ƒ“ƒX‚Ì‰ğ•úB‚·‚×‚Ä‚ÌƒCƒ“ƒXƒ^ƒ“ƒX‚ğ‰ğ•ú‚µ‚Ü‚·B
 void SingletonFinalizer::Finalize() {
     for (auto& finalize : Lfinalizers) {
         (*finalize.second)();

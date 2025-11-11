@@ -1,17 +1,14 @@
-﻿#ifndef UTIL_HLSLI
+#ifndef UTIL_HLSLI
 #define UTIL_HLSLI
 
-// 数学的定数
 #define PI 3.14159265359f
 #define INV_PI 0.31830988618f
 
-// ユーティリティ関数
 float3 OffsetRay(const float3 p, const float3 n)
 {
-    return p + n * 0.001f; // 元のオフセットに戻す
+    return p + n * 0.001f;
 }
 
-// 乱数生成（簡単版）
 uint WangHash(uint seed)
 {
     seed = (seed ^ 61) ^ (seed >> 16);
@@ -22,7 +19,6 @@ uint WangHash(uint seed)
     return seed;
 }
 
-// **強化されたハッシュ関数（PCG-based）**
 uint PCGHash(uint seed)
 {
     uint state = seed * 747796405u + 2891336453u;
@@ -30,7 +26,6 @@ uint PCGHash(uint seed)
     return (word >> 22u) ^ word;
 }
 
-// **XorShift ハッシュ関数（高速・高品質）**
 uint XorShiftHash(uint seed)
 {
     seed ^= seed << 13u;
@@ -39,10 +34,8 @@ uint XorShiftHash(uint seed)
     return seed;
 }
 
-// **Multi-Hash関数（複数アルゴリズム組み合わせ）**
 uint MultiHash(uint seed)
 {
-    // 3つのハッシュ関数を組み合わせて最高品質を実現
     seed = WangHash(seed);
     seed = PCGHash(seed);
     seed = XorShiftHash(seed);
@@ -51,8 +44,8 @@ uint MultiHash(uint seed)
 
 float RandomFloat(inout uint seed)
 {
-    seed = PCGHash(seed); // より高品質なハッシュ関数を使用
-    return float(seed) / 4294967295.0f; // 32bit全体を使用して精度向上
+    seed = PCGHash(seed);
+    return float(seed) / 4294967295.0f;
 }
 
 float3 RandomUnitVector(inout uint seed)

@@ -1,4 +1,4 @@
-ï»¿#include "Model.h"
+#include "Model.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -9,7 +9,7 @@ void Model::LoadModel(const std::string& fileName) {
 
 	ModelData model;
 	
-	// filenameã‹ã‚‰æ‹¡å¼µå­ã‚’å–å¾—
+	// filename‚©‚çŠg’£q‚ğæ“¾
 	std::string ext = fileName.substr(fileName.find_last_of(".") + 1);
 	if ( ext == ".glb" ) {
 		LoadGLB(model);
@@ -21,18 +21,18 @@ void Model::LoadModel(const std::string& fileName) {
 		//LoadOBJ();
 	}
 	else {
-		throw std::runtime_error("ã“ã®3Dã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¯ã‚µãƒãƒ¼ãƒˆã—ã¦ã¾ã›ã‚“");
+		throw std::runtime_error("‚±‚Ì3DƒIƒuƒWƒFƒNƒg‚ÍƒTƒ|[ƒg‚µ‚Ä‚Ü‚¹‚ñ");
 	}
 }
 
 void Model::LoadGLB(ModelData& model) {
 
-	// DirectXç”¨ã«å¤‰æ›ã—ã¦GLBãƒ•ã‚¡ã‚¤ãƒ«ã‚’èª­ã¿è¾¼ã‚€
+	// DirectX—p‚É•ÏŠ·‚µ‚ÄGLBƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚Ş
 	Assimp::Importer importer;
 	const aiScene* scene = importer.ReadFile(m_fileName.c_str(), aiProcessPreset_TargetRealtime_MaxQuality | aiProcess_ConvertToLeftHanded);
 
 	if ( !scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode )
-		throw std::runtime_error("GLBãƒ•ã‚¡ã‚¤ãƒ«ã®èª­ã¿è¾¼ã¿ã«å¤±æ•—ã—ã¾ã—ãŸ");
+		throw std::runtime_error("GLBƒtƒ@ƒCƒ‹‚Ì“Ç‚İ‚İ‚É¸”s‚µ‚Ü‚µ‚½");
 
 	for ( uint16_t i = 0; i < scene->mNumMeshes; i++ ) {
 		aiMesh* mesh = scene->mMeshes[i];
@@ -69,13 +69,13 @@ void Model::LoadGLB(ModelData& model) {
 
 
 
-		//ãƒ†ã‚¯ã‚¹ãƒãƒ£èª­ã¿è¾¼ã¿
+		//ƒeƒNƒXƒ`ƒƒ“Ç‚İ‚İ
 		for ( int i = 0; i < m_AiScene->mNumTextures; i++ ) {
 			aiTexture* aitexture = m_AiScene->mTextures[i];
 
 			ID3D11ShaderResourceView* texture;
 
-			// ãƒ†ã‚¯ã‚¹ãƒãƒ£èª­ã¿è¾¼ã¿
+			// ƒeƒNƒXƒ`ƒƒ“Ç‚İ‚İ
 			TexMetadata metadata;
 			ScratchImage image;
 			LoadFromWICMemory(aitexture->pcData, aitexture->mWidth, WIC_FLAGS_NONE, &metadata, image);
@@ -91,7 +91,7 @@ void Model::LoadGLB(ModelData& model) {
 void Model::RecursiveNode(aiNode* node, const aiScene* scene, ModelData& model) {
 
 	node->mTransformation;
-	//ãƒãƒ¼ãƒ‰ã®ãƒ¡ãƒƒã‚·ãƒ¥ã‚’å–å¾—
+	//ƒm[ƒh‚ÌƒƒbƒVƒ…‚ğæ“¾
 	for ( uint16_t i = 0; i < node->mNumMeshes; i++ ) {
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 		model.VertexNum = mesh->mNumVertices;
