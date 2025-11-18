@@ -43,7 +43,7 @@ void RayGen()
         ray.Origin = cameraPos;
         ray.Direction = rayDir;
         ray.TMin = 0.1f;
-        ray.TMax = 10000.0f;
+        ray.TMax = 10.0f;
         
         // ペイロード初期化
         RayPayload payload;

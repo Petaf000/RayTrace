@@ -115,8 +115,9 @@ float3 ComputeIndirectLighting(float3 worldPos, float3 normal, MaterialData mate
 float3 ComputeAmbientOcclusion(float3 worldPos, float3 normal, MaterialData material, inout uint seed)
 {
     float occluded = 0.0f;
-    const int aoSamples = 4;
-    const float aoRadius = 0.3f;
+    // ƒŠƒtƒ@ƒŒƒ“ƒX‚É‚Å‚«‚é‚¾‚¯‹ß‚Ã‚¯‚é‚½‚ß‚É–Ú‚Å’²®‚µ‚Ä‚Ü‚·
+    const int aoSamples = 16;
+    const float aoRadius = 0.05f;
     
     for (int i = 0; i < aoSamples; i++)
     {

@@ -105,7 +105,7 @@ void CornelBoxScene::CreateObjects() {
     tallBox->SetRotation({ 0.0f, XMConvertToRadians(-18.0f), 0.0f });
     
     auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 0.3f, std::to_underlying(CornelBoxMaterial::Glass));
-    glassSphere->SetPosition({ 0.32f, 0.3f, -0.37f });
+    glassSphere->SetPosition({ 0.32f, 0.33f, -0.37f });
     /*
     auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, std::to_underlying(CornelBoxMaterial::Glass));
     aluminumSphere->SetPosition({ 150.0f, -107.5f, -125.0f });

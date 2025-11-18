@@ -5,7 +5,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     
 	App::SetDefaultUnhandledExceptionFilter();
 
-	App::SetWindowName("Test");
+	App::SetWindowName("DXR");
 
 	try {
         App::Run();

@@ -112,7 +112,7 @@ void App::Run()
             if ( ( delta = m_time.DeltaTime) >= 1.0f / m_targetFrameRate) {
 
 
-                std::string fps = "FPS" + std::to_string(1.0f / delta);
+                std::string fps = "DXRTest:GameThread FPS" + std::to_string(1.0f / delta);
                 App::SetWindowName(fps);
                 GetClientRect(m_hWnd, &m_windowSize.Rect);
                 

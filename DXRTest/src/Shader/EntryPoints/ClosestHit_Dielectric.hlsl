@@ -210,7 +210,7 @@ float3 CalculateRefractiveReflectiveLighting(float3 worldPos, float3 normal, Mat
         newPayload.roughness = 0.0f;
         newPayload.padding = 0;
         
-        TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
+        TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, newPayload);
         refractiveReflectiveLighting = info.attenuation * newPayload.color;
     }
     
