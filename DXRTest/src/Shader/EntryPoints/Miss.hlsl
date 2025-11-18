@@ -9,7 +9,6 @@ void Miss(inout RayPayload payload)
         return;
     }
     
-    
     if (payload.depth == 0)
     {
         payload.color = float3(0.0f, 0.0f, 0.0f);

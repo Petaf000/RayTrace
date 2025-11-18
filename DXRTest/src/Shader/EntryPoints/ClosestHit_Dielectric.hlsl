@@ -1,33 +1,5 @@
 #include "../Common.hlsli"
 
-float schlick(float cosine, float ri)
-{
-    float r0 = (1.0f - ri) / (1.0f + ri);
-    r0 = r0 * r0;
-    return r0 + (1.0f - r0) * pow(1.0f - cosine, 5.0f);
-}
-
-float3 reflect_vec(float3 v, float3 n)
-{
-    return v - 2.0f * dot(v, n) * n;
-}
-
-bool refract_vec(float3 v, float3 n, float ni_over_nt, out float3 refracted)
-{
-    float3 uv = normalize(v);
-    float dt = dot(uv, n);
-    float D = 1.0f - (ni_over_nt * ni_over_nt) * (1.0f - dt * dt);
-    if (D > 0.0f)
-    {
-        refracted = -ni_over_nt * (uv - n * dt) - n * sqrt(D);
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
-
 struct DielectricInfo
 {
     float3 reflectedDir;
@@ -46,8 +18,7 @@ DielectricInfo GetDielectricInfo(float3 rayDir, float3 normal, float refractiveI
     float ni_over_nt;
     float cosine;
     
-    info.reflectedDir = reflect_vec(rayDir, normal);
-    
+    info.reflectedDir = ReflectVec(rayDir, normal);
     if (dot(rayDir, normal) > 0.0f)
     {
         outward_normal = -normal;
@@ -61,11 +32,11 @@ DielectricInfo GetDielectricInfo(float3 rayDir, float3 normal, float refractiveI
         cosine = -dot(rayDir, normal) / length(rayDir);
     }
     
-    info.canRefract = refract_vec(-rayDir, outward_normal, ni_over_nt, info.refractedDir);
+    info.canRefract = RefractVec(-rayDir, outward_normal, ni_over_nt, info.refractedDir);
     
     if (info.canRefract)
     {
-        info.reflectProb = schlick(cosine, refractiveIndex);
+        info.reflectProb = SchlickFresnel(cosine, refractiveIndex);
     }
     else
     {
@@ -88,13 +59,11 @@ BRDFSample SampleDielectricSurfaceBRDF(float3 normal, MaterialData material, ino
     float y = sin(phi) * sqrt(r2);
     
     float3 localDir = float3(x, y, z);
-    
     float3 up = abs(normal.z) < 0.999f ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 tangent = normalize(cross(up, normal));
     float3 bitangent = cross(normal, tangent);
     
     sample.direction = localDir.x * tangent + localDir.y * bitangent + localDir.z * normal;
-    
     sample.brdf = material.albedo * 0.05f / PI;
     sample.pdf = z / PI;
     sample.valid = true;
@@ -105,7 +74,6 @@ BRDFSample SampleDielectricSurfaceBRDF(float3 normal, MaterialData material, ino
 float3 CalculateDirectLighting(float3 worldPos, float3 normal, MaterialData material, inout uint seed)
 {
     float3 directLighting = 0.0f;
-    
     if (numLights == 0)
         return directLighting;
     
@@ -114,34 +82,18 @@ float3 CalculateDirectLighting(float3 worldPos, float3 normal, MaterialData mate
     for (uint lightIdx = 0; lightIdx < maxLightsToSample; lightIdx++)
     {
         LightSample lightSample = SampleLightByIndex(lightIdx, worldPos, seed);
-        
         if (lightSample.valid)
         {
             float NdotL = max(0.0f, dot(normal, lightSample.direction));
-            
             if (NdotL > 0.0f)
             {
-                RayDesc shadowRay;
-                shadowRay.Origin = OffsetRay(worldPos, normal);
-                shadowRay.Direction = lightSample.direction;
-                shadowRay.TMin = 0.001f;
-                shadowRay.TMax = lightSample.distance - 0.001f;
-                
-                RayPayload shadowPayload;
-                shadowPayload.color = float3(1, 1, 1);
-                shadowPayload.depth = 999;
-                shadowPayload.seed = seed;
-                
-                TraceRay(SceneBVH, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
-                         0xFF, 0, 1, 0, shadowRay, shadowPayload);
-                
-                if (length(shadowPayload.color) > 0.5f)
+                // シャドウレイ関数を使用
+                if (TestLightVisibility(worldPos, normal, lightSample.direction, lightSample.distance, seed))
                 {
                     float3 surfaceBrdf = material.albedo * 0.05f / PI;
                     float3 directContribution = surfaceBrdf * lightSample.radiance * NdotL;
                     
                     float brdfPdf = NdotL / PI;
-                    
                     float misWeight = MISWeightLight(lightSample.pdf, brdfPdf);
                     directLighting += directContribution * misWeight / lightSample.pdf;
                 }
@@ -161,7 +113,6 @@ float3 CalculateIndirectSurfaceLighting(float3 worldPos, float3 normal, Material
                                         uint depth, inout uint seed)
 {
     float3 indirectLighting = 0.0f;
-    
     if (depth >= 6)
         return indirectLighting;
     
@@ -195,14 +146,22 @@ float3 CalculateIndirectSurfaceLighting(float3 worldPos, float3 normal, Material
             float NdotL = max(0.0f, dot(normal, brdfSample.direction));
             float3 surfaceContribution = brdfSample.brdf * newPayload.color * NdotL;
             
-            LightInfo light = GetLightInfo();
-            float3 lightDir = normalize(light.position - worldPos);
-            float lightDist = length(light.position - worldPos);
-            float cosTheta = max(0.0f, dot(-lightDir, light.normal));
-            float lightPdf = (lightDist * lightDist) / (cosTheta * light.area);
-            
-            float misWeight = MISWeightBRDF(lightPdf, brdfSample.pdf);
-            indirectLighting += surfaceContribution * misWeight / brdfSample.pdf;
+            // ここでは簡易的なMISの実装（本来はライト方向への再計算が必要だが既存ロジックを維持）
+            if (numLights > 0)
+            {
+                LightInfo light = LightBuffer[0];
+                float3 lightDir = normalize(light.position - worldPos);
+                float lightDist = length(light.position - worldPos);
+                float cosTheta = max(0.0f, dot(-lightDir, light.normal));
+                float lightPdf = (lightDist * lightDist) / (cosTheta * light.area);
+                
+                float misWeight = MISWeightBRDF(lightPdf, brdfSample.pdf);
+                indirectLighting += surfaceContribution * misWeight / brdfSample.pdf;
+            }
+            else
+            {
+                indirectLighting += surfaceContribution / brdfSample.pdf;
+            }
         }
     }
     
@@ -213,12 +172,10 @@ float3 CalculateRefractiveReflectiveLighting(float3 worldPos, float3 normal, Mat
                                            float3 rayDir, uint depth, inout uint seed)
 {
     float3 refractiveReflectiveLighting = 0.0f;
-    
     if (depth >= 8)
         return refractiveReflectiveLighting;
     
     DielectricInfo info = GetDielectricInfo(rayDir, normal, material.refractiveIndex, seed);
-    
     // 屈折できない場合は必ず反射
     bool useReflection = !info.canRefract || (RandomFloat(seed) < info.reflectProb);
     float3 chosenDirection = useReflection ? info.reflectedDir : info.refractedDir;
@@ -226,7 +183,6 @@ float3 CalculateRefractiveReflectiveLighting(float3 worldPos, float3 normal, Mat
     if (length(chosenDirection) > 0.001f)
     {
         RayDesc ray;
-        
         if (useReflection)
         {
             ray.Origin = worldPos + normal * 0.001f;
@@ -255,7 +211,6 @@ float3 CalculateRefractiveReflectiveLighting(float3 worldPos, float3 normal, Mat
         newPayload.padding = 0;
         
         TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, newPayload);
-        
         refractiveReflectiveLighting = info.attenuation * newPayload.color;
     }
     
@@ -280,25 +235,20 @@ void ClosestHit_Dielectric(inout RayPayload payload, in VertexAttributes attr)
     
     uint instanceID = InstanceID();
     MaterialData material = GetMaterial(instanceID);
-    
     float3 worldPos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
     
     uint primitiveID = PrimitiveIndex();
     float3 normal = GetWorldNormal(instanceID, primitiveID, attr.barycentrics);
-    
     float3 rayDir = normalize(WorldRayDirection());
     
     SetGBufferData(payload, worldPos, normal, material.albedo,
                    MATERIAL_DIELECTRIC, material.roughness, RayTCurrent());
-    
-    
+                   
     float3 directLighting = CalculateDirectLighting(worldPos, normal, material, payload.seed);
     
     float3 indirectSurfaceLighting = CalculateIndirectSurfaceLighting(worldPos, normal, material,
                                                                       payload.depth, payload.seed);
-    
     float3 refractiveReflectiveLighting = CalculateRefractiveReflectiveLighting(worldPos, normal, material,
                                                                                rayDir, payload.depth, payload.seed);
-    
     payload.color = refractiveReflectiveLighting;
 }

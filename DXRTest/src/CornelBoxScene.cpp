@@ -69,7 +69,7 @@ void CornelBoxScene::CreateMaterials() {
     // Dielectric - 5
     material.albedo = { 1.0f, 1.0f, 1.0f };
     material.roughness = 0.0f;
-    material.refractiveIndex = 2.0f;
+    material.refractiveIndex = 1.5f;
     material.materialType = std::to_underlying(MaterialType::Dielectric);
     m_uniqueMaterials.push_back(material);
 }
@@ -104,7 +104,7 @@ void CornelBoxScene::CreateObjects() {
     tallBox->SetPosition({ -0.3f, 0.6f, 0.3f });
     tallBox->SetRotation({ 0.0f, XMConvertToRadians(-18.0f), 0.0f });
     
-    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 0.3f, std::to_underlying(CornelBoxMaterial::Metal));
+    auto* glassSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 0.3f, std::to_underlying(CornelBoxMaterial::Glass));
     glassSphere->SetPosition({ 0.32f, 0.3f, -0.37f });
     /*
     auto* aluminumSphere = AddGameObject<DXRSphere>(Layer::Gameobject3D, 90.0f, std::to_underlying(CornelBoxMaterial::Glass));

@@ -1,6 +1,9 @@
 #ifndef COMMON_HLSLI
 #define COMMON_HLSLI
 
+// 構造体等定義ファイル
+#include "Core/Types.hlsli"
+
 cbuffer SceneConstantBuffer : register(b0)
 {
     float4x4 projectionMatrix;
@@ -20,8 +23,7 @@ cbuffer SceneConstantBuffer : register(b0)
     float2 padding;
 };
 
-#include "Lib/Utils.hlsli"
-
+// リソース定義
 RaytracingAccelerationStructure SceneBVH : register(t0);
 RWTexture2D<float4> RenderTarget : register(u0);
 
@@ -40,28 +42,17 @@ StructuredBuffer<uint> IndexBuffer : register(t3);
 StructuredBuffer<InstanceOffsetData> InstanceOffsetBuffer : register(t4);
 StructuredBuffer<LightInfo> LightBuffer : register(t5);
 
+#include "Lib/Utils.hlsli"
+
 MaterialData GetMaterial(uint instanceID)
 {
     InstanceOffsetData instanceData = InstanceOffsetBuffer[instanceID];
-    
-    /*if (instanceData.materialID == 0xFFFFFFFF)
-    {
-        MaterialData defaultMaterial;
-        defaultMaterial.albedo = float3(0.0f, 0.0f, 1.0f);
-        defaultMaterial.roughness = 1.0f;
-        defaultMaterial.refractiveIndex = 1.0f;
-        defaultMaterial.emission = float3(0, 0, 0);
-        defaultMaterial.materialType = MATERIAL_LAMBERTIAN;
-        defaultMaterial.padding = 0.0f;
-        return defaultMaterial;
-    }*/
     return MaterialBuffer[instanceData.materialID];
 }
 
 float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentrics)
 {
     InstanceOffsetData offset = InstanceOffsetBuffer[instanceID];
-    
     uint baseIndex = offset.indexOffset + primitiveID * 3;
     
     uint i0 = IndexBuffer[baseIndex + 0] + offset.vertexOffset;
@@ -71,14 +62,12 @@ float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentr
     float3 normal = VertexBuffer[i0].normal * (1.0f - barycentrics.x - barycentrics.y) +
                     VertexBuffer[i1].normal * barycentrics.x +
                     VertexBuffer[i2].normal * barycentrics.y;
-    
     return normalize(normal);
 }
 
 float3 GetWorldNormal(uint instanceID, uint primitiveID, float2 barycentrics)
 {
     float3 localNormal = GetInterpolatedNormal(instanceID, primitiveID, barycentrics);
-
     float3x4 objectToWorld = ObjectToWorld3x4();
 
     float3 worldNormal = mul((float3x3) objectToWorld, localNormal);
@@ -86,24 +75,7 @@ float3 GetWorldNormal(uint instanceID, uint primitiveID, float2 barycentrics)
     return normalize(worldNormal);
 }
 
-LightInfo GetLightInfo()
-{
-    if (numLights > 0)
-    {
-        return LightBuffer[0];
-    }
-    
-    LightInfo light;
-    light.position = float3(0.0f, 267.5f, -227.0f);
-    light.emission = float3(15.0f, 15.0f, 15.0f);
-    light.size = float3(130.0f, 5.0f, 105.0f);
-    light.area = light.size.x * light.size.z;
-    light.normal = float3(0, -1, 0);
-    light.lightType = 0;
-    light.instanceID = 5;
-    return light;
-}
-
+// インクルード順のため、ここでLightFuncをインクルード
 #include "Lib/LightFunc.hlsli"
 
 #endif

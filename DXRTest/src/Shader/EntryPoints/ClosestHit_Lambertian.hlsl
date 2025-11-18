@@ -11,34 +11,17 @@ float3 ComputeDirectLighting(float3 worldPos, float3 normal, MaterialData materi
     for (uint lightIdx = 0; lightIdx < maxLights; lightIdx++)
     {
         float3 lightContribution = 0.0f;
-        
         for (uint s = 0; s < samples; s++)
         {
             uint lightSeed = seed + s + lightIdx * 12347;
-            
             LightSample lightSample = SampleLightByIndex(lightIdx, worldPos, lightSeed);
             
             if (lightSample.valid)
             {
                 float NdotL = max(0.0f, dot(normal, lightSample.direction));
-                
                 if (NdotL > 0.0f)
                 {
-                    RayDesc shadowRay;
-                    shadowRay.Origin = OffsetRay(worldPos, normal);
-                    shadowRay.Direction = lightSample.direction;
-                    shadowRay.TMin = 0.001f;
-                    shadowRay.TMax = max(0.01f, lightSample.distance - 0.01f);
-                    
-                    RayPayload shadowPayload;
-                    shadowPayload.color = float3(1, 1, 1);
-                    shadowPayload.depth = 999;
-                    shadowPayload.seed = lightSeed;
-                    
-                    TraceRay(SceneBVH, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
-                             0xFF, 0, 1, 0, shadowRay, shadowPayload);
-                    
-                    if (length(shadowPayload.color) > 0.5f)
+                    if (TestLightVisibility(worldPos, normal, lightSample.direction, lightSample.distance, lightSeed))
                     {
                         float3 brdf = material.albedo / PI;
                         float3 contribution = brdf * lightSample.radiance * NdotL / lightSample.pdf;
@@ -138,13 +121,13 @@ float3 ComputeAmbientOcclusion(float3 worldPos, float3 normal, MaterialData mate
     for (int i = 0; i < aoSamples; i++)
     {
         uint sampleSeed = seed + i * 7919;
-        
         // コサインサンプリング
         float3 localDir = RandomCosineDirection(sampleSeed);
         float3 w = normal;
         float3 u = normalize(cross((abs(w.x) > 0.1f ? float3(0, 1, 0) : float3(1, 0, 0)), w));
         float3 v = cross(w, u);
         float3 aoDirection = localDir.x * u + localDir.y * v + localDir.z * w;
+        
         
         RayDesc aoRay;
         aoRay.Origin = OffsetRay(worldPos, normal);
@@ -169,7 +152,7 @@ float3 ComputeAmbientOcclusion(float3 worldPos, float3 normal, MaterialData mate
         TraceRay(SceneBVH, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
                  0xFF, 0, 1, 0, aoRay, aoPayload);
         
-        if (length(aoPayload.color) < 0.5f) // ヒットした場合
+        if (length(aoPayload.color) < 0.5f)
         {
             float distance = aoPayload.hitDistance;
             float weight = 1.0f - (distance / aoRadius);
@@ -208,7 +191,7 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     // G-Bufferデータの設定
     SetGBufferData(payload, worldPos, normal, material.albedo,
                    MATERIAL_LAMBERTIAN, material.roughness, RayTCurrent());
-    
+                   
     // ライティング計算
     float3 directColor = ComputeDirectLighting(worldPos, normal, material, payload.depth, payload.seed);
     float3 indirectColor = ComputeIndirectLighting(worldPos, normal, material, payload.depth, payload.seed);
@@ -221,7 +204,6 @@ void ClosestHit_Lambertian(inout RayPayload payload, in VertexAttributes attr)
     }
     
     float3 finalColor = directColor + indirectColor;
-    
     if (any(isnan(finalColor)) || any(isinf(finalColor)))
     {
         finalColor = float3(0, 0, 0);
