@@ -1,4 +1,4 @@
-#include "Common.hlsli"
+#include "../Common.hlsli"
 
 float3 ComputeDirectLighting(float3 worldPos, float3 normal, MaterialData material,
                            uint depth, inout uint seed)

@@ -1,4 +1,4 @@
-﻿#include "Common.hlsli"
+﻿#include "../Common.hlsli"
 
 Texture2D<float4> AlbedoBuffer : register(t6);
 Texture2D<float4> NormalBuffer : register(t7);
@@ -51,7 +51,7 @@ float ComputeWeight(float3 centerColor, float3 sampleColor,
 }
 
 [numthreads(8, 8, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID)
+void ATrousDenoiser(uint3 id : SV_DispatchThreadID)
 {
     uint2 dims;
     RenderTarget.GetDimensions(dims.x, dims.y);

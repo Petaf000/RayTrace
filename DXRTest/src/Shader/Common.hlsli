@@ -20,9 +20,7 @@ cbuffer SceneConstantBuffer : register(b0)
     float2 padding;
 };
 
-#include "Utils.hlsli"
-#include "GeometryData.hlsli"
-#include "LightData.hlsli"
+#include "Lib/Utils.hlsli"
 
 RaytracingAccelerationStructure SceneBVH : register(t0);
 RWTexture2D<float4> RenderTarget : register(u0);
@@ -58,11 +56,6 @@ MaterialData GetMaterial(uint instanceID)
         return defaultMaterial;
     }*/
     return MaterialBuffer[instanceData.materialID];
-}
-
-float3 NormalToColor(float3 normal)
-{
-    return normal * 0.5f + 0.5f;
 }
 
 float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 barycentrics)
@@ -111,6 +104,6 @@ LightInfo GetLightInfo()
     return light;
 }
 
-#include "LightFunc.hlsli"
+#include "Lib/LightFunc.hlsli"
 
 #endif

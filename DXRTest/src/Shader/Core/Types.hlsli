@@ -1,5 +1,57 @@
-#ifndef LIGHTDATA_HLSLI
-#define LIGHTDATA_HLSLI
+#ifndef TYPES_HLSLI
+#define TYPES_HLSLI
+
+#define MATERIAL_LAMBERTIAN  0
+#define MATERIAL_METAL       1
+#define MATERIAL_DIELECTRIC  2
+#define MATERIAL_LIGHT       3
+
+struct DXRVertex
+{
+    float3 position;
+    float3 normal;
+    float2 texCoord;
+};
+
+struct VertexAttributes
+{
+    float2 barycentrics : SV_IntersectionAttributes;
+};
+
+struct InstanceOffsetData
+{
+    uint vertexOffset;
+    uint indexOffset;
+    uint materialID;
+    uint padding;
+};
+
+struct MaterialData
+{
+    float3 albedo;
+    float roughness;
+    float refractiveIndex;
+    float3 emission;
+    int materialType;
+    float padding;
+};
+
+struct RayPayload
+{
+    float3 color;
+    uint depth;
+    uint seed;
+    
+    // G-Buffer用データ
+    float3 albedo;
+    float3 normal;
+    float3 worldPos;
+    float hitDistance;
+    uint materialType;
+    float roughness;
+    uint padding;
+};
+
 struct LightInfo
 {
     float3 position;

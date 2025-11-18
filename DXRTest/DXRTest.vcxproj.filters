@@ -28,6 +28,18 @@
     <Filter Include="Material">
       <UniqueIdentifier>{71f8af45-96fc-4a58-84d0-aefb368f6b9b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\Core">
+      <UniqueIdentifier>{70111c30-995a-4e53-a9d8-bd6f80f45ea0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader\Lib">
+      <UniqueIdentifier>{fd48fcc4-0a29-428f-92cf-4e670aed7c36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader\EntryPoints">
+      <UniqueIdentifier>{83fa8452-8fff-4620-bce1-b8ff77a6fb7b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader\PostProcess">
+      <UniqueIdentifier>{86fc1eb3-4ee4-4131-bef6-8270c20e3bff}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Renderer.cpp">
@@ -188,40 +200,37 @@
     <None Include="src\Shader\Common.hlsli">
       <Filter>Shader</Filter>
     </None>
-    <None Include="src\Shader\Utils.hlsli">
-      <Filter>Shader</Filter>
+    <None Include="src\Shader\Lib\LightFunc.hlsli">
+      <Filter>Shader\Lib</Filter>
     </None>
-    <None Include="src\Shader\GeometryData.hlsli">
-      <Filter>Shader</Filter>
+    <None Include="src\Shader\Core\Types.hlsli">
+      <Filter>Shader\Core</Filter>
     </None>
-    <None Include="src\Shader\LightFunc.hlsli">
-      <Filter>Shader</Filter>
-    </None>
-    <None Include="src\Shader\LightData.hlsli">
-      <Filter>Shader</Filter>
+    <None Include="src\Shader\Lib\Utils.hlsli">
+      <Filter>Shader\Lib</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="src\Shader\Miss.hlsl">
-      <Filter>Shader</Filter>
+    <FxCompile Include="src\Shader\PostProcess\ATrousDenoiser.hlsl">
+      <Filter>Shader\PostProcess</Filter>
     </FxCompile>
-    <FxCompile Include="src\Shader\ClosestHit_Lambertian.hlsl">
-      <Filter>Shader</Filter>
+    <FxCompile Include="src\Shader\EntryPoints\ClosestHit_Dielectric.hlsl">
+      <Filter>Shader\EntryPoints</Filter>
     </FxCompile>
-    <FxCompile Include="src\Shader\ClosestHit_Metal.hlsl">
-      <Filter>Shader</Filter>
+    <FxCompile Include="src\Shader\EntryPoints\ClosestHit_DiffuseLight.hlsl">
+      <Filter>Shader\EntryPoints</Filter>
     </FxCompile>
-    <FxCompile Include="src\Shader\ClosestHit_Dielectric.hlsl">
-      <Filter>Shader</Filter>
+    <FxCompile Include="src\Shader\EntryPoints\ClosestHit_Lambertian.hlsl">
+      <Filter>Shader\EntryPoints</Filter>
     </FxCompile>
-    <FxCompile Include="src\Shader\ClosestHit_DiffuseLight.hlsl">
-      <Filter>Shader</Filter>
+    <FxCompile Include="src\Shader\EntryPoints\ClosestHit_Metal.hlsl">
+      <Filter>Shader\EntryPoints</Filter>
     </FxCompile>
-    <FxCompile Include="src\Shader\ATrousDenoiser.hlsl">
-      <Filter>Shader</Filter>
+    <FxCompile Include="src\Shader\EntryPoints\RayGen.hlsl">
+      <Filter>Shader\EntryPoints</Filter>
     </FxCompile>
-    <FxCompile Include="src\Shader\RayGen.hlsl">
-      <Filter>Shader</Filter>
+    <FxCompile Include="src\Shader\EntryPoints\Miss.hlsl">
+      <Filter>Shader\EntryPoints</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

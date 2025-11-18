@@ -1,4 +1,4 @@
-#include "Common.hlsli"
+#include "../Common.hlsli"
 
 [shader("miss")]
 void Miss(inout RayPayload payload)

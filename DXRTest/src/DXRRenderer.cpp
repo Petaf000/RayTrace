@@ -509,12 +509,12 @@ void DXRRenderer::CreateRootSignature() {
 }
 
 void DXRRenderer::CreateRaytracingPipelineStateObject() {
-    auto rayGenShader = LoadOrCompileShader(L"Src/Shader/RayGen.hlsl", L"RayGen");
-    auto missShader = LoadOrCompileShader(L"Src/Shader/Miss.hlsl", L"Miss");
-    auto lambertianHitShader = LoadOrCompileShader(L"Src/Shader/ClosestHit_Lambertian.hlsl", L"ClosestHit_Lambertian");
-    auto metalHitShader = LoadOrCompileShader(L"Src/Shader/ClosestHit_Metal.hlsl", L"ClosestHit_Metal");
-    auto dielectricHitShader = LoadOrCompileShader(L"Src/Shader/ClosestHit_Dielectric.hlsl", L"ClosestHit_Dielectric");
-    auto lightHitShader = LoadOrCompileShader(L"Src/Shader/ClosestHit_DiffuseLight.hlsl", L"ClosestHit_DiffuseLight");
+    auto rayGenShader = LoadOrCompileShader(L"Src/Shader/EntryPoint/RayGen.hlsl", L"RayGen");
+    auto missShader = LoadOrCompileShader(L"Src/Shader/EntryPoint/Miss.hlsl", L"Miss");
+    auto lambertianHitShader = LoadOrCompileShader(L"Src/Shader/EntryPoint/ClosestHit_Lambertian.hlsl", L"ClosestHit_Lambertian");
+    auto metalHitShader = LoadOrCompileShader(L"Src/Shader/EntryPoint/ClosestHit_Metal.hlsl", L"ClosestHit_Metal");
+    auto dielectricHitShader = LoadOrCompileShader(L"Src/Shader/EntryPoint/ClosestHit_Dielectric.hlsl", L"ClosestHit_Dielectric");
+    auto lightHitShader = LoadOrCompileShader(L"Src/Shader/EntryPoint/ClosestHit_DiffuseLight.hlsl", L"ClosestHit_DiffuseLight");
 
     static const wchar_t* exportNames[] = {
         L"RayGen", L"Miss",
@@ -1425,7 +1425,7 @@ void DXRRenderer::CreateDenoiserPipeline() {
     sprintf_s(debugMsg, "Creating denoiser pipeline...\n");
     OutputDebugStringA(debugMsg);
 
-    auto denoiserShader = LoadOrCompileShader(L"Src/Shader/ATrousDenoiser.hlsl", L"CSMain", L"cs_6_5");
+    auto denoiserShader = LoadOrCompileShader(L"Src/Shader/PostProcess/ATrousDenoiser.hlsl", L"CSMain", L"cs_6_5");
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.pRootSignature = m_globalRootSignature.Get();

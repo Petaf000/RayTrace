@@ -1,4 +1,4 @@
-#include "Common.hlsli"
+#include "../Common.hlsli"
 
 [shader("closesthit")]
 void ClosestHit_DiffuseLight(inout RayPayload payload, in VertexAttributes attr)
