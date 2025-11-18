@@ -73,7 +73,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(ProjectDir)src\Shader;$(ProjectDir)external\TaskFlow;$(ProjectDir)external\Imgui;$(ProjectDir)external\DirectXTex\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)src;$(ProjectDir)src\Shader;$(ProjectDir)external\TaskFlow;$(ProjectDir)external\Imgui;$(ProjectDir)external\DirectXTex\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)\external\DirectXTex\lib/Debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -147,25 +147,23 @@
     <ClCompile Include="external\Imgui\imgui_impl_dx12.cpp" />
     <ClCompile Include="external\Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="external\Imgui\imgui_widgets.cpp" />
-    <ClCompile Include="src\App.cpp" />
-    <ClCompile Include="src\CornelBoxScene.cpp" />
-    <ClCompile Include="src\DXRBox.cpp" />
-    <ClCompile Include="src\DXRRenderer.cpp" />
-    <ClCompile Include="src\DXRScene.cpp" />
-    <ClCompile Include="src\DXRSphere.cpp" />
-    <ClCompile Include="src\GameManager.cpp" />
-    <ClCompile Include="src\Input.cpp" />
-    <ClCompile Include="src\Main.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="src\Pch.cpp">
+    <ClCompile Include="src\GameObject\DXRBox.cpp" />
+    <ClCompile Include="src\GameObject\DXRSphere.cpp" />
+    <ClCompile Include="src\Scene\CornelBoxScene.cpp" />
+    <ClCompile Include="src\Scene\DXRScene.cpp" />
+    <ClCompile Include="src\System\App.cpp" />
+    <ClCompile Include="src\System\GameManager.cpp" />
+    <ClCompile Include="src\System\Input.cpp" />
+    <ClCompile Include="src\System\Main.cpp" />
+    <ClCompile Include="src\System\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="src\Renderer.cpp" />
-    <ClCompile Include="src\singleton_template.cpp" />
-    <ClCompile Include="src\test.cpp">
+    <ClCompile Include="src\System\Renderer\DXRRenderer.cpp" />
+    <ClCompile Include="src\System\Renderer\Renderer.cpp" />
+    <ClCompile Include="src\System\test.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="src\Utils\singleton_template.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="external\Imgui\imconfig.h" />
@@ -176,29 +174,29 @@
     <ClInclude Include="external\Imgui\imstb_rectpack.h" />
     <ClInclude Include="external\Imgui\imstb_textedit.h" />
     <ClInclude Include="external\Imgui\imstb_truetype.h" />
-    <ClInclude Include="src\App.h" />
-    <ClInclude Include="src\CornelBoxScene.h" />
-    <ClInclude Include="src\DXRBox.h" />
-    <ClInclude Include="src\DXRRenderer.h" />
-    <ClInclude Include="src\DXRScene.h" />
-    <ClInclude Include="src\DXRShape.h" />
-    <ClInclude Include="src\DXRSphere.h" />
-    <ClInclude Include="src\GameManager.h" />
-    <ClInclude Include="src\GameObject.h" />
-    <ClInclude Include="src\GameObject2D.h" />
-    <ClInclude Include="src\GameObject3D.h" />
-    <ClInclude Include="src\GameObjectUtils.h" />
-    <ClInclude Include="src\Input.h" />
-    <ClInclude Include="src\Pch.h" />
-    <ClInclude Include="src\Position.h" />
-    <ClInclude Include="src\Renderer.h" />
-    <ClInclude Include="src\Rotation.h" />
-    <ClInclude Include="src\Scale.h" />
-    <ClInclude Include="src\Scene.h" />
-    <ClInclude Include="src\singleton_template.h" />
-    <ClInclude Include="src\UtilTypes.h" />
-    <ClInclude Include="src\Transform.h" />
-    <ClInclude Include="src\DXRData.h" />
+    <ClInclude Include="src\GameObject\DXRBox.h" />
+    <ClInclude Include="src\GameObject\DXRShape.h" />
+    <ClInclude Include="src\GameObject\DXRSphere.h" />
+    <ClInclude Include="src\GameObject\GameObject.h" />
+    <ClInclude Include="src\GameObject\GameObject2D.h" />
+    <ClInclude Include="src\GameObject\GameObject3D.h" />
+    <ClInclude Include="src\Scene\CornelBoxScene.h" />
+    <ClInclude Include="src\Scene\DXRScene.h" />
+    <ClInclude Include="src\Scene\Scene.h" />
+    <ClInclude Include="src\System\App.h" />
+    <ClInclude Include="src\System\ComponentUtils.h" />
+    <ClInclude Include="src\System\GameManager.h" />
+    <ClInclude Include="src\System\Input.h" />
+    <ClInclude Include="src\System\Pch.h" />
+    <ClInclude Include="src\System\Position.h" />
+    <ClInclude Include="src\System\Renderer\DXRData.h" />
+    <ClInclude Include="src\System\Renderer\DXRRenderer.h" />
+    <ClInclude Include="src\System\Renderer\Renderer.h" />
+    <ClInclude Include="src\System\Rotation.h" />
+    <ClInclude Include="src\System\Scale.h" />
+    <ClInclude Include="src\System\Transform.h" />
+    <ClInclude Include="src\Utils\singleton_template.h" />
+    <ClInclude Include="src\Utils\UtilTypes.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

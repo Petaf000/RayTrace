@@ -1,32 +1,11 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="System">
-      <UniqueIdentifier>{476a55c9-b4fc-4fcd-a2c8-2759f144fe20}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="System\Renderer">
-      <UniqueIdentifier>{d3efbc17-63ed-4da1-8f08-b11e0110b8c0}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Imgui">
       <UniqueIdentifier>{8ed25815-9306-4fb6-a7b9-5fececd257ef}</UniqueIdentifier>
     </Filter>
-    <Filter Include="GameObject">
-      <UniqueIdentifier>{589b93f1-85cd-4e9e-89f1-58c51b2230a2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Utils">
-      <UniqueIdentifier>{ebf36b75-869e-4823-83a3-9fdef9085ed4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Resource">
-      <UniqueIdentifier>{8949ab8c-7719-4295-982b-2006b34fcdaf}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Scene">
-      <UniqueIdentifier>{6200c638-21b8-471e-8c61-b0d6b3c82feb}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Shader">
       <UniqueIdentifier>{8db9077c-29dc-45ed-93d4-5cddfe0311c1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Material">
-      <UniqueIdentifier>{71f8af45-96fc-4a58-84d0-aefb368f6b9b}</UniqueIdentifier>
     </Filter>
     <Filter Include="Shader\Core">
       <UniqueIdentifier>{70111c30-995a-4e53-a9d8-bd6f80f45ea0}</UniqueIdentifier>
@@ -40,26 +19,26 @@
     <Filter Include="Shader\PostProcess">
       <UniqueIdentifier>{86fc1eb3-4ee4-4131-bef6-8270c20e3bff}</UniqueIdentifier>
     </Filter>
+    <Filter Include="GameObject">
+      <UniqueIdentifier>{e5f1958b-d2df-41e1-b6c9-e8571224e7b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource">
+      <UniqueIdentifier>{f3769019-e0a7-4ee9-a83e-74802567492c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{629d2634-e4c1-4542-b229-56a72634fbc1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System">
+      <UniqueIdentifier>{46393acc-0e9c-4eab-8b38-ae71d852e5b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utils">
+      <UniqueIdentifier>{2939ae83-e8f0-40c7-9f95-832c00c4ed12}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Renderer">
+      <UniqueIdentifier>{ac33fbbd-95ed-4e0e-bd33-291cd98ef638}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Renderer.cpp">
-      <Filter>System\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="src\GameManager.cpp">
-      <Filter>System</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Main.cpp">
-      <Filter>System</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Pch.cpp">
-      <Filter>System</Filter>
-    </ClCompile>
-    <ClCompile Include="src\App.cpp">
-      <Filter>System</Filter>
-    </ClCompile>
-    <ClCompile Include="src\singleton_template.cpp">
-      <Filter>Utils</Filter>
-    </ClCompile>
     <ClCompile Include="external\Imgui\imgui.cpp">
       <Filter>Imgui</Filter>
     </ClCompile>
@@ -78,56 +57,47 @@
     <ClCompile Include="external\Imgui\imgui_widgets.cpp">
       <Filter>Imgui</Filter>
     </ClCompile>
-    <ClCompile Include="src\test.cpp">
+    <ClCompile Include="src\Utils\singleton_template.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\System\App.cpp">
       <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="src\DXRBox.cpp">
-      <Filter>GameObject</Filter>
+    <ClCompile Include="src\System\GameManager.cpp">
+      <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="src\DXRSphere.cpp">
-      <Filter>GameObject</Filter>
+    <ClCompile Include="src\System\Input.cpp">
+      <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="src\DXRScene.cpp">
-      <Filter>Scene</Filter>
+    <ClCompile Include="src\System\Main.cpp">
+      <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="src\CornelBoxScene.cpp">
-      <Filter>Scene</Filter>
+    <ClCompile Include="src\System\Pch.cpp">
+      <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="src\DXRRenderer.cpp">
+    <ClCompile Include="src\System\test.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="src\System\Renderer\DXRRenderer.cpp">
       <Filter>System\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="src\Input.cpp">
-      <Filter>System</Filter>
+    <ClCompile Include="src\System\Renderer\Renderer.cpp">
+      <Filter>System\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Scene\DXRScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Scene\CornelBoxScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GameObject\DXRBox.cpp">
+      <Filter>GameObject</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GameObject\DXRSphere.cpp">
+      <Filter>GameObject</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\Renderer.h">
-      <Filter>System\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="src\GameManager.h">
-      <Filter>System</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Pch.h">
-      <Filter>System</Filter>
-    </ClInclude>
-    <ClInclude Include="src\App.h">
-      <Filter>System</Filter>
-    </ClInclude>
-    <ClInclude Include="src\singleton_template.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="src\UtilTypes.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Scene.h">
-      <Filter>Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="src\GameObject.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\GameObject2D.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
     <ClInclude Include="external\Imgui\imconfig.h">
       <Filter>Imgui</Filter>
     </ClInclude>
@@ -152,46 +122,73 @@
     <ClInclude Include="external\Imgui\imstb_truetype.h">
       <Filter>Imgui</Filter>
     </ClInclude>
-    <ClInclude Include="src\Position.h">
-      <Filter>GameObject</Filter>
+    <ClInclude Include="src\Utils\singleton_template.h">
+      <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="src\Rotation.h">
-      <Filter>GameObject</Filter>
+    <ClInclude Include="src\Utils\UtilTypes.h">
+      <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="src\Scale.h">
-      <Filter>GameObject</Filter>
+    <ClInclude Include="src\System\App.h">
+      <Filter>System</Filter>
     </ClInclude>
-    <ClInclude Include="src\Transform.h">
-      <Filter>GameObject</Filter>
+    <ClInclude Include="src\System\GameManager.h">
+      <Filter>System</Filter>
     </ClInclude>
-    <ClInclude Include="src\GameObjectUtils.h">
-      <Filter>GameObject</Filter>
+    <ClInclude Include="src\System\Input.h">
+      <Filter>System</Filter>
     </ClInclude>
-    <ClInclude Include="src\GameObject3D.h">
-      <Filter>GameObject</Filter>
+    <ClInclude Include="src\System\Pch.h">
+      <Filter>System</Filter>
     </ClInclude>
-    <ClInclude Include="src\DXRData.h">
+    <ClInclude Include="src\System\Renderer\DXRRenderer.h">
       <Filter>System\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="src\DXRShape.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\DXRBox.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\DXRSphere.h">
-      <Filter>GameObject</Filter>
-    </ClInclude>
-    <ClInclude Include="src\DXRScene.h">
-      <Filter>Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="src\CornelBoxScene.h">
-      <Filter>Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="src\DXRRenderer.h">
+    <ClInclude Include="src\System\Renderer\Renderer.h">
       <Filter>System\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="src\Input.h">
+    <ClInclude Include="src\System\Renderer\DXRData.h">
+      <Filter>System\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Scene\DXRScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Scene\Scene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Scene\CornelBoxScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject\GameObject2D.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject\GameObject3D.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject\DXRBox.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject\DXRShape.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject\DXRSphere.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GameObject\GameObject.h">
+      <Filter>GameObject</Filter>
+    </ClInclude>
+    <ClInclude Include="src\System\Rotation.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="src\System\Scale.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="src\System\Transform.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="src\System\Position.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="src\System\ComponentUtils.h">
       <Filter>System</Filter>
     </ClInclude>
   </ItemGroup>

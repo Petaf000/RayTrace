@@ -116,7 +116,7 @@ float3 ComputeAmbientOcclusion(float3 worldPos, float3 normal, MaterialData mate
 {
     float occluded = 0.0f;
     // ƒŠƒtƒ@ƒŒƒ“ƒX‚É‚Å‚«‚é‚¾‚¯‹ß‚Ã‚¯‚é‚½‚ß‚É–Ú‚Å’²®‚µ‚Ä‚Ü‚·
-    const int aoSamples = 16;
+    const int aoSamples = 4;
     const float aoRadius = 0.05f;
     
     for (int i = 0; i < aoSamples; i++)
